@@ -1,0 +1,15 @@
+[package]
+
+name = "rjs"
+version = "0.0.1"
+authors = [ "Pieter van Ginkel <pvginkel@gmail.com>" ]
+
+[[bin]]
+
+name = "rjs"
+path = "src/main.rs"
+
+[lib]
+
+name = "rjs"
+path = "src/lib.rs"
