@@ -127,31 +127,31 @@ impl Name {
 }
 
 pub struct Program {
-	pub items: Vec<Box<Item>>
+	pub items: Vec<Item>
 }
 
 pub enum Item {
-	Function(Box<Function>),
-	Block(Box<Block>),
-	VarDecl(Box<VarDecl>),
+	Function(Function),
+	Block(Block),
+	VarDecl(VarDecl),
 	Empty,
-	If(Box<If>),
-	Do(Box<Do>),
-	While(Box<While>),
-	For(Box<For>),
-	ForVar(Box<ForVar>),
-	ForIn(Box<ForIn>),
-	ForVarIn(Box<ForVarIn>),
-	Continue(Box<Continue>),
-	Break(Box<Break>),
-	Return(Box<Return>),
-	With(Box<With>),
-	Switch(Box<Switch>),
-	Throw(Box<Throw>),
-	Try(Box<Try>),
+	If(If),
+	Do(Do),
+	While(While),
+	For(For),
+	ForVar(ForVar),
+	ForIn(ForIn),
+	ForVarIn(ForVarIn),
+	Continue(Continue),
+	Break(Break),
+	Return(Return),
+	With(With),
+	Switch(Switch),
+	Throw(Throw),
+	Try(Try),
 	Debugger,
-	Labelled(Box<Labelled>),
-	ExprStmt(Box<ExprStmt>)
+	Labelled(Labelled),
+	ExprStmt(ExprStmt)
 }
 
 pub struct Function {
@@ -174,7 +174,7 @@ pub struct VarDecl {
 
 pub struct Var {
 	pub ident: Ident,
-	pub expr: Option<Expr>
+	pub expr: Option<Box<Expr>>
 }
 
 pub struct ExprSeq {
@@ -183,44 +183,44 @@ pub struct ExprSeq {
 
 pub struct If {
 	pub expr: ExprSeq,
-	pub then: Item,
-	pub else_: Option<Item>
+	pub then: Box<Item>,
+	pub else_: Option<Box<Item>>
 }
 
 pub struct Do {
-	pub expr: Expr,
-	pub stmt: Item
+	pub expr: Box<Expr>,
+	pub stmt: Box<Item>
 }
 
 pub struct While {
-	pub expr: Expr,
-	pub stmt: Item
+	pub expr: Box<Expr>,
+	pub stmt: Box<Item>
 }
 
 pub struct For {
 	pub init: Option<ExprSeq>,
 	pub test: Option<ExprSeq>,
 	pub incr: Option<ExprSeq>,
-	pub stmt: Item
+	pub stmt: Box<Item>
 }
 
 pub struct ForVar {
 	pub init: Option<VarDecl>,
 	pub test: Option<ExprSeq>,
 	pub incr: Option<ExprSeq>,
-	pub stmt: Item
+	pub stmt: Box<Item>
 }
 
 pub struct ForIn {
-	pub in_: Expr,
+	pub in_: Box<Expr>,
 	pub expr: ExprSeq,
-	pub stmt: Item
+	pub stmt: Box<Item>
 }
 
 pub struct ForVarIn {
 	pub in_: Var,
 	pub expr: ExprSeq,
-	pub stmt: Item
+	pub stmt: Box<Item>
 }
 
 pub struct Continue {
@@ -237,7 +237,7 @@ pub struct Return {
 
 pub struct With {
 	pub expr: ExprSeq,
-	pub stmt: Item
+	pub stmt: Box<Item>
 }
 
 pub struct Switch {
@@ -267,7 +267,7 @@ pub struct CatchClause {
 
 pub struct Labelled {
 	pub ident: Ident,
-	pub stmt: Item
+	pub stmt: Box<Item>
 }
 
 pub struct ExprStmt {
@@ -275,26 +275,26 @@ pub struct ExprStmt {
 }
 
 pub enum Expr {
-	Function(Box<Function>),
-	New(Box<New>),
+	Function(Function),
+	New(New),
 	This,
 	Missing,
-	Ident(Box<Ident>),
-	Unary(Box<Unary>),
+	Ident(Ident),
+	Unary(Unary),
 	Literal(Rc<Lit>),
-	Paren(Box<ExprSeq>),
-	ArrayLiteral(Box<ArrayLit>),
-	ObjectLiteral(Box<ObjectLit>),
-	MemberIndex(Box<MemberIndex>),
-	MemberDot(Box<MemberDot>),
-	Call(Box<Call>),
-	Binary(Box<Binary>),
-	Ternary(Box<Ternary>),
-	Assign(Box<Assign>)
+	Paren(ExprSeq),
+	ArrayLiteral(ArrayLit),
+	ObjectLiteral(ObjectLit),
+	MemberIndex(MemberIndex),
+	MemberDot(MemberDot),
+	Call(Call),
+	Binary(Binary),
+	Ternary(Ternary),
+	Assign(Assign)
 }
 
 pub struct New {
-	pub expr: Expr,
+	pub expr: Box<Expr>,
 	pub args: Option<Vec<Expr>>
 }
 
@@ -339,18 +339,18 @@ pub enum Op {
 
 pub struct Unary {
 	pub op: Op,
-	pub expr: Expr
+	pub expr: Box<Expr>
 }
 
 pub struct Binary {
 	pub op: Op,
-	pub left: Expr,
-	pub right: Expr
+	pub left: Box<Expr>,
+	pub right: Box<Expr>
 }
 
 pub struct Assign {
 	pub op: Op,
-	pub left: Expr,
+	pub left: Box<Expr>,
 	pub right: ExprSeq
 }
 
@@ -363,14 +363,14 @@ pub struct ObjectLit {
 }
 
 pub enum Property {
-	Assignment(Box<PropertyAssignment>),
-	Getter(Box<PropertyGetter>),
-	Setter(Box<PropertySetter>)
+	Assignment(PropertyAssignment),
+	Getter(PropertyGetter),
+	Setter(PropertySetter)
 }
 
 pub struct PropertyAssignment {
 	pub key: PropertyKey,
-	pub value: Expr
+	pub value: Box<Expr>
 }
 
 pub enum PropertyKey {
@@ -390,22 +390,22 @@ pub struct PropertySetter {
 }
 
 pub struct MemberIndex {
-	pub expr: Expr,
+	pub expr: Box<Expr>,
 	pub index: ExprSeq
 }
 
 pub struct MemberDot {
-	pub expr: Expr,
+	pub expr: Box<Expr>,
 	pub ident: Ident
 }
 
 pub struct Call {
-	pub expr: Expr,
+	pub expr: Box<Expr>,
 	pub args: Vec<Expr>
 }
 
 pub struct Ternary {
-	pub test: Expr,
-	pub then: Expr,
-	pub else_: Expr
+	pub test: Box<Expr>,
+	pub then: Box<Expr>,
+	pub else_: Box<Expr>
 }
