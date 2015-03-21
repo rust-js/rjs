@@ -166,7 +166,7 @@ impl<'a> Parser<'a> {
 		}
 		
 		Ok(Program {
-			items: items
+			items: Block { stmts: items }
 		})
 	}
 	
@@ -175,14 +175,16 @@ impl<'a> Parser<'a> {
 			if let Some(&Token::Identifier(..)) = self.peek_at(1) {
 				self.bump();
 				
-				return Ok(Item::Function(try!(self.parse_function())));
+				let (ident, args, block) = try!(self.parse_function());
+				
+				return Ok(Item::Function(ident, args, block));
 			}
 		}
 		
 		self.parse_stmt()
 	}
 	
-	fn parse_function(&mut self) -> ParseResult<Function> {
+	fn parse_function(&mut self) -> ParseResult<(Option<Ident>, Vec<Ident>, Block)> {
 		let ident = if let Some(&Token::Identifier(..)) = self.peek() {
 			Some(try!(self.parse_ident()))
 		} else {
@@ -192,11 +194,7 @@ impl<'a> Parser<'a> {
 		let args = try!(self.parse_parameter_list());
 		let block = try!(self.parse_function_block());
 		
-		Ok(Function {
-			ident: ident,
-			args: args,
-			block: block
-		})
+		Ok((ident, args, block))
 	}
 	
 	fn parse_function_block(&mut self) -> ParseResult<Block> {
@@ -237,9 +235,7 @@ impl<'a> Parser<'a> {
 	
 	fn parse_ident(&mut self) -> ParseResult<Ident> {
 		if let Token::Identifier(name) = *self.next() {
-			return Ok(Ident {
-				name: name
-			});
+			return Ok(name.ident());
 		}
 		
 		self.fatal("Expected identifier")
@@ -387,7 +383,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::VarDecl(var_decl))
 	}
 	
-	fn parse_var_decl(&mut self) -> ParseResult<VarDecl> {
+	fn parse_var_decl(&mut self) -> ParseResult<Vec<Var>> {
 		let mut vars = Vec::new();
 		
 		while !self.is_eof() {
@@ -405,9 +401,7 @@ impl<'a> Parser<'a> {
 			});
 			
 			if !self.consume(&Token::Comma) {
-				return Ok(VarDecl {
-					vars: vars
-				});
+				return Ok(vars);
 			}
 		}
 		
@@ -418,7 +412,10 @@ impl<'a> Parser<'a> {
 		let mut expr = try!(match self.peek() {
 			Some(&Token::Function) => {
 				self.bump();
-				Ok(Expr::Function(try!(self.parse_function())))
+				
+				let (ident, args, block) = try!(self.parse_function());
+				
+				Ok(Expr::Function(ident, args, block))
 			},
 			Some(&Token::New) => self.parse_expr_new(),
 			Some(&Token::Delete) => self.parse_expr_unary_pre(Op::Delete),
@@ -511,20 +508,14 @@ impl<'a> Parser<'a> {
 		
 		try!(self.expect(&Token::CloseBracket));
 		
-		Ok(Expr::MemberIndex(MemberIndex {
-			expr: Box::new(expr),
-			index: index
-		}))
+		Ok(Expr::MemberIndex(Box::new(expr), index))
 	}
 	
 	fn parse_expr_member_dot(&mut self, expr: Expr) -> ParseResult<Expr> {
 		self.bump();
 		
 		if let Some(name) = try!(self.parse_ident_name()) {
-			Ok(Expr::MemberDot(MemberDot {
-				expr: Box::new(expr),
-				ident: Ident { name: name }
-			}))
+			Ok(Expr::MemberDot(Box::new(expr), name.ident()))
 		} else {
 			self.fatal("Expected identifier name")
 		}
@@ -533,10 +524,7 @@ impl<'a> Parser<'a> {
 	fn parse_expr_call(&mut self, expr: Expr) -> ParseResult<Expr> {
 		let args = try!(self.parse_arguments());
 		
-		Ok(Expr::Call(Call {
-			expr: Box::new(expr),
-			args: args
-		}))
+		Ok(Expr::Call(Box::new(expr), args))
 	}
 	
 	fn parse_expr_binary(&mut self, expr: Expr, op: Op) -> ParseResult<Expr> {
@@ -544,11 +532,7 @@ impl<'a> Parser<'a> {
 		
 		let right = try!(self.parse_expr());
 		
-		Ok(Expr::Binary(Binary {
-			op: op,
-			left: Box::new(expr),
-			right: Box::new(right)
-		}))
+		Ok(Expr::Binary(op, Box::new(expr), Box::new(right)))
 	}
 	
 	fn parse_expr_binary_assign(&mut self, expr: Expr, op: Op) -> ParseResult<Expr> {
@@ -556,11 +540,7 @@ impl<'a> Parser<'a> {
 		
 		let right = try!(self.parse_expr_seq());
 		
-		Ok(Expr::Assign(Assign {
-			op: op,
-			left: Box::new(expr),
-			right: right
-		}))
+		Ok(Expr::Assign(op, Box::new(expr), right))
 	}
 	
 	fn parse_expr_ternary(&mut self, expr: Expr) -> ParseResult<Expr> {
@@ -572,11 +552,7 @@ impl<'a> Parser<'a> {
 		
 		let else_ = try!(self.parse_expr());
 		
-		Ok(Expr::Ternary(Ternary {
-			test: Box::new(expr),
-			then: Box::new(then),
-			else_: Box::new(else_)
-		}))
+		Ok(Expr::Ternary(Box::new(expr), Box::new(then), Box::new(else_)))
 	}
 	
 	fn parse_expr_new(&mut self) -> ParseResult<Expr> {
@@ -590,10 +566,7 @@ impl<'a> Parser<'a> {
 			None
 		};
 		
-		Ok(Expr::New(New {
-			expr: Box::new(expr),
-			args: args
-		}))
+		Ok(Expr::New(Box::new(expr), args))
 	}
 	
 	fn parse_expr_unary_pre(&mut self, op: Op) -> ParseResult<Expr> {
@@ -601,19 +574,13 @@ impl<'a> Parser<'a> {
 		
 		let expr = try!(self.parse_expr());
 		
-		Ok(Expr::Unary(Unary {
-			op: op,
-			expr: Box::new(expr)
-		}))
+		Ok(Expr::Unary(op, Box::new(expr)))
 	}
 	
 	fn parse_expr_unary_post(&mut self, expr: Expr, op: Op) -> ParseResult<Expr> {
 		self.bump();
 		
-		Ok(Expr::Unary(Unary {
-			expr: Box::new(expr),
-			op: op
-		}))
+		Ok(Expr::Unary(op, Box::new(expr)))
 	}
 	
 	fn parse_arguments(&mut self) -> ParseResult<Vec<Expr>> {
@@ -692,7 +659,7 @@ impl<'a> Parser<'a> {
 			}
 		}
 	
-		return Ok(Expr::ArrayLiteral(ArrayLit { elems: elems }));
+		return Ok(Expr::ArrayLiteral(elems));
 	}
 	
 	fn parse_expr_object_literal(&mut self) -> ParseResult<Expr> {
@@ -722,13 +689,13 @@ impl<'a> Parser<'a> {
 			}
 		}
 		
-		Ok(Expr::ObjectLiteral(ObjectLit { props: props }))
+		Ok(Expr::ObjectLiteral(props))
 	}
 	
 	fn parse_expr_object_literal_prop(&mut self) -> ParseResult<Property> {
 		if let Some(name) = try!(self.parse_ident_name()) {
 			let prop_ident = match try!(self.parse_ident_name()) {
-				Some(name) => Some(Ident { name: name }),
+				Some(name) => Some(name.ident()),
 				None => None
 			};
 			
@@ -738,10 +705,7 @@ impl<'a> Parser<'a> {
 					
 					let block = try!(self.parse_function_block());
 					
-					Ok(Property::Getter(PropertyGetter {
-						name: prop_ident,
-						block: block
-					}))
+					Ok(Property::Getter(prop_ident, block))
 				} else if name == keywords::SET {
 					let param = try!(self.parse_ident());
 					
@@ -749,11 +713,7 @@ impl<'a> Parser<'a> {
 					
 					let block = try!(self.parse_function_block());
 					
-					Ok(Property::Setter(PropertySetter {
-						name: prop_ident,
-						param: param,
-						block: block
-					}))
+					Ok(Property::Setter(prop_ident, param, block))
 				} else {
 					self.fatal("Property getter or setter must start with get or set")
 				}
@@ -765,10 +725,7 @@ impl<'a> Parser<'a> {
 					
 					let expr = try!(self.parse_expr());
 					
-					Ok(Property::Assignment(PropertyAssignment {
-						key: PropertyKey::Ident(Ident { name: name }),
-						value: Box::new(expr)
-					}))
+					Ok(Property::Assignment(PropertyKey::Ident(name.ident()), Box::new(expr)))
 				}
 			}
 		} else if let Some(&Token::Literal(..)) = self.peek() {
@@ -785,10 +742,7 @@ impl<'a> Parser<'a> {
 			
 			let expr = try!(self.parse_expr());
 			
-			Ok(Property::Assignment(PropertyAssignment {
-				key: PropertyKey::Literal(lit),
-				value: Box::new(expr)
-			}))
+			Ok(Property::Assignment(PropertyKey::Literal(lit), Box::new(expr)))
 		} else {
 			let message = { format!("Cannot parse object literal property, got {:?}", self.peek()) };
 			
@@ -813,11 +767,7 @@ impl<'a> Parser<'a> {
 			None
 		};
 		
-		Ok(Item::If(If {
-			expr: expr,
-			then: Box::new(then),
-			else_: else_
-		}))
+		Ok(Item::If(expr, Box::new(then), else_))
 	}
 	
 	fn parse_expr_seq(&mut self) -> ParseResult<ExprSeq> {
@@ -847,10 +797,7 @@ impl<'a> Parser<'a> {
 		try!(self.expect(&Token::CloseParen));
 		try!(self.expect_eos());
 		
-		Ok(Item::Do(Do {
-			stmt: Box::new(stmt),
-			expr: Box::new(expr)
-		}))
+		Ok(Item::Do(Box::new(expr), Box::new(stmt)))
 	}
 	
 	fn parse_while(&mut self) -> ParseResult<Item> {
@@ -864,10 +811,7 @@ impl<'a> Parser<'a> {
 		
 		let stmt = try!(self.parse_stmt());
 		
-		Ok(Item::While(While {
-			expr: Box::new(expr),
-			stmt: Box::new(stmt)
-		}))
+		Ok(Item::While(Box::new(expr), Box::new(stmt)))
 	}
 	
 	fn parse_for(&mut self) -> ParseResult<Item> {
@@ -884,17 +828,12 @@ impl<'a> Parser<'a> {
 				Token::SemiColon => {
 					let (test, incr, stmt) = try!(self.parse_for_tail());
 					
-					Ok(Item::ForVar(ForVar {
-						init: Some(vars),
-						test: test,
-						incr: incr,
-						stmt: Box::new(stmt)
-					}))
+					Ok(Item::ForVar(Some(vars), test, incr, Box::new(stmt)))
 				},
 				Token::In => {
 					// A ForVarIn can only have a single var decl.
 					
-					if vars.vars.len() != 1 {
+					if vars.len() != 1 {
 						return self.fatal("For var in must have a single variable declaration");
 					}
 					
@@ -904,11 +843,7 @@ impl<'a> Parser<'a> {
 					
 					let stmt = try!(self.parse_stmt());
 					
-					Ok(Item::ForVarIn(ForVarIn {
-						in_: vars.vars.single(),
-						expr: expr,
-						stmt: Box::new(stmt)
-					}))
+					Ok(Item::ForVarIn(vars.single(), expr, Box::new(stmt)))
 				},
 				_ => self.fatal("Cannot parse for var")
 			}
@@ -920,12 +855,7 @@ impl<'a> Parser<'a> {
 				
 				let (test, incr, stmt) = try!(self.parse_for_tail());
 				
-				Ok(Item::For(For {
-					init: None,
-					test: test,
-					incr: incr,
-					stmt: Box::new(stmt)
-				}))
+				Ok(Item::For(None, test, incr, Box::new(stmt)))
 			} else {
 				let expr = try!(self.parse_expr_seq());
 				
@@ -935,12 +865,7 @@ impl<'a> Parser<'a> {
 				if self.consume(&Token::SemiColon) {
 					let (test, incr, stmt) = try!(self.parse_for_tail());
 					
-					Ok(Item::For(For {
-						init: Some(expr),
-						test: test,
-						incr: incr,
-						stmt: Box::new(stmt)
-					}))
+					Ok(Item::For(Some(expr), test, incr, Box::new(stmt)))
 				} else {
 					// A ForIn can only have a single expression.
 					
@@ -952,17 +877,15 @@ impl<'a> Parser<'a> {
 					
 					let expr = expr.exprs.single();
 					
-					if let Expr::Binary(Binary { left, right, op }) = expr {
+					if let Expr::Binary(op, left, right) = expr {
 						if op == Op::In {
 							try!(self.expect(&Token::CloseParen));
 							
 							let stmt = try!(self.parse_stmt());
 							
-							return Ok(Item::ForIn(ForIn {
-								in_: left,
-								expr: ExprSeq { exprs: vec![*right] },
-								stmt: Box::new(stmt)
-							}));
+							let in_ = ExprSeq { exprs: vec![*right] };
+							
+							return Ok(Item::ForIn(left, in_, Box::new(stmt)));
 						}
 					}
 					
@@ -1005,9 +928,7 @@ impl<'a> Parser<'a> {
 		
 		try!(self.expect_eos());
 		
-		Ok(Item::Continue(Continue {
-			ident: ident
-		}))
+		Ok(Item::Continue(ident))
 	}
 	
 	fn parse_break(&mut self) -> ParseResult<Item> {
@@ -1017,14 +938,12 @@ impl<'a> Parser<'a> {
 		
 		try!(self.expect_eos());
 		
-		Ok(Item::Break(Break {
-			ident: ident
-		}))
+		Ok(Item::Break(ident))
 	}
 	
 	fn parse_opt_ident(&mut self) -> ParseResult<Option<Ident>> {
 		let ident = match self.peek() {
-			Some(&Token::Identifier(name)) => Ident { name: name },
+			Some(&Token::Identifier(name)) => name.ident(),
 			_ => return Ok(None)
 		};
 		
@@ -1044,9 +963,7 @@ impl<'a> Parser<'a> {
 		
 		try!(self.expect_eos());
 		
-		Ok(Item::Return(Return {
-			expr: expr
-		}))
+		Ok(Item::Return(expr))
 	}
 	
 	fn parse_with(&mut self) -> ParseResult<Item> {
@@ -1060,10 +977,7 @@ impl<'a> Parser<'a> {
 		
 		let stmt = try!(self.parse_stmt());
 		
-		Ok(Item::With(With {
-			expr: expr,
-			stmt: Box::new(stmt)
-		}))
+		Ok(Item::With(expr, Box::new(stmt)))
 	}
 	
 	fn parse_switch(&mut self) -> ParseResult<Item> {
@@ -1077,7 +991,7 @@ impl<'a> Parser<'a> {
 		
 		try!(self.expect(&Token::OpenBrace));
 		
-		let mut cases: Vec<CaseClause> = Vec::new();
+		let mut cases: Vec<SwitchClause> = Vec::new();
 		let mut have_default = false;
 		
 		loop {
@@ -1090,10 +1004,7 @@ impl<'a> Parser<'a> {
 					
 					let stmts = try!(self.parse_stmt_list());
 					
-					cases.push(CaseClause {
-						expr: Some(case_expr),
-						stmts: stmts
-					});
+					cases.push(SwitchClause::Case(case_expr, stmts));
 				},
 				Token::Default => {
 					try!(self.expect(&Token::Colon));
@@ -1108,19 +1019,13 @@ impl<'a> Parser<'a> {
 					
 					let stmts = try!(self.parse_stmt_list());
 					
-					cases.push(CaseClause {
-						expr: None,
-						stmts: stmts
-					});
+					cases.push(SwitchClause::Default(stmts));
 				},
 				_ => return self.fatal("Cannot parse switch case")
 			}
 		}
 		
-		Ok(Item::Switch(Switch {
-			expr: expr,
-			cases: cases
-		}))
+		Ok(Item::Switch(expr, cases))
 	}
 	
 	fn parse_throw(&mut self) -> ParseResult<Item> {
@@ -1130,9 +1035,7 @@ impl<'a> Parser<'a> {
 		
 		try!(self.expect_eos());
 		
-		Ok(Item::Throw(Throw {
-			expr: expr
-		}))
+		Ok(Item::Throw(expr))
 	}
 	
 	fn parse_try(&mut self) -> ParseResult<Item> {
@@ -1149,7 +1052,7 @@ impl<'a> Parser<'a> {
 			
 			let catch = try!(self.parse_block());
 			
-			Some(CatchClause {
+			Some(Catch {
 				ident: ident,
 				block: catch
 			})
@@ -1168,11 +1071,7 @@ impl<'a> Parser<'a> {
 		if !catch.is_some() && !finally.is_some() {
 			self.fatal("Either a catch or finally is required")
 		} else {
-			Ok(Item::Try(Try {
-				try: try,
-				catch: catch,
-				finally: finally
-			}))
+			Ok(Item::Try(try, catch, finally))
 		}
 	}
 	
@@ -1191,10 +1090,7 @@ impl<'a> Parser<'a> {
 		
 		let stmt = try!(self.parse_stmt());
 		
-		Ok(Item::Labelled(Labelled {
-			ident: ident,
-			stmt: Box::new(stmt)
-		}))
+		Ok(Item::Labelled(ident, Box::new(stmt)))
 	}
 	
 	fn parse_expr_stmt(&mut self) -> ParseResult<Item> {
@@ -1202,8 +1098,6 @@ impl<'a> Parser<'a> {
 		
 		try!(self.expect_eos());
 		
-		Ok(Item::ExprStmt(ExprStmt {
-			expr: expr
-		}))
+		Ok(Item::ExprStmt(expr))
 	}
 }

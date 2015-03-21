@@ -127,37 +127,31 @@ impl Name {
 }
 
 pub struct Program {
-	pub items: Vec<Item>
+	pub items: Block
 }
 
 pub enum Item {
-	Function(Function),
 	Block(Block),
-	VarDecl(VarDecl),
-	Empty,
-	If(If),
-	Do(Do),
-	While(While),
-	For(For),
-	ForVar(ForVar),
-	ForIn(ForIn),
-	ForVarIn(ForVarIn),
-	Continue(Continue),
-	Break(Break),
-	Return(Return),
-	With(With),
-	Switch(Switch),
-	Throw(Throw),
-	Try(Try),
+	Break(Option<Ident>),
+	Continue(Option<Ident>),
 	Debugger,
-	Labelled(Labelled),
-	ExprStmt(ExprStmt)
-}
-
-pub struct Function {
-	pub ident: Option<Ident>,
-	pub args: Vec<Ident>,
-	pub block: Block
+	Do(Box<Expr>, Box<Item>),
+	Empty,
+	ExprStmt(ExprSeq),
+	For(Option<ExprSeq>, Option<ExprSeq>, Option<ExprSeq>, Box<Item>),
+	ForIn(Box<Expr>, ExprSeq, Box<Item>),
+	ForVar(Option<Vec<Var>>, Option<ExprSeq>, Option<ExprSeq>, Box<Item>),
+	ForVarIn(Var, ExprSeq, Box<Item>),
+	Function(Option<Ident>, Vec<Ident>, Block),
+	If(ExprSeq, Box<Item>, Option<Box<Item>>),
+	Labelled(Ident, Box<Item>),
+	Return(Option<ExprSeq>),
+	Switch(ExprSeq, Vec<SwitchClause>),
+	Throw(ExprSeq),
+	Try(Block, Option<Catch>, Option<Block>),
+	VarDecl(Vec<Var>),
+	While(Box<Expr>, Box<Item>),
+	With(ExprSeq, Box<Item>)
 }
 
 pub struct Block {
@@ -166,10 +160,6 @@ pub struct Block {
 
 pub struct Ident {
 	pub name: Name
-}
-
-pub struct VarDecl {
-	pub vars: Vec<Var>
 }
 
 pub struct Var {
@@ -181,231 +171,81 @@ pub struct ExprSeq {
 	pub exprs: Vec<Expr>
 }
 
-pub struct If {
-	pub expr: ExprSeq,
-	pub then: Box<Item>,
-	pub else_: Option<Box<Item>>
+pub enum SwitchClause {
+	Case(ExprSeq, Vec<Item>),
+	Default(Vec<Item>)
 }
 
-pub struct Do {
-	pub expr: Box<Expr>,
-	pub stmt: Box<Item>
-}
-
-pub struct While {
-	pub expr: Box<Expr>,
-	pub stmt: Box<Item>
-}
-
-pub struct For {
-	pub init: Option<ExprSeq>,
-	pub test: Option<ExprSeq>,
-	pub incr: Option<ExprSeq>,
-	pub stmt: Box<Item>
-}
-
-pub struct ForVar {
-	pub init: Option<VarDecl>,
-	pub test: Option<ExprSeq>,
-	pub incr: Option<ExprSeq>,
-	pub stmt: Box<Item>
-}
-
-pub struct ForIn {
-	pub in_: Box<Expr>,
-	pub expr: ExprSeq,
-	pub stmt: Box<Item>
-}
-
-pub struct ForVarIn {
-	pub in_: Var,
-	pub expr: ExprSeq,
-	pub stmt: Box<Item>
-}
-
-pub struct Continue {
-	pub ident: Option<Ident>
-}
-
-pub struct Break {
-	pub ident: Option<Ident>
-}
-
-pub struct Return {
-	pub expr: Option<ExprSeq>
-}
-
-pub struct With {
-	pub expr: ExprSeq,
-	pub stmt: Box<Item>
-}
-
-pub struct Switch {
-	pub expr: ExprSeq,
-	pub cases: Vec<CaseClause>
-}
-
-pub struct CaseClause {
-	pub expr: Option<ExprSeq>,
-	pub stmts: Vec<Item>
-}
-
-pub struct Throw {
-	pub expr: ExprSeq
-}
-
-pub struct Try {
-	pub try: Block,
-	pub catch: Option<CatchClause>,
-	pub finally: Option<Block>
-}
-
-pub struct CatchClause {
+pub struct Catch {
 	pub ident: Ident,
 	pub block: Block
 }
 
-pub struct Labelled {
-	pub ident: Ident,
-	pub stmt: Box<Item>
-}
-
-pub struct ExprStmt {
-	pub expr: ExprSeq
-}
-
 pub enum Expr {
-	Function(Function),
-	New(New),
-	This,
-	Missing,
+	ArrayLiteral(Vec<Expr>),
+	Assign(Op, Box<Expr>, ExprSeq),
+	Binary(Op, Box<Expr>, Box<Expr>),
+	Call(Box<Expr>, Vec<Expr>),
+	Function(Option<Ident>, Vec<Ident>, Block),
 	Ident(Ident),
-	Unary(Unary),
 	Literal(Rc<Lit>),
+	MemberDot(Box<Expr>, Ident),
+	MemberIndex(Box<Expr>, ExprSeq),
+	Missing,
+	New(Box<Expr>, Option<Vec<Expr>>),
+	ObjectLiteral(Vec<Property>),
 	Paren(ExprSeq),
-	ArrayLiteral(ArrayLit),
-	ObjectLiteral(ObjectLit),
-	MemberIndex(MemberIndex),
-	MemberDot(MemberDot),
-	Call(Call),
-	Binary(Binary),
-	Ternary(Ternary),
-	Assign(Assign)
-}
-
-pub struct New {
-	pub expr: Box<Expr>,
-	pub args: Option<Vec<Expr>>
+	Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
+	This,
+	Unary(Op, Box<Expr>)
 }
 
 #[derive(PartialEq, Debug)]
 pub enum Op {
-	Delete,
-	Void,
-	Typeof,
-	Assign,
-	PreIncr,
-	PostIncr,
-	PreDecr,
-	PostDecr,
-	Plus,
-	Minus,
-	BitNot,
-	Not,
-	Multiply,
-	Divide,
-	Modulus,
 	Add,
-	Subtract,
-	LeftShiftArithmetic,
-	RightShiftArithmetic,
-	RightShiftLogical,
-	LessThan,
-	GreaterThan,
-	LessThanEquals,
-	GreaterThanEquals,
-	InstanceOf,
-	In,
+	And,
+	Assign,
+	BitAnd,
+	BitNot,
+	BitOr,
+	BitXOr,
+	Delete,
+	Divide,
 	Equals,
-	NotEquals,
+	GreaterThan,
+	GreaterThanEquals,
 	IdentityEquals,
 	IdentityNotEquals,
-	BitAnd,
-	BitXOr,
-	BitOr,
-	And,
-	Or
-}
-
-pub struct Unary {
-	pub op: Op,
-	pub expr: Box<Expr>
-}
-
-pub struct Binary {
-	pub op: Op,
-	pub left: Box<Expr>,
-	pub right: Box<Expr>
-}
-
-pub struct Assign {
-	pub op: Op,
-	pub left: Box<Expr>,
-	pub right: ExprSeq
-}
-
-pub struct ArrayLit {
-	pub elems: Vec<Expr>
-}
-
-pub struct ObjectLit {
-	pub props: Vec<Property>
+	In,
+	InstanceOf,
+	LeftShiftArithmetic,
+	LessThan,
+	LessThanEquals,
+	Minus,
+	Modulus,
+	Multiply,
+	Not,
+	NotEquals,
+	Or,
+	Plus,
+	PostDecr,
+	PostIncr,
+	PreDecr,
+	PreIncr,
+	RightShiftArithmetic,
+	RightShiftLogical,
+	Subtract,
+	Typeof,
+	Void
 }
 
 pub enum Property {
-	Assignment(PropertyAssignment),
-	Getter(PropertyGetter),
-	Setter(PropertySetter)
-}
-
-pub struct PropertyAssignment {
-	pub key: PropertyKey,
-	pub value: Box<Expr>
+	Assignment(PropertyKey, Box<Expr>),
+	Getter(Option<Ident>, Block),
+	Setter(Option<Ident>, Ident, Block)
 }
 
 pub enum PropertyKey {
 	Ident(Ident),
 	Literal(Rc<Lit>)
-}
-
-pub struct PropertyGetter {
-	pub name: Option<Ident>,
-	pub block: Block
-}
-
-pub struct PropertySetter {
-	pub name: Option<Ident>,
-	pub param: Ident,
-	pub block: Block
-}
-
-pub struct MemberIndex {
-	pub expr: Box<Expr>,
-	pub index: ExprSeq
-}
-
-pub struct MemberDot {
-	pub expr: Box<Expr>,
-	pub ident: Ident
-}
-
-pub struct Call {
-	pub expr: Box<Expr>,
-	pub args: Vec<Expr>
-}
-
-pub struct Ternary {
-	pub test: Box<Expr>,
-	pub then: Box<Expr>,
-	pub else_: Box<Expr>
 }
