@@ -181,7 +181,7 @@ impl<'a> Parser<'a> {
 			}
 		}
 		
-		self.parse_stmt()
+		self.parse_stmt(None)
 	}
 	
 	fn parse_function(&mut self) -> ParseResult<(Option<Ident>, Vec<Ident>, Block)> {
@@ -325,7 +325,7 @@ impl<'a> Parser<'a> {
 		})
 	}
 	
-	fn parse_stmt(&mut self) -> ParseResult<Item> {
+	fn parse_stmt(&mut self, label: Option<Ident>) -> ParseResult<Item> {
 		match self.peek() {
 			Some(&Token::OpenBrace) => Ok(Item::Block(try!(self.parse_block()))),
 			Some(&Token::Var) => self.parse_var_stmt(),
@@ -334,14 +334,14 @@ impl<'a> Parser<'a> {
 				Ok(Item::Empty)
 			},
 			Some(&Token::If) => self.parse_if(),
-			Some(&Token::Do) => self.parse_do(),
-			Some(&Token::While) => self.parse_while(),
-			Some(&Token::For) => self.parse_for(),
+			Some(&Token::Do) => self.parse_do(label),
+			Some(&Token::While) => self.parse_while(label),
+			Some(&Token::For) => self.parse_for(label),
 			Some(&Token::Continue) => self.parse_continue(),
 			Some(&Token::Break) => self.parse_break(),
 			Some(&Token::Return) => self.parse_return(),
 			Some(&Token::With) => self.parse_with(),
-			Some(&Token::Switch) => self.parse_switch(),
+			Some(&Token::Switch) => self.parse_switch(label),
 			Some(&Token::Throw) => self.parse_throw(),
 			Some(&Token::Try) => self.parse_try(),
 			Some(&Token::Debugger) => self.parse_debugger(),
@@ -369,7 +369,7 @@ impl<'a> Parser<'a> {
 				_ => {}
 			}
 			
-			stmts.push(try!(self.parse_stmt()));
+			stmts.push(try!(self.parse_stmt(None)));
 		}
 	}
 	
@@ -427,8 +427,8 @@ impl<'a> Parser<'a> {
 			},
 			Some(&Token::PlusPlus) => self.parse_expr_unary_pre(Op::PreIncr),
 			Some(&Token::MinusMinus) => self.parse_expr_unary_pre(Op::PreDecr),
-			Some(&Token::Plus) => self.parse_expr_unary_pre(Op::Plus),
-			Some(&Token::Minus) => self.parse_expr_unary_pre(Op::Minus),
+			Some(&Token::Plus) => self.parse_expr_unary_pre(Op::Positive),
+			Some(&Token::Minus) => self.parse_expr_unary_pre(Op::Negative),
 			Some(&Token::BitNot) => self.parse_expr_unary_pre(Op::BitNot),
 			Some(&Token::Not) => self.parse_expr_unary_pre(Op::Not),
 			Some(&Token::Identifier(..)) => self.parse_expr_ident(),
@@ -735,7 +735,7 @@ impl<'a> Parser<'a> {
 			
 			match *lit {
 				Lit::Null | Lit::Boolean(..) | Lit::Regex(..) => return self.fatal("Expected property key literal"),
-				Lit::String(..) | Lit::HexInteger(..) | Lit::OctalInteger(..) | Lit::Decimal(..) => {}
+				Lit::String(..) | Lit::Integer(..) | Lit::Long(..) | Lit::Double(..) => {}
 			}
 			
 			self.consume(&Token::Colon);
@@ -759,10 +759,10 @@ impl<'a> Parser<'a> {
 		
 		try!(self.expect(&Token::CloseParen));
 		
-		let then = try!(self.parse_stmt());
+		let then = try!(self.parse_stmt(None));
 		
 		let else_ = if self.consume(&Token::Else) {
-			Some(Box::new(try!(self.parse_stmt())))
+			Some(Box::new(try!(self.parse_stmt(None))))
 		} else {
 			None
 		};
@@ -784,10 +784,10 @@ impl<'a> Parser<'a> {
 		})
 	}
 	
-	fn parse_do(&mut self) -> ParseResult<Item> {
+	fn parse_do(&mut self, label: Option<Ident>) -> ParseResult<Item> {
 		self.bump();
 		
-		let stmt = try!(self.parse_stmt());
+		let stmt = try!(self.parse_stmt(None));
 		
 		try!(self.expect(&Token::While));
 		try!(self.expect(&Token::OpenParen));
@@ -797,10 +797,10 @@ impl<'a> Parser<'a> {
 		try!(self.expect(&Token::CloseParen));
 		try!(self.expect_eos());
 		
-		Ok(Item::Do(Box::new(expr), Box::new(stmt)))
+		Ok(Item::Do(label, Box::new(expr), Box::new(stmt)))
 	}
 	
-	fn parse_while(&mut self) -> ParseResult<Item> {
+	fn parse_while(&mut self, label: Option<Ident>) -> ParseResult<Item> {
 		self.bump();
 		
 		try!(self.expect(&Token::OpenParen));
@@ -809,12 +809,12 @@ impl<'a> Parser<'a> {
 		
 		try!(self.expect(&Token::CloseParen));
 		
-		let stmt = try!(self.parse_stmt());
+		let stmt = try!(self.parse_stmt(None));
 		
-		Ok(Item::While(Box::new(expr), Box::new(stmt)))
+		Ok(Item::While(label, Box::new(expr), Box::new(stmt)))
 	}
 	
-	fn parse_for(&mut self) -> ParseResult<Item> {
+	fn parse_for(&mut self, label: Option<Ident>) -> ParseResult<Item> {
 		self.bump();
 		
 		try!(self.expect(&Token::OpenParen));
@@ -828,7 +828,7 @@ impl<'a> Parser<'a> {
 				Token::SemiColon => {
 					let (test, incr, stmt) = try!(self.parse_for_tail());
 					
-					Ok(Item::ForVar(Some(vars), test, incr, Box::new(stmt)))
+					Ok(Item::ForVar(label, Some(vars), test, incr, Box::new(stmt)))
 				},
 				Token::In => {
 					// A ForVarIn can only have a single var decl.
@@ -836,14 +836,18 @@ impl<'a> Parser<'a> {
 					if vars.len() != 1 {
 						return self.fatal("For var in must have a single variable declaration");
 					}
+					let var = vars.single();
+					if var.expr.is_some() {
+						return self.fatal("Invalid variable declaration in for var in");
+					}
 					
 					let expr = try!(self.parse_expr_seq());
 					
 					try!(self.expect(&Token::CloseParen));
 					
-					let stmt = try!(self.parse_stmt());
+					let stmt = try!(self.parse_stmt(None));
 					
-					Ok(Item::ForVarIn(vars.single(), expr, Box::new(stmt)))
+					Ok(Item::ForVarIn(label, var.ident, expr, Box::new(stmt)))
 				},
 				_ => self.fatal("Cannot parse for var")
 			}
@@ -855,7 +859,7 @@ impl<'a> Parser<'a> {
 				
 				let (test, incr, stmt) = try!(self.parse_for_tail());
 				
-				Ok(Item::For(None, test, incr, Box::new(stmt)))
+				Ok(Item::For(label, None, test, incr, Box::new(stmt)))
 			} else {
 				let expr = try!(self.parse_expr_seq());
 				
@@ -865,7 +869,7 @@ impl<'a> Parser<'a> {
 				if self.consume(&Token::SemiColon) {
 					let (test, incr, stmt) = try!(self.parse_for_tail());
 					
-					Ok(Item::For(Some(expr), test, incr, Box::new(stmt)))
+					Ok(Item::For(label, Some(expr), test, incr, Box::new(stmt)))
 				} else {
 					// A ForIn can only have a single expression.
 					
@@ -881,11 +885,11 @@ impl<'a> Parser<'a> {
 						if op == Op::In {
 							try!(self.expect(&Token::CloseParen));
 							
-							let stmt = try!(self.parse_stmt());
+							let stmt = try!(self.parse_stmt(None));
 							
 							let in_ = ExprSeq { exprs: vec![*right] };
 							
-							return Ok(Item::ForIn(left, in_, Box::new(stmt)));
+							return Ok(Item::ForIn(label, left, in_, Box::new(stmt)));
 						}
 					}
 					
@@ -916,7 +920,7 @@ impl<'a> Parser<'a> {
 			Some(expr)
 		};
 		
-		let stmt = try!(self.parse_stmt());
+		let stmt = try!(self.parse_stmt(None));
 		
 		Ok((test, incr, stmt))
 	}
@@ -975,12 +979,12 @@ impl<'a> Parser<'a> {
 		
 		try!(self.expect(&Token::CloseParen));
 		
-		let stmt = try!(self.parse_stmt());
+		let stmt = try!(self.parse_stmt(None));
 		
 		Ok(Item::With(expr, Box::new(stmt)))
 	}
 	
-	fn parse_switch(&mut self) -> ParseResult<Item> {
+	fn parse_switch(&mut self, label: Option<Ident>) -> ParseResult<Item> {
 		self.bump();
 		
 		try!(self.expect(&Token::OpenParen));
@@ -1025,7 +1029,7 @@ impl<'a> Parser<'a> {
 			}
 		}
 		
-		Ok(Item::Switch(expr, cases))
+		Ok(Item::Switch(label, expr, cases))
 	}
 	
 	fn parse_throw(&mut self) -> ParseResult<Item> {
@@ -1088,9 +1092,7 @@ impl<'a> Parser<'a> {
 		
 		self.bump();
 		
-		let stmt = try!(self.parse_stmt());
-		
-		Ok(Item::Labelled(ident, Box::new(stmt)))
+		self.parse_stmt(Some(ident))
 	}
 	
 	fn parse_expr_stmt(&mut self) -> ParseResult<Item> {

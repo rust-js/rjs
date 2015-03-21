@@ -109,7 +109,7 @@ impl Encodable for InternedString {
 pub struct Name(pub u32);
 
 impl Name {
-	pub fn as_str<'a>(&'a self, interner: StrInterner) -> &'a str {
+	pub fn as_str<'a>(&'a self, interner: &StrInterner) -> &'a str {
 		unsafe {
 			// FIXME #12938: can't use copy_lifetime since &str isn't a &T
 			::std::mem::transmute::<&str,&str>(&InternedString::new_from_rc_str(interner.get(*self)))
@@ -135,22 +135,21 @@ pub enum Item {
 	Break(Option<Ident>),
 	Continue(Option<Ident>),
 	Debugger,
-	Do(Box<Expr>, Box<Item>),
+	Do(Option<Ident>, Box<Expr>, Box<Item>),
 	Empty,
 	ExprStmt(ExprSeq),
-	For(Option<ExprSeq>, Option<ExprSeq>, Option<ExprSeq>, Box<Item>),
-	ForIn(Box<Expr>, ExprSeq, Box<Item>),
-	ForVar(Option<Vec<Var>>, Option<ExprSeq>, Option<ExprSeq>, Box<Item>),
-	ForVarIn(Var, ExprSeq, Box<Item>),
+	For(Option<Ident>, Option<ExprSeq>, Option<ExprSeq>, Option<ExprSeq>, Box<Item>),
+	ForIn(Option<Ident>, Box<Expr>, ExprSeq, Box<Item>),
+	ForVar(Option<Ident>, Option<Vec<Var>>, Option<ExprSeq>, Option<ExprSeq>, Box<Item>),
+	ForVarIn(Option<Ident>, Ident, ExprSeq, Box<Item>),
 	Function(Option<Ident>, Vec<Ident>, Block),
 	If(ExprSeq, Box<Item>, Option<Box<Item>>),
-	Labelled(Ident, Box<Item>),
 	Return(Option<ExprSeq>),
-	Switch(ExprSeq, Vec<SwitchClause>),
+	Switch(Option<Ident>, ExprSeq, Vec<SwitchClause>),
 	Throw(ExprSeq),
 	Try(Block, Option<Catch>, Option<Block>),
 	VarDecl(Vec<Var>),
-	While(Box<Expr>, Box<Item>),
+	While(Option<Ident>, Box<Expr>, Box<Item>),
 	With(ExprSeq, Box<Item>)
 }
 
@@ -200,7 +199,7 @@ pub enum Expr {
 	Unary(Op, Box<Expr>)
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Copy, PartialEq, Debug)]
 pub enum Op {
 	Add,
 	And,
@@ -221,13 +220,13 @@ pub enum Op {
 	LeftShiftArithmetic,
 	LessThan,
 	LessThanEquals,
-	Minus,
 	Modulus,
 	Multiply,
+	Negative,
 	Not,
 	NotEquals,
 	Or,
-	Plus,
+	Positive,
 	PostDecr,
 	PostIncr,
 	PreDecr,

@@ -7,6 +7,7 @@ use syntax::token::Token::*;
 use util::interner::StrInterner;
 use std::char;
 use std::rc::Rc;
+use std::num;
 
 pub enum LexError {
 	Message(String)
@@ -177,7 +178,7 @@ fn parse(reader: &mut Reader, interner: &StrInterner, strict: bool) -> LexResult
 			':' => Colon,
 			'.' => {
 				if is_digit(reader.peek()) {
-					parse_decimal_tail(reader, ".".to_string())
+					try!(parse_decimal_tail(reader, ".".to_string()))
 				} else {
 					Dot
 				}
@@ -189,14 +190,14 @@ fn parse(reader: &mut Reader, interner: &StrInterner, strict: bool) -> LexResult
 					} else if !strict && is_oct(reader.peek()) {
 						try!(parse_oct(reader))
 					} else if reader.consume('.') {
-						parse_decimal_tail(reader, "0.".to_string())
+						try!(parse_decimal_tail(reader, "0.".to_string()))
 					} else if reader.peek() == 'e' || reader.peek() == 'E' {
-						parse_decimal_tail(reader, "0".to_string())
+						try!(parse_decimal_tail(reader, "0".to_string()))
 					} else {
-						Literal(Rc::new(Lit::Decimal("0".to_string())))
+						Literal(Rc::new(Lit::Integer(0)))
 					}
 				} else {
-					parse_decimal(reader, c.to_string())
+					try!(parse_decimal(reader, c.to_string()))
 				}
 			},
 			'"' => parse_string(reader, '"'),
@@ -305,12 +306,27 @@ fn skip_while<F: Fn(char) -> bool>(reader: &mut Reader, predicate: F) {
 	}
 }
 
+fn parse_str_number(value: &str, radix: u32) -> Option<Token> {
+	match num::from_str_radix::<i64>(value, radix) {
+		Ok(value) => {
+			if value >= num::Int::min_value() && value <= num::Int::max_value() {
+				Some(Literal(Rc::new(Lit::Integer(value as i32))))
+			} else {
+				Some(Literal(Rc::new(Lit::Long(value))))
+			}
+		},
+		_ => None
+	}
+}
+
 fn parse_hex(reader: &mut Reader) -> LexResult<Token> {
 	let s = consume_while(reader, is_hex);
 	if s.len() == 0 {
 		fatal(reader, "Expected a hex digit")
+	} else if let Some(token) = parse_str_number(&s, 16) {
+		Ok(token)
 	} else {
-		Ok(Literal(Rc::new(Lit::HexInteger(s))))
+		fatal(reader, &format!("Cannot parse hex {:?}", s))
 	}
 }
 
@@ -318,12 +334,14 @@ fn parse_oct(reader: &mut Reader) -> LexResult<Token> {
 	let s = consume_while(reader, is_oct);
 	if s.len() == 0 {
 		fatal(reader, "Expected a oct digit")
+	} else if let Some(token) = parse_str_number(&s, 8) {
+		Ok(token)
 	} else {
-		Ok(Literal(Rc::new(Lit::OctalInteger(s))))
+		fatal(reader, &format!("Cannot parse octal {:?}", s))
 	}
 }
 
-fn parse_decimal(reader: &mut Reader, prefix: String) -> Token {
+fn parse_decimal(reader: &mut Reader, prefix: String) -> LexResult<Token> {
 	// This method parses a decimal without already having seen a dot. The decimal
 	// prefix is parsed here and the rest is handled  by parse_decimal_tail.
 	
@@ -345,7 +363,7 @@ fn parse_decimal(reader: &mut Reader, prefix: String) -> Token {
 	parse_decimal_tail(reader, s)
 }
 
-fn parse_decimal_tail(reader: &mut Reader, prefix: String) -> Token {
+fn parse_decimal_tail(reader: &mut Reader, prefix: String) -> LexResult<Token> {
 	// This method parses decimal tails. The prefix contains what has already been
 	// parsed and may contain a dot. This method will not parse dots.
 	
@@ -383,7 +401,14 @@ fn parse_decimal_tail(reader: &mut Reader, prefix: String) -> Token {
 		}
 	}
 	
-	Literal(Rc::new(Lit::Decimal(s)))
+	if let Some(token) = parse_str_number(&s, 10) {
+		Ok(token)
+	} else {
+		match s.parse() {
+			Ok(value) => Ok(Literal(Rc::new(Lit::Double(value)))),
+			_ => fatal(reader, &format!("Cannot parse number {:?}", s))
+		}
+	}
 }
 
 fn parse_string(reader: &mut Reader, quote: char) -> Token {

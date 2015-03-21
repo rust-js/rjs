@@ -140,9 +140,9 @@ pub enum Lit {
 	Null,
 	Boolean(bool),
 	String(String),
-	HexInteger(String),
-	OctalInteger(String),
-	Decimal(String),
+	Integer(i32),
+	Long(i64),
+	Double(f64),
 	Regex(String, String)
 }
 
