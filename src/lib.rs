@@ -1,2 +1,2 @@
 pub mod syntax;
-mod iter_util;
+pub mod util;

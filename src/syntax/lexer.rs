@@ -4,6 +4,7 @@ use syntax::Span;
 use syntax::reader::Reader;
 use syntax::token::{Token, TokenAndSpan, Lit};
 use syntax::token::Token::*;
+use util::interner::StrInterner;
 use std::char;
 use std::rc::Rc;
 
@@ -27,7 +28,7 @@ fn fatal<T>(reader: &Reader, message: &str) -> LexResult<T> {
 	Err(LexError::Message(message))
 }
 
-fn parse(reader: &mut Reader, strict: bool) -> LexResult<Vec<TokenAndSpan>> {
+fn parse(reader: &mut Reader, interner: &StrInterner, strict: bool) -> LexResult<Vec<TokenAndSpan>> {
 	let mut tokens = Vec::new();
 	
 	while !reader.is_eof() {
@@ -209,7 +210,7 @@ fn parse(reader: &mut Reader, strict: bool) -> LexResult<Vec<TokenAndSpan>> {
 				reader.skip(-1);
 				
 				if let Some(identifier) = parse_identifier(reader, true) {
-					token_from_identifier(identifier, strict)
+					token_from_identifier(identifier, interner, strict)
 				} else {
 					return fatal(reader, "Cannot parse");
 				}
@@ -225,7 +226,7 @@ fn parse(reader: &mut Reader, strict: bool) -> LexResult<Vec<TokenAndSpan>> {
 	Ok(tokens)
 }
 
-fn token_from_identifier(identifier: String, strict: bool) -> Token {
+fn token_from_identifier(identifier: String, interner: &StrInterner, strict: bool) -> Token {
 	match &identifier[..] {
 		"null" => Literal(Rc::new(Lit::Null)),
 		"true" => Literal(Rc::new(Lit::Boolean(true))),
@@ -276,7 +277,7 @@ fn token_from_identifier(identifier: String, strict: bool) -> Token {
 		"static" if strict => Static,
 		"yield" if strict => Yield,
 		// 7.6 Identifier Names and Identifiers
-		_ => Identifier(identifier)
+		str @ _ => Identifier(interner.intern(str))
 	}
 }
 
@@ -1075,10 +1076,10 @@ pub struct Lexer {
 }
 
 impl Lexer {
-	pub fn new(reader: &mut Reader, strict: bool) -> LexResult<Lexer> {
+	pub fn new(reader: &mut Reader, interner: &StrInterner, strict: bool) -> LexResult<Lexer> {
 		Ok(Lexer {
 			offset: 0,
-			tokens: try!(parse(reader, strict))
+			tokens: try!(parse(reader, interner, strict))
 		})
 	}
 	
@@ -1197,6 +1198,8 @@ mod test {
 	use super::*;
 	use syntax::reader::StringReader;
 	use syntax::token::Token::*;
+	use syntax::token::keywords;
+	use util::interner::StrInterner;
 	
 	macro_rules! assert_match {
 		($l:expr, $t:pat) => {
@@ -1221,15 +1224,16 @@ mod test {
 	}
 	
 	#[test] fn function_test() {
-		let mut lexer = parse("function f() { var a = 1; }");
+		let mut interner = keywords::new_interner();
+		let mut lexer = parse_with_interner("function f() { var a = 1; }", &mut interner);
 		
 		assert_match!(lexer, Function);
-		assert_match!(lexer, Identifier(ref i), &i[..] == "f");
+		assert_match!(lexer, Identifier(i), i == interner.intern("f"));
 		assert_match!(lexer, OpenParen);
 		assert_match!(lexer, CloseParen);
 		assert_match!(lexer, OpenBrace);
 		assert_match!(lexer, Var);
-		assert_match!(lexer, Identifier(ref i), &i[..] == "a");
+		assert_match!(lexer, Identifier(i), i == interner.intern("a"));
 		assert_match!(lexer, Assign);
 		assert_match!(lexer, Literal(..));
 		assert_match!(lexer, SemiColon);
@@ -1238,8 +1242,14 @@ mod test {
 	}
 	
 	fn parse(text: &str) -> Lexer {
+		let mut interner = keywords::new_interner();
+		
+		parse_with_interner(text, &mut interner)
+	}
+	
+	fn parse_with_interner(text: &str, interner: &mut StrInterner) -> Lexer {
 		let mut reader = StringReader::new("file.js", text);
 		
-		Lexer::new(&mut reader, false).ok().unwrap()
+		Lexer::new(&mut reader, interner, false).ok().unwrap()
 	}
 }

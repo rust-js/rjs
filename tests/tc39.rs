@@ -7,6 +7,7 @@ extern crate rjs;
 use rjs::syntax::lexer::Lexer;
 use rjs::syntax::parser::Parser;
 use rjs::syntax::reader::StringReader;
+use rjs::syntax::token::keywords;
 use std::old_io::File;
 
 macro_rules! test {
@@ -12158,8 +12159,9 @@ fn parse(file: &str) {
 		return
 	}
 	
+	let mut interner = keywords::new_interner();
 	let mut reader = StringReader::new(file, &contents);
-	let lexer = Lexer::new(&mut reader, false).ok().unwrap();
-	let mut parser = Parser::new(lexer);
+	let mut lexer = Lexer::new(&mut reader, &mut interner, false).ok().unwrap();
+	let mut parser = Parser::new(&mut lexer, &mut interner);
 	parser.parse_program().ok();
 }

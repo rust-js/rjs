@@ -2,8 +2,10 @@ use syntax::lexer::Lexer;
 use syntax::ast::*;
 use syntax::token::{Token, Lit};
 use syntax::Span;
+use syntax::token::keywords;
 use std::rc::Rc;
-use iter_util::*;
+use util::iter::*;
+use util::interner::StrInterner;
 
 pub enum ParseError {
 	Message(String)
@@ -11,14 +13,16 @@ pub enum ParseError {
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
-pub struct Parser {
-	lexer: Lexer
+pub struct Parser<'a> {
+	lexer: &'a mut Lexer,
+	interner: &'a mut StrInterner
 }
 
-impl Parser {
-	pub fn new(lexer: Lexer) -> Parser {
+impl<'a> Parser<'a> {
+	pub fn new(lexer: &'a mut Lexer, interner: &'a mut StrInterner) -> Parser<'a> {
 		Parser {
-			lexer: lexer
+			lexer: lexer,
+			interner: interner
 		}
 	}
 	
@@ -232,77 +236,77 @@ impl Parser {
 	}
 	
 	fn parse_ident(&mut self) -> ParseResult<Ident> {
-		if let Token::Identifier(ref name) = *self.next() {
+		if let Token::Identifier(name) = *self.next() {
 			return Ok(Ident {
-				name: name.clone()
+				name: name
 			});
 		}
 		
 		self.fatal("Expected identifier")
 	}
 	
-	fn parse_ident_name(&mut self) -> ParseResult<Option<Ident>> {
+	fn parse_ident_name(&mut self) -> ParseResult<Option<Name>> {
 		// This is a special version of parse_ident that also accepts keywords.
 		
 		let name = match self.peek() {
-			Some(&Token::Identifier(ref name)) => name.clone(),
+			Some(&Token::Identifier(name)) => name,
 			Some(&Token::Literal(ref value)) => {
 				match *value.clone() {
-					Lit::Boolean(value) => if value { "true" } else { "false" }.to_string(),
-					Lit::Null => "null".to_string(),
+					Lit::Boolean(value) => if value { keywords::TRUE } else { keywords::FALSE },
+					Lit::Null => keywords::NULL,
 					_ => return Ok(None)
 				}
 			},
 			// Reserved words
-			Some(&Token::Break) => "break".to_string(),
-			Some(&Token::Do) => "do".to_string(),
-			Some(&Token::Instanceof) => "instanceof".to_string(),
-			Some(&Token::Typeof) => "typeof".to_string(),
-			Some(&Token::Case) => "case".to_string(),
-			Some(&Token::Else) => "else".to_string(),
-			Some(&Token::New) => "new".to_string(),
-			Some(&Token::Var) => "var".to_string(),
-			Some(&Token::Catch) => "catch".to_string(),
-			Some(&Token::Finally) => "finally".to_string(),
-			Some(&Token::Return) => "return".to_string(),
-			Some(&Token::Void) => "void".to_string(),
-			Some(&Token::Continue) => "continue".to_string(),
-			Some(&Token::For) => "for".to_string(),
-			Some(&Token::Switch) => "switch".to_string(),
-			Some(&Token::While) => "while".to_string(),
-			Some(&Token::Debugger) => "debugger".to_string(),
-			Some(&Token::Function) => "function".to_string(),
-			Some(&Token::This) => "this".to_string(),
-			Some(&Token::With) => "with".to_string(),
-			Some(&Token::Default) => "default".to_string(),
-			Some(&Token::If) => "if".to_string(),
-			Some(&Token::Throw) => "throw".to_string(),
-			Some(&Token::Delete) => "delete".to_string(),
-			Some(&Token::In) => "in".to_string(),
-			Some(&Token::Try) => "try".to_string(),
+			Some(&Token::Break) => keywords::BREAK,
+			Some(&Token::Do) => keywords::DO,
+			Some(&Token::Instanceof) => keywords::INSTANCEOF,
+			Some(&Token::Typeof) => keywords::TYPEOF,
+			Some(&Token::Case) => keywords::CASE,
+			Some(&Token::Else) => keywords::ELSE,
+			Some(&Token::New) => keywords::NEW,
+			Some(&Token::Var) => keywords::VAR,
+			Some(&Token::Catch) => keywords::CATCH,
+			Some(&Token::Finally) => keywords::FINALLY,
+			Some(&Token::Return) => keywords::RETURN,
+			Some(&Token::Void) => keywords::VOID,
+			Some(&Token::Continue) => keywords::CONTINUE,
+			Some(&Token::For) => keywords::FOR,
+			Some(&Token::Switch) => keywords::SWITCH,
+			Some(&Token::While) => keywords::WHILE,
+			Some(&Token::Debugger) => keywords::DEBUGGER,
+			Some(&Token::Function) => keywords::FUNCTION,
+			Some(&Token::This) => keywords::THIS,
+			Some(&Token::With) => keywords::WHILE,
+			Some(&Token::Default) => keywords::DEFAULT,
+			Some(&Token::If) => keywords::IF,
+			Some(&Token::Throw) => keywords::THROW,
+			Some(&Token::Delete) => keywords::DELETE,
+			Some(&Token::In) => keywords::IN,
+			Some(&Token::Try) => keywords::TRY,
 			// Future reserved words
-			Some(&Token::Class) => "".to_string(),
-			Some(&Token::Enum) => "".to_string(),
-			Some(&Token::Extends) => "".to_string(),
-			Some(&Token::Super) => "".to_string(),
-			Some(&Token::Const) => "".to_string(),
-			Some(&Token::Export) => "".to_string(),
-			Some(&Token::Import) => "".to_string(),
-			Some(&Token::Implements) => "".to_string(),
-			Some(&Token::Let) => "".to_string(),
-			Some(&Token::Private) => "".to_string(),
-			Some(&Token::Public) => "".to_string(),
-			Some(&Token::Interface) => "".to_string(),
-			Some(&Token::Package) => "".to_string(),
-			Some(&Token::Protected) => "".to_string(),
-			Some(&Token::Static) => "".to_string(),
-			Some(&Token::Yield) => "".to_string(),
+			Some(&Token::Class) => keywords::CLASS,
+			Some(&Token::Enum) => keywords::ENUM,
+			Some(&Token::Extends) => keywords::EXTENDS,
+			Some(&Token::Super) => keywords::SUPER,
+			Some(&Token::Const) => keywords::CONST,
+			Some(&Token::Export) => keywords::EXPORT,
+			Some(&Token::Import) => keywords::IMPORT,
+			Some(&Token::Implements) => keywords::IMPLEMENTS,
+			Some(&Token::Let) => keywords::LET,
+			Some(&Token::Private) => keywords::PRIVATE,
+			Some(&Token::Public) => keywords::PUBLIC,
+			Some(&Token::Interface) => keywords::INTERFACE,
+			Some(&Token::Package) => keywords::PACKAGE,
+			Some(&Token::Protected) => keywords::PROTECTED,
+			Some(&Token::Static) => keywords::STATIC,
+			Some(&Token::Yield) => keywords::YIELD,
 			_ => return Ok(None)
 		};
 		
 		self.bump();
 		
-		Ok(Some(Ident { name: name }))
+		Ok(Some(name))
 	}
 	
 	fn parse_lit(&mut self) -> ParseResult<Rc<Lit>> {
@@ -516,10 +520,10 @@ impl Parser {
 	fn parse_expr_member_dot(&mut self, expr: Expr) -> ParseResult<Expr> {
 		self.bump();
 		
-		if let Some(ident) = try!(self.parse_ident_name()) {
+		if let Some(name) = try!(self.parse_ident_name()) {
 			Ok(Expr::MemberDot(Box::new(MemberDot {
 				expr: expr,
-				ident: ident
+				ident: Ident { name: name }
 			})))
 		} else {
 			self.fatal("Expected identifier name")
@@ -722,11 +726,14 @@ impl Parser {
 	}
 	
 	fn parse_expr_object_literal_prop(&mut self) -> ParseResult<Property> {
-		if let Some(ident) = try!(self.parse_ident_name()) {
-			let prop_ident = try!(self.parse_ident_name());
+		if let Some(name) = try!(self.parse_ident_name()) {
+			let prop_ident = match try!(self.parse_ident_name()) {
+				Some(name) => Some(Ident { name: name }),
+				None => None
+			};
 			
 			if self.consume(&Token::OpenParen) {
-				if ident.name == "get" {
+				if name == keywords::GET {
 					try!(self.expect(&Token::CloseParen));
 					
 					let block = try!(self.parse_function_block());
@@ -735,7 +742,7 @@ impl Parser {
 						name: prop_ident,
 						block: block
 					})))
-				} else if ident.name == "set" {
+				} else if name == keywords::SET {
 					let param = try!(self.parse_ident());
 					
 					try!(self.expect(&Token::CloseParen));
@@ -759,7 +766,7 @@ impl Parser {
 					let expr = try!(self.parse_expr());
 					
 					Ok(Property::Assignment(Box::new(PropertyAssignment {
-						key: PropertyKey::Ident(ident),
+						key: PropertyKey::Ident(Ident { name: name }),
 						value: expr
 					})))
 				}
@@ -1019,7 +1026,7 @@ impl Parser {
 	
 	fn parse_opt_ident(&mut self) -> ParseResult<Option<Ident>> {
 		let ident = match self.peek() {
-			Some(&Token::Identifier(ref ident)) => Ident { name: ident.clone() },
+			Some(&Token::Identifier(name)) => Ident { name: name },
 			_ => return Ok(None)
 		};
 		
