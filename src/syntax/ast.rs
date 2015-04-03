@@ -199,7 +199,7 @@ pub enum Expr {
 	Unary(Op, Box<Expr>)
 }
 
-#[derive(Copy, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Op {
 	Add,
 	And,

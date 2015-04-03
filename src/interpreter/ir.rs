@@ -206,16 +206,16 @@ pub struct Function {
 	pub block: Block
 }
 
-#[derive(Copy)]
+#[derive(Copy, Clone)]
 pub struct IrOffset(usize);
 
-#[derive(Copy)]
+#[derive(Copy, Clone)]
 pub struct IrRange(IrOffset, IrOffset);
 
-#[derive(Copy)]
+#[derive(Copy, Clone)]
 pub struct Local(usize);
 
-#[derive(Copy)]
+#[derive(Copy, Clone)]
 pub struct Label(usize);
 
 pub struct TryCatch {

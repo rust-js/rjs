@@ -1,14 +1,11 @@
-#![feature(old_io)]
-#![feature(old_path)]
-#![allow(deprecated)]
-
 extern crate rjs;
 
 use rjs::syntax::lexer::Lexer;
 use rjs::syntax::parser::Parser;
 use rjs::syntax::reader::StringReader;
 use rjs::syntax::token::keywords;
-use std::old_io::File;
+use std::io::prelude::*;
+use std::fs::File;
 
 macro_rules! test {
 	($name:ident, $file:expr) => {
@@ -12154,7 +12151,8 @@ test!(language_white_space_S7_2_A5_T4, "language/white-space/S7.2_A5_T4.js");
 test!(language_white_space_S7_2_A5_T5, "language/white-space/S7.2_A5_T5.js");
 
 fn parse(file: &str) {
-	let contents = File::open(&Path::new(file)).read_to_string().ok().unwrap();
+	let mut contents = String::new();
+	File::open(file).ok().unwrap().read_to_string(&mut contents).ok();
 	if contents.contains("negative: SyntaxError") {
 		return
 	}

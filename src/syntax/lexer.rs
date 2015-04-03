@@ -5,9 +5,8 @@ use syntax::reader::Reader;
 use syntax::token::{Token, TokenAndSpan, Lit};
 use syntax::token::Token::*;
 use util::interner::StrInterner;
-use std::char;
+use std::{char, i32};
 use std::rc::Rc;
-use std::num;
 
 pub enum LexError {
 	Message(String)
@@ -307,9 +306,9 @@ fn skip_while<F: Fn(char) -> bool>(reader: &mut Reader, predicate: F) {
 }
 
 fn parse_str_number(value: &str, radix: u32) -> Option<Token> {
-	match num::from_str_radix::<i64>(value, radix) {
+	match i64::from_str_radix(value, radix) {
 		Ok(value) => {
-			if value >= num::Int::min_value() && value <= num::Int::max_value() {
+			if value >= i32::MIN as i64 && value <= i32::MAX as i64 {
 				Some(Literal(Rc::new(Lit::Integer(value as i32))))
 			} else {
 				Some(Literal(Rc::new(Lit::Long(value))))

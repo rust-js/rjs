@@ -14,14 +14,14 @@ pub enum IrError {
 
 pub type IrResult<T> = Result<T, IrError>;
 
-#[derive(Copy)]
+#[derive(Copy, Clone)]
 struct NamedLabel {
 	name: Option<Name>,
 	label: ir::Label,
 	try_catch_depth: i32
 }
 
-#[derive(Copy)]
+#[derive(Copy, Clone)]
 struct ReturnTarget {
 	local: ir::Local,
 	label: ir::Label
