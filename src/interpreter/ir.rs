@@ -86,10 +86,12 @@ impl Block {
 				&Ir::Debugger => string.push_str("debug"),
 				&Ir::Delete => string.push_str("delete"),
 				&Ir::Divide => string.push_str("div"),
+				&Ir::Dup => string.push_str("dup"),
 				&Ir::EndIter(local) => {
 					string.push_str("iter.end ");
 					self.print_local(string, local, interner);
 				},
+				&Ir::EnterWith => string.push_str("with.enter"),
 				&Ir::Eq => string.push_str("eq"),
 				&Ir::Ge => string.push_str("ge"),
 				&Ir::Gt => string.push_str("gt"),
@@ -120,9 +122,12 @@ impl Block {
 					string.push_str("leave ");
 					self.print_label(string, label);
 				},
+				&Ir::LeaveWith => string.push_str("with.leave"),
+				&Ir::LoadArguments => string.push_str("ld.arguments"),
 				&Ir::LoadException => string.push_str("ld.exception"),
 				&Ir::LoadF64(value) => { write!(string, "ld.f64 {}", value).ok(); },
 				&Ir::LoadFalse => string.push_str("ld.false"),
+				&Ir::LoadFunction(index) => { write!(string, "ld.func {}", index).ok(); },
 				&Ir::LoadGlobal(name) => {
 					string.push_str("ld.global ");
 					self.print_name(string, name, interner);
@@ -130,6 +135,11 @@ impl Block {
 				&Ir::LoadI32(value) => { write!(string, "ld.i32 {}", value).ok(); },
 				&Ir::LoadI64(value) => { write!(string, "ld.i64 {}", value).ok(); },
 				&Ir::LoadIndex => string.push_str("ld.idx"),
+				&Ir::LoadLifted(name, depth) => {
+					string.push_str("ld.lifted ");
+					self.print_name(string, name, interner);
+					write!(string, ", {}", depth).ok();
+				},
 				&Ir::LoadLocal(local) => {
 					string.push_str("ld.local ");
 					self.print_local(string, local, interner);
@@ -139,7 +149,9 @@ impl Block {
 					string.push_str("ld.name ");
 					self.print_name(string, name, interner);
 				},
+				&Ir::LoadNameLit => string.push_str("ld.name.lit"),
 				&Ir::LoadNull => string.push_str("ld.null"),
+				&Ir::LoadParam(index) => { write!(string, "ld.arg {}", index).ok(); },
 				&Ir::LoadRegex(ref body, ref flags) => {
 					string.push_str("ld.regex ");
 					self.print_string(string, &body);
@@ -161,6 +173,7 @@ impl Block {
 				&Ir::Negative => string.push_str("neg"),
 				&Ir::New(args) => { write!(string, "new {}", args).ok(); },
 				&Ir::NewArray => string.push_str("new.array"),
+				&Ir::NewObject => string.push_str("new.object"),
 				&Ir::NextIter(local, label) => {
 					string.push_str("iter.next ");
 					self.print_local(string, local, interner);
@@ -169,28 +182,42 @@ impl Block {
 				},
 				&Ir::Not => string.push_str("not"),
 				&Ir::Or => string.push_str("or"),
+				&Ir::Pick(offset) => { write!(string, "pick {}", offset).ok(); },
 				&Ir::Pop => string.push_str("pop"),
 				&Ir::Positive => string.push_str("pos"),
 				&Ir::PushArray => string.push_str("array.push"),
 				&Ir::Return => string.push_str("ret"),
 				&Ir::Rsh => string.push_str("rsh"),
 				&Ir::RshZeroFill => string.push_str("rsh.zf"),
-				&Ir::SetGlobal(name) => {
+				&Ir::StoreArguments => string.push_str("st.arguments"),
+				&Ir::StoreGetter(function) => { write!(string, "st.getter {}", function).ok(); },
+				&Ir::StoreNameGetter(name, function) => { write!(string, "st.getter.name {}, {}", name, function).ok(); },
+				&Ir::StoreGlobal(name) => {
 					string.push_str("st.global ");
 					self.print_name(string, name, interner);
 				},
-				&Ir::SetIndex => string.push_str("st.index"),
-				&Ir::SetLocal(local) => {
+				&Ir::StoreIndex => string.push_str("st.index"),
+				&Ir::StoreLifted(name, depth) => {
+					string.push_str("st.lifted ");
+					self.print_name(string, name, interner);
+					write!(string, ", {}", depth).ok();
+				},
+				&Ir::StoreLocal(local) => {
 					string.push_str("st.local ");
 					self.print_local(string, local, interner);
 				},
-				&Ir::SetName(name) => {
+				&Ir::StoreName(name) => {
 					string.push_str("st.name ");
 					self.print_name(string, name, interner);
 				},
+				&Ir::StoreNameLit => string.push_str("st.name.lit"),
+				&Ir::StoreParam(index) => { write!(string, "st.arg {}", index).ok(); },
+				&Ir::StoreSetter(function) => { write!(string, "st.setter {}", function).ok(); },
+				&Ir::StoreNameSetter(name, function) => { write!(string, "st.setter.name {}, {}", name, function).ok(); },
 				&Ir::StrictEq => string.push_str("eq.strict"),
 				&Ir::StrictNe => string.push_str("ne.strict"),
 				&Ir::Subtract => string.push_str("sub"),
+				&Ir::Swap => string.push_str("swap"),
 				&Ir::Throw => string.push_str("throw"),
 				&Ir::Typeof => string.push_str("typeof")
 			}
@@ -224,10 +251,34 @@ pub struct TryCatch {
 	finally: Option<IrRange>
 }
 
+impl TryCatch {
+	fn finalize_try(&mut self, offset: usize) {
+		let IrRange(start, _) = self.try;
+		self.try = IrRange(start, IrOffset(offset));
+	}
+	
+	fn finalize_catch(&mut self, offset: usize) {
+		if let Some(IrRange(start, _)) = self.catch {
+			self.catch = Some(IrRange(start, IrOffset(offset)));
+		} else {
+			panic!();
+		}
+	}
+	
+	fn finalize_finally(&mut self, offset: usize) {
+		if let Some(IrRange(start, _)) = self.finally {
+			self.finally = Some(IrRange(start, IrOffset(offset)));
+		} else {
+			panic!();
+		}
+	}
+}
+
 pub struct IrBuilder {
 	ir: Vec<Ir>,
 	locals: Vec<Option<Name>>,
 	labels: Vec<IrOffset>,
+	try_catch_stack: Vec<TryCatch>,
 	try_catches: Vec<TryCatch>
 }
 
@@ -237,6 +288,7 @@ impl IrBuilder {
 			ir: Vec::new(),
 			locals: Vec::new(),
 			labels: Vec::new(),
+			try_catch_stack: Vec::new(),
 			try_catches: Vec::new()
 		}
 	}
@@ -275,58 +327,58 @@ impl IrBuilder {
 		}
 	}
 	
-	pub fn start_try(&mut self) {
+	pub fn start_exception_block(&mut self) {
 		let try_catch = TryCatch {
 			try: IrRange(IrOffset(self.ir.len()), IrOffset(0)),
 			catch: None,
 			finally: None
 		};
 		
+		self.try_catch_stack.push(try_catch);
+	}
+	
+	pub fn end_exception_block(&mut self) {
+		let mut try_catch = self.try_catch_stack.pop().unwrap();
+		
+		if try_catch.catch.is_some() {
+			try_catch.finalize_catch(self.ir.len());
+		} else if try_catch.finally.is_some() {
+			try_catch.finalize_finally(self.ir.len());
+		} else {
+			panic!("Try block requires at least a catch or finally");
+		}
+		
 		self.try_catches.push(try_catch);
 	}
 	
-	pub fn end_try(&mut self) {
-		let top = self.try_catches.len() - 1;
-		let try_catch = &mut self.try_catches[top];
-		
-		let IrRange(start, _) = try_catch.try;
-		try_catch.try = IrRange(start, IrOffset(self.ir.len()));
-	}
-	
 	pub fn start_catch(&mut self) {
-		let top = self.try_catches.len() - 1;
-		let try_catch = &mut self.try_catches[top];
+		let top = self.try_catch_stack.len() - 1;
+		let try_catch = &mut self.try_catch_stack[top];
+		
+		if try_catch.catch.is_some() {
+			panic!("Exception block cannot contain multiple catch blocks");
+		}
+		
+		try_catch.finalize_try(self.ir.len());
 		
 		try_catch.catch = Some(IrRange(IrOffset(self.ir.len()), IrOffset(0)));
 	}
 	
-	pub fn end_catch(&mut self) {
-		let top = self.try_catches.len() - 1;
-		let try_catch = &mut self.try_catches[top];
-		
-		if let Some(IrRange(start, _)) = try_catch.catch {
-			try_catch.catch = Some(IrRange(start, IrOffset(self.ir.len())));
-		} else {
-			panic!("Called end_catch without start_catch");
-		}
-	}
-	
 	pub fn start_finally(&mut self) {
-		let top = self.try_catches.len() - 1;
-		let try_catch = &mut self.try_catches[top];
+		let top = self.try_catch_stack.len() - 1;
+		let try_catch = &mut self.try_catch_stack[top];
+		
+		if try_catch.finally.is_some() {
+			panic!("Exception block cannot contain multiple finally blocks");
+		}
+		
+		if try_catch.catch.is_some() {
+			try_catch.finalize_catch(self.ir.len());
+		} else {
+			try_catch.finalize_try(self.ir.len());
+		}
 		
 		try_catch.finally = Some(IrRange(IrOffset(self.ir.len()), IrOffset(0)));
-	}
-	
-	pub fn end_finally(&mut self) {
-		let top = self.try_catches.len() - 1;
-		let try_catch = &mut self.try_catches[top];
-		
-		if let Some(IrRange(start, _)) = try_catch.finally {
-			try_catch.finally = Some(IrRange(start, IrOffset(self.ir.len())));
-		} else {
-			panic!("Called end_finallt without start_finally");
-		}
 	}
 }
 
@@ -342,7 +394,9 @@ pub enum Ir {
 	Debugger,
 	Delete,
 	Divide,
+	Dup,
 	EndIter(Local),
+	EnterWith,
 	Eq,
 	Ge,
 	Gt,
@@ -355,17 +409,23 @@ pub enum Ir {
 	JumpTrue(Label),
 	Le,
 	Leave(Label),
+	LeaveWith,
+	LoadArguments,
 	LoadException,
 	LoadF64(f64),
 	LoadFalse,
+	LoadFunction(u32),
 	LoadGlobal(Name),
 	LoadI32(i32),
 	LoadI64(i64),
 	LoadIndex,
+	LoadLifted(Name, u32),
 	LoadLocal(Local),
 	LoadMissing,
 	LoadName(Name),
+	LoadNameLit,
 	LoadNull,
+	LoadParam(u32),
 	LoadRegex(String, String),
 	LoadString(String),
 	LoadThis,
@@ -379,22 +439,33 @@ pub enum Ir {
 	Negative,
 	New(u32),
 	NewArray,
+	NewObject,
 	NextIter(Local, Label),
 	Not,
 	Or,
+	Pick(u32),
 	Pop,
 	Positive,
 	PushArray,
 	Return,
 	Rsh,
 	RshZeroFill,
-	SetGlobal(Name),
-	SetIndex,
-	SetLocal(Local),
-	SetName(Name),
+	StoreArguments,
+	StoreGlobal(Name),
+	StoreIndex,
+	StoreLifted(Name, u32),
+	StoreLocal(Local),
+	StoreName(Name),
+	StoreNameLit,
+	StoreGetter(u32),
+	StoreNameGetter(u32, u32),
+	StoreSetter(u32),
+	StoreNameSetter(u32, u32),
+	StoreParam(u32),
 	StrictEq,
 	StrictNe,
 	Subtract,
+	Swap,
 	Throw,
 	Typeof
 }

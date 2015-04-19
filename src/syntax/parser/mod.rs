@@ -4,8 +4,12 @@ use syntax::token::{Token, Lit};
 use syntax::Span;
 use syntax::token::keywords;
 use std::rc::Rc;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use util::iter::*;
 use util::interner::StrInterner;
+
+mod locals;
 
 pub enum ParseError {
 	Message(String)
@@ -15,15 +19,90 @@ pub type ParseResult<T> = Result<T, ParseError>;
 
 pub struct Parser<'a> {
 	lexer: &'a mut Lexer,
-	interner: &'a mut StrInterner
+	interner: &'a mut StrInterner,
+	context: &'a mut AstContext,
+	scopes: Vec<Scope>
+}
+
+struct Scope {
+	slots: Vec<Slot>,
+	blocks: Vec<BlockScope>
+}
+
+struct BlockScope {
+	locals: HashMap<Name, SlotRef>
 }
 
 impl<'a> Parser<'a> {
-	pub fn new(lexer: &'a mut Lexer, interner: &'a mut StrInterner) -> Parser<'a> {
-		Parser {
-			lexer: lexer,
-			interner: interner
-		}
+	fn at_global(&self) -> bool {
+		self.scopes.len() == 1 && self.scopes[0].blocks.len() == 1
+	}
+	
+	fn push_scope(&mut self) {
+		self.scopes.push(Scope {
+			slots: Vec::new(),
+			blocks: Vec::new()
+		})
+	}
+	
+	fn pop_scope(&mut self) -> Vec<Slot> {
+		self.scopes.pop().unwrap().slots
+	}
+	
+	fn push_block_scope(&mut self) {
+		let len = self.scopes.len();
+		self.scopes[len - 1].blocks.push(BlockScope {
+			locals: HashMap::new()
+		});
+	}
+	
+	fn pop_block_scope(&mut self) -> HashMap<Name, SlotRef> {
+		let len = self.scopes.len();
+		self.scopes[len - 1].blocks.pop().unwrap().locals
+	}
+	
+	fn register_local(&mut self, name: Name, throwarg: bool) {
+		// TODO: Validate performance. We expect that most locals set will be relatively small.
+		// Changing this into a HashSet will very likely not make sense. However, this will
+		// give issues in functions/scopes with many globals (probably more than 20 or 30).
+		// An alternative is to leave duplicates in here and let the IR builder take care
+		// of deduplicating then. It's already pushing the locals into a HashMap so that isn't
+		// a problem.
+				
+		let len = self.scopes.len();
+		let scope = &mut self.scopes[len - 1];
+		
+		let block = if name == keywords::ARGUMENTS {
+			// If this is the arguments variable, we can just drop it.
+			
+			return;
+		} else if !throwarg {
+			// Has this local already been declared?
+			
+			if scope.blocks[0].locals.contains_key(&name) {
+				return;
+			}
+			
+			&mut scope.blocks[0]
+		} else {
+			let len = scope.blocks.len();
+			&mut scope.blocks[len - 1]
+		};
+		
+		// We need to declare a new variable. Create a slot for it.
+		
+		let slot = Slot {
+			name: name,
+			arg: None,
+			lifted: false
+		};
+		
+		let local_slot_ref = SlotRef(scope.slots.len());
+		scope.slots.push(slot);
+
+		// Register the local.
+		
+		block.locals.insert(name, local_slot_ref);
 	}
 	
 	fn is_eof(&self) -> bool {
@@ -158,60 +237,147 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	pub fn parse_program(&mut self) -> ParseResult<Program> {
-		let mut items = Vec::new();
+	pub fn parse_program(context: &'a mut AstContext, lexer: &'a mut Lexer, interner: &'a mut StrInterner) -> ParseResult<FunctionRef> {
+		let program = {
+			let mut parser = Parser {
+				lexer: lexer,
+				interner: interner,
+				context: context,
+				scopes: Vec::new()
+			};
+			
+			parser.push_scope();
+			parser.push_block_scope();
+			
+			let mut items = Vec::new();
+			
+			while !parser.is_eof() {
+				items.push(try!(parser.parse_item()));
+			}
+			
+			let locals = parser.pop_block_scope();
+			let slots = parser.pop_scope();
+	
+			Box::new(Function {
+				name: None,
+				global: true,
+				block: RootBlock {
+					block: Block {
+						stmts: items,
+						locals: locals
+					},
+					locals: RefCell::new(Locals::new(slots)),
+					args: Vec::new()
+				}
+			})
+		};
 		
-		while !self.is_eof() {
-			items.push(try!(self.parse_item()));
-		}
+		let program_ref = FunctionRef(context.functions.len());
+		context.functions.push(program);
 		
-		Ok(Program {
-			items: Block { stmts: items }
-		})
+		locals::LocalResolver::resolve(context, program_ref);
+		
+		Ok(program_ref)
 	}
 	
 	fn parse_item(&mut self) -> ParseResult<Item> {
-		if let Some(&Token::Function) = self.peek() {
-			if let Some(&Token::Identifier(..)) = self.peek_at(1) {
-				self.bump();
-				
-				let (ident, args, block) = try!(self.parse_function());
-				
-				return Ok(Item::Function(ident, args, block));
+		if self.scopes.len() > 1 {
+			if let Some(&Token::Function) = self.peek() {
+				if let Some(&Token::Identifier(..)) = self.peek_at(1) {
+					self.bump();
+					
+					let function_ref = try!(self.parse_function());
+					let name = self.context.functions[function_ref.usize()].name.unwrap();
+					
+					self.register_local(name, false);
+					
+					let ident = Ident {
+						name: name,
+						state: RefCell::new(IdentState::None)
+					};
+					
+					return Ok(Item::Function(ident, function_ref));
+				}
 			}
 		}
 		
 		self.parse_stmt(None)
 	}
 	
-	fn parse_function(&mut self) -> ParseResult<(Option<Ident>, Vec<Ident>, Block)> {
-		let ident = if let Some(&Token::Identifier(..)) = self.peek() {
-			Some(try!(self.parse_ident()))
-		} else {
-			None
-		};
+	fn parse_function(&mut self) -> ParseResult<FunctionRef> {
+		let name = try!(self.parse_opt_name());
 		
 		let args = try!(self.parse_parameter_list());
-		let block = try!(self.parse_function_block());
 		
-		Ok((ident, args, block))
+		let block = try!(self.parse_function_block(args));
+		
+		let function = Box::new(Function {
+			global: false,
+			name: name,
+			block: block
+		});
+		
+		let function_ref = FunctionRef(self.context.functions.len());
+		self.context.functions.push(function);
+		
+		Ok(function_ref)
 	}
 	
-	fn parse_function_block(&mut self) -> ParseResult<Block> {
+	fn parse_function_block(&mut self, args: Vec<Name>) -> ParseResult<RootBlock> {
+		self.push_scope();
+		
 		try!(self.expect(&Token::OpenBrace));
 		
 		let mut stmts = Vec::new();
+		
+		self.push_block_scope();
+		
+		if args.len() > 0 {
+			self.register_function_args(&args);
+		}
 		
 		while !self.consume(&Token::CloseBrace) {
 			stmts.push(try!(self.parse_item()));
 		}
 		
-		Ok(Block {
-			stmts: stmts
+		let locals = self.pop_block_scope();
+		let slots = self.pop_scope();
+		
+		Ok(RootBlock {
+			block: Block {
+				stmts: stmts,
+				locals: locals
+			},
+			locals: RefCell::new(Locals::new(slots)),
+			args: args
 		})
 	}
 	
-	fn parse_parameter_list(&mut self) -> ParseResult<Vec<Ident>> {
+	fn register_function_args(&mut self, args: &Vec<Name>) {
+		let len = self.scopes.len();
+		let scope = &mut self.scopes[len - 1];
+		
+		for i in 0..args.len() {
+			let name = args[i];
+			
+			// Create a slot for the parameter.
+		
+			let slot = Slot {
+				name: name,
+				arg: Some(i as u32),
+				lifted: false
+			};
+			
+			let local_slot_ref = SlotRef(scope.slots.len());
+			scope.slots.push(slot);
+	
+			// Register the parameter.
+			
+			scope.blocks[0].locals.insert(name, local_slot_ref);
+		}
+	}
+	
+	fn parse_parameter_list(&mut self) -> ParseResult<Vec<Name>> {
 		try!(self.expect(&Token::OpenParen));
 		
 		if self.consume(&Token::CloseParen) {
@@ -221,7 +387,7 @@ impl<'a> Parser<'a> {
 		let mut args = Vec::new();
 		
 		while !self.is_eof() {
-			args.push(try!(self.parse_ident()));
+			args.push(try!(self.parse_name()));
 			
 			match *self.next() {
 				Token::Comma => continue,
@@ -233,12 +399,30 @@ impl<'a> Parser<'a> {
 		self.fatal("Cannot parse parameter list")
 	}
 	
-	fn parse_ident(&mut self) -> ParseResult<Ident> {
+	fn parse_name(&mut self) -> ParseResult<Name> {
 		if let Token::Identifier(name) = *self.next() {
-			return Ok(name.ident());
+			Ok(name)
+		} else {
+			self.fatal("Expected identifier")
 		}
+	}
+	
+	fn parse_opt_name(&mut self) -> ParseResult<Option<Name>> {
+		let name = match self.peek() {
+			Some(&Token::Identifier(name)) => name,
+			_ => return Ok(None)
+		};
 		
-		self.fatal("Expected identifier")
+		self.next();
+		
+		Ok(Some(name))
+	}
+	
+	fn parse_ident(&mut self) -> ParseResult<Ident> {
+		Ok(Ident {
+			name: try!(self.parse_name()),
+			state: RefCell::new(IdentState::None)
+		})
 	}
 	
 	fn parse_ident_name(&mut self) -> ParseResult<Option<Name>> {
@@ -321,13 +505,14 @@ impl<'a> Parser<'a> {
 		try!(self.expect(&Token::CloseBrace));
 		
 		Ok(Block {
-			stmts: stmts
+			stmts: stmts,
+			locals: HashMap::new()
 		})
 	}
 	
-	fn parse_stmt(&mut self, label: Option<Ident>) -> ParseResult<Item> {
+	fn parse_stmt(&mut self, label: Option<Label>) -> ParseResult<Item> {
 		match self.peek() {
-			Some(&Token::OpenBrace) => Ok(Item::Block(try!(self.parse_block()))),
+			Some(&Token::OpenBrace) => Ok(Item::Block(label, try!(self.parse_block()))),
 			Some(&Token::Var) => self.parse_var_stmt(),
 			Some(&Token::SemiColon) => {
 				self.bump();
@@ -389,6 +574,12 @@ impl<'a> Parser<'a> {
 		while !self.is_eof() {
 			let ident = try!(self.parse_ident());
 			
+			// Don't register locals at the global scope.
+			
+			if !self.at_global() {
+				self.register_local(ident.name, false);
+			}
+			
 			let expr = if self.consume(&Token::Assign) {
 				Some(Box::new(try!(self.parse_expr())))
 			} else {
@@ -413,9 +604,7 @@ impl<'a> Parser<'a> {
 			Some(&Token::Function) => {
 				self.bump();
 				
-				let (ident, args, block) = try!(self.parse_function());
-				
-				Ok(Expr::Function(ident, args, block))
+				Ok(Expr::Function(try!(self.parse_function())))
 			},
 			Some(&Token::New) => self.parse_expr_new(),
 			Some(&Token::Delete) => self.parse_expr_unary_pre(Op::Delete),
@@ -515,7 +704,7 @@ impl<'a> Parser<'a> {
 		self.bump();
 		
 		if let Some(name) = try!(self.parse_ident_name()) {
-			Ok(Expr::MemberDot(Box::new(expr), name.ident()))
+			Ok(Expr::MemberDot(Box::new(expr), name))
 		} else {
 			self.fatal("Expected identifier name")
 		}
@@ -574,7 +763,18 @@ impl<'a> Parser<'a> {
 		
 		let expr = try!(self.parse_expr());
 		
-		Ok(Expr::Unary(op, Box::new(expr)))
+		// Rebalance binary expression because presendence of unary
+		// operator is higher than that of a binary expresion.
+		
+		if let Expr::Binary(binop, lhs, rhs) = expr {
+			Ok(Expr::Binary(
+				binop,
+				Box::new(Expr::Unary(op, lhs)),
+				rhs
+			))
+		} else {
+			Ok(Expr::Unary(op, Box::new(expr)))
+		}
 	}
 	
 	fn parse_expr_unary_post(&mut self, expr: Expr, op: Op) -> ParseResult<Expr> {
@@ -694,26 +894,41 @@ impl<'a> Parser<'a> {
 	
 	fn parse_expr_object_literal_prop(&mut self) -> ParseResult<Property> {
 		if let Some(name) = try!(self.parse_ident_name()) {
-			let prop_ident = match try!(self.parse_ident_name()) {
-				Some(name) => Some(name.ident()),
-				None => None
-			};
+			let prop_ident = try!(self.parse_ident_name());
 			
 			if self.consume(&Token::OpenParen) {
 				if name == keywords::GET {
 					try!(self.expect(&Token::CloseParen));
 					
-					let block = try!(self.parse_function_block());
+					let block = try!(self.parse_function_block(Vec::new()));
 					
-					Ok(Property::Getter(prop_ident, block))
+					let function = Box::new(Function {
+						global: false,
+						name: None,
+						block: block
+					});
+					
+					let function_ref = FunctionRef(self.context.functions.len());
+					self.context.functions.push(function);
+					
+					Ok(Property::Getter(prop_ident, function_ref))
 				} else if name == keywords::SET {
-					let param = try!(self.parse_ident());
+					let args = vec![try!(self.parse_name())];
 					
 					try!(self.expect(&Token::CloseParen));
 					
-					let block = try!(self.parse_function_block());
+					let block = try!(self.parse_function_block(args));
 					
-					Ok(Property::Setter(prop_ident, param, block))
+					let function = Box::new(Function {
+						global: false,
+						name: None,
+						block: block
+					});
+					
+					let function_ref = FunctionRef(self.context.functions.len());
+					self.context.functions.push(function);
+					
+					Ok(Property::Setter(prop_ident, function_ref))
 				} else {
 					self.fatal("Property getter or setter must start with get or set")
 				}
@@ -725,7 +940,7 @@ impl<'a> Parser<'a> {
 					
 					let expr = try!(self.parse_expr());
 					
-					Ok(Property::Assignment(PropertyKey::Ident(name.ident()), Box::new(expr)))
+					Ok(Property::Assignment(PropertyKey::Ident(name), Box::new(expr)))
 				}
 			}
 		} else if let Some(&Token::Literal(..)) = self.peek() {
@@ -784,7 +999,7 @@ impl<'a> Parser<'a> {
 		})
 	}
 	
-	fn parse_do(&mut self, label: Option<Ident>) -> ParseResult<Item> {
+	fn parse_do(&mut self, label: Option<Label>) -> ParseResult<Item> {
 		self.bump();
 		
 		let stmt = try!(self.parse_stmt(None));
@@ -800,7 +1015,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::Do(label, Box::new(expr), Box::new(stmt)))
 	}
 	
-	fn parse_while(&mut self, label: Option<Ident>) -> ParseResult<Item> {
+	fn parse_while(&mut self, label: Option<Label>) -> ParseResult<Item> {
 		self.bump();
 		
 		try!(self.expect(&Token::OpenParen));
@@ -814,7 +1029,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::While(label, Box::new(expr), Box::new(stmt)))
 	}
 	
-	fn parse_for(&mut self, label: Option<Ident>) -> ParseResult<Item> {
+	fn parse_for(&mut self, label: Option<Label>) -> ParseResult<Item> {
 		self.bump();
 		
 		try!(self.expect(&Token::OpenParen));
@@ -928,32 +1143,33 @@ impl<'a> Parser<'a> {
 	fn parse_continue(&mut self) -> ParseResult<Item> {
 		self.bump();
 		
-		let ident = try!(self.parse_opt_ident());
+		let label = if let Some(name) = try!(self.parse_opt_name()) {
+			Some(Label {
+				name: name
+			})
+		} else {
+			None
+		};
 		
 		try!(self.expect_eos());
 		
-		Ok(Item::Continue(ident))
+		Ok(Item::Continue(label))
 	}
 	
 	fn parse_break(&mut self) -> ParseResult<Item> {
 		self.bump();
 		
-		let ident = try!(self.parse_opt_ident());
+		let label = if let Some(name) = try!(self.parse_opt_name()) {
+			Some(Label {
+				name: name
+			})
+		} else {
+			None
+		};
 		
 		try!(self.expect_eos());
 		
-		Ok(Item::Break(ident))
-	}
-	
-	fn parse_opt_ident(&mut self) -> ParseResult<Option<Ident>> {
-		let ident = match self.peek() {
-			Some(&Token::Identifier(name)) => name.ident(),
-			_ => return Ok(None)
-		};
-		
-		self.next();
-		
-		Ok(Some(ident))
+		Ok(Item::Break(label))
 	}
 	
 	fn parse_return(&mut self) -> ParseResult<Item> {
@@ -984,7 +1200,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::With(expr, Box::new(stmt)))
 	}
 	
-	fn parse_switch(&mut self, label: Option<Ident>) -> ParseResult<Item> {
+	fn parse_switch(&mut self, label: Option<Label>) -> ParseResult<Item> {
 		self.bump();
 		
 		try!(self.expect(&Token::OpenParen));
@@ -1048,13 +1264,18 @@ impl<'a> Parser<'a> {
 		let try = try!(self.parse_block());
 		
 		let catch = if self.consume(&Token::Catch) {
+			self.push_block_scope();
+			
 			try!(self.expect(&Token::OpenParen));
 			
 			let ident = try!(self.parse_ident());
 			
+			self.register_local(ident.name, true);
+			
 			try!(self.expect(&Token::CloseParen));
 			
-			let catch = try!(self.parse_block());
+			let mut catch = try!(self.parse_block());
+			catch.locals = self.pop_block_scope();
 			
 			Some(Catch {
 				ident: ident,
@@ -1088,11 +1309,13 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_labelled(&mut self) -> ParseResult<Item> {
-		let ident = try!(self.parse_ident());
+		let label = Label {
+			name: try!(self.parse_name())
+		};
 		
 		self.bump();
 		
-		self.parse_stmt(Some(ident))
+		self.parse_stmt(Some(label))
 	}
 	
 	fn parse_expr_stmt(&mut self) -> ParseResult<Item> {

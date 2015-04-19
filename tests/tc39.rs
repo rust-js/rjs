@@ -1,9 +1,6 @@
 extern crate rjs;
 
-use rjs::syntax::lexer::Lexer;
-use rjs::syntax::parser::Parser;
-use rjs::syntax::reader::StringReader;
-use rjs::syntax::token::keywords;
+use rjs::interpreter::IrContext;
 use std::io::prelude::*;
 use std::fs::File;
 
@@ -12151,15 +12148,15 @@ test!(language_white_space_S7_2_A5_T4, "language/white-space/S7.2_A5_T4.js");
 test!(language_white_space_S7_2_A5_T5, "language/white-space/S7.2_A5_T5.js");
 
 fn parse(file: &str) {
-	let mut contents = String::new();
-	File::open(file).ok().unwrap().read_to_string(&mut contents).ok();
-	if contents.contains("negative: SyntaxError") {
+	let mut js = String::new();
+	File::open(file).ok().unwrap().read_to_string(&mut js).ok();
+
+	if js.contains("negative: SyntaxError") || js.contains("negative: ReferenceError") {
 		return
 	}
 	
-	let mut interner = keywords::new_interner();
-	let mut reader = StringReader::new(file, &contents);
-	let mut lexer = Lexer::new(&mut reader, &mut interner, false).ok().unwrap();
-	let mut parser = Parser::new(&mut lexer, &mut interner);
-	parser.parse_program().ok();
+	let mut ctx = IrContext::new();
+	ctx.load_from_str(&js).ok();
+	
+	ctx.print_ir(&mut String::new()).ok();
 }

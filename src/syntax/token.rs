@@ -217,4 +217,5 @@ declare_idents! {
 	( "yield", YIELD, 44 );
 	( "get", GET, 45 );
 	( "set", SET, 46 );
+	( "arguments", ARGUMENTS, 47 );
 }

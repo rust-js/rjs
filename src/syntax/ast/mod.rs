@@ -1,10 +1,14 @@
 #![allow(dead_code)]
 
+pub mod visitor;
+
 use syntax::token::Lit;
 use util::interner::{StrInterner, RcStr};
 use std::rc::Rc;
 use std::ops::Deref;
 use std::fmt;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 #[derive(Clone, PartialEq, Hash, PartialOrd, Eq, Ord)]
 pub struct InternedString {
@@ -42,21 +46,6 @@ impl Deref for InternedString {
     fn deref(&self) -> &str { &*self.string }
 }
 
-/*
-#[allow(deprecated)]
-impl BytesContainer for InternedString {
-    fn container_as_bytes<'a>(&'a self) -> &'a [u8] {
-        // FIXME #12938: This is a workaround for the incorrect signature
-        // of `BytesContainer`, which is itself a workaround for the lack of
-        // DST.
-        unsafe {
-            let this = &self[..];
-            mem::transmute::<&[u8],&[u8]>(this.container_as_bytes())
-        }
-    }
-}
-*/
-
 impl fmt::Debug for InternedString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.string, f)
@@ -74,36 +63,24 @@ impl<'a> PartialEq<&'a str> for InternedString {
     fn eq(&self, other: & &'a str) -> bool {
         PartialEq::eq(&self.string[..], *other)
     }
+
     #[inline(always)]
     fn ne(&self, other: & &'a str) -> bool {
         PartialEq::ne(&self.string[..], *other)
     }
 }
 
-impl<'a> PartialEq<InternedString > for &'a str {
+impl<'a> PartialEq<InternedString> for &'a str {
     #[inline(always)]
     fn eq(&self, other: &InternedString) -> bool {
         PartialEq::eq(*self, &other.string[..])
     }
+    
     #[inline(always)]
     fn ne(&self, other: &InternedString) -> bool {
         PartialEq::ne(*self, &other.string[..])
     }
 }
-
-/*
-impl Decodable for InternedString {
-    fn decode<D: Decoder>(d: &mut D) -> Result<InternedString, D::Error> {
-        Ok(get_name(get_ident_interner().intern(&try!(d.read_str())[..])))
-    }
-}
-
-impl Encodable for InternedString {
-    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_str(&self.string)
-    }
-}
-*/
 
 #[derive(Eq, Ord, PartialEq, PartialOrd, Hash, Clone, Copy, Debug)]
 pub struct Name(pub u32);
@@ -120,45 +97,145 @@ impl Name {
 		let Name(nm) = *self;
 		nm as usize
 	}
-	
-	pub fn ident(&self) -> Ident {
-		Ident { name: *self }
+}
+
+pub struct AstContext {
+	pub functions: Vec<Box<Function>>
+}
+
+impl AstContext {
+	pub fn new() -> AstContext {
+		AstContext {
+			functions: Vec::new()
+		}
 	}
 }
 
-pub struct Program {
-	pub items: Block
+#[derive(Copy, Clone, Debug)]
+pub struct FunctionRef(pub usize);
+
+impl FunctionRef {
+	pub fn usize(&self) -> usize {
+		let &FunctionRef(index) = self;
+		index
+	}
 }
 
-pub enum Item {
-	Block(Block),
-	Break(Option<Ident>),
-	Continue(Option<Ident>),
-	Debugger,
-	Do(Option<Ident>, Box<Expr>, Box<Item>),
-	Empty,
-	ExprStmt(ExprSeq),
-	For(Option<Ident>, Option<ExprSeq>, Option<ExprSeq>, Option<ExprSeq>, Box<Item>),
-	ForIn(Option<Ident>, Box<Expr>, ExprSeq, Box<Item>),
-	ForVar(Option<Ident>, Option<Vec<Var>>, Option<ExprSeq>, Option<ExprSeq>, Box<Item>),
-	ForVarIn(Option<Ident>, Ident, ExprSeq, Box<Item>),
-	Function(Option<Ident>, Vec<Ident>, Block),
-	If(ExprSeq, Box<Item>, Option<Box<Item>>),
-	Return(Option<ExprSeq>),
-	Switch(Option<Ident>, ExprSeq, Vec<SwitchClause>),
-	Throw(ExprSeq),
-	Try(Block, Option<Catch>, Option<Block>),
-	VarDecl(Vec<Var>),
-	While(Option<Ident>, Box<Expr>, Box<Item>),
-	With(ExprSeq, Box<Item>)
+pub struct Function {
+	pub global: bool,
+	pub name: Option<Name>,
+	pub block: RootBlock
+}
+
+pub struct Locals {
+	pub slots: Vec<Slot>,
+	/// Whether to de-optimize this function. This applies when there is an eval
+	/// somewhere in the stack.
+	pub deopt: bool
+}
+
+impl Locals {
+	pub fn new(slots: Vec<Slot>) -> Locals {
+		Locals {
+			slots: slots,
+			deopt: false
+		}
+	}
+}
+
+/// A local slot is a declaration of a local that is known within the current
+/// scope (function). This only applies to functions and when optimizations are
+/// enabled. When optimizations are disabled (i.e. when there is an eval
+/// somewhere in the stack), local slots are not tracked.
+pub struct Slot {
+	pub name: Name,
+	pub arg: Option<u32>,
+	pub lifted: bool
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct SlotRef(pub usize);
+
+impl SlotRef {
+	pub fn usize(&self) -> usize {
+		let &SlotRef(index) = self;
+		index
+	}
+}
+
+pub struct RootBlock {
+	pub args: Vec<Name>,
+	pub block: Block,
+	pub locals: RefCell<Locals>
 }
 
 pub struct Block {
-	pub stmts: Vec<Item>
+	pub stmts: Vec<Item>,
+	pub locals: HashMap<Name, SlotRef>
 }
 
-pub struct Ident {
+pub enum Item {
+	Block(Option<Label>, Block),
+	Break(Option<Label>),
+	Continue(Option<Label>),
+	Debugger,
+	Do(Option<Label>, Box<Expr>, Box<Item>),
+	Empty,
+	ExprStmt(ExprSeq),
+	For(Option<Label>, Option<ExprSeq>, Option<ExprSeq>, Option<ExprSeq>, Box<Item>),
+	ForIn(Option<Label>, Box<Expr>, ExprSeq, Box<Item>),
+	ForVar(Option<Label>, Option<Vec<Var>>, Option<ExprSeq>, Option<ExprSeq>, Box<Item>),
+	ForVarIn(Option<Label>, Ident, ExprSeq, Box<Item>),
+	Function(Ident, FunctionRef),
+	If(ExprSeq, Box<Item>, Option<Box<Item>>),
+	Return(Option<ExprSeq>),
+	Switch(Option<Label>, ExprSeq, Vec<SwitchClause>),
+	Throw(ExprSeq),
+	Try(Block, Option<Catch>, Option<Block>),
+	VarDecl(Vec<Var>),
+	While(Option<Label>, Box<Expr>, Box<Item>),
+	With(ExprSeq, Box<Item>)
+}
+
+pub struct Label {
 	pub name: Name
+}
+
+#[derive(Debug)]
+pub struct Ident {
+	pub name: Name,
+	pub state: RefCell<IdentState>
+}
+
+/// Resolve state of an identifier. Variables can:
+///
+/// * Reference a global,
+/// * Reference a local (either a parameter or a local); or
+/// * Be be scoped.
+///
+/// Scoped identifiers apply when optimizations are disabled (i.e. when there is
+/// an eval somewhere in the stack).
+///
+/// Locals have a reference to the slot and a depth. The depth is used to identify
+/// and resolve closures.
+#[derive(Debug)]
+pub enum IdentState {
+	None,
+	Global,
+	Scoped,
+	Arguments,
+	Slot(SlotRef),
+	LiftedSlot(SlotRef, u32)
+}
+
+impl IdentState {
+	pub fn is_none(&self) -> bool {
+		if let IdentState::None = *self {
+			true
+		} else {
+			false
+		}
+	}
 }
 
 pub struct Var {
@@ -166,6 +243,7 @@ pub struct Var {
 	pub expr: Option<Box<Expr>>
 }
 
+#[derive(Debug)]
 pub struct ExprSeq {
 	pub exprs: Vec<Expr>
 }
@@ -180,15 +258,16 @@ pub struct Catch {
 	pub block: Block
 }
 
+#[derive(Debug)]
 pub enum Expr {
 	ArrayLiteral(Vec<Expr>),
 	Assign(Op, Box<Expr>, ExprSeq),
 	Binary(Op, Box<Expr>, Box<Expr>),
 	Call(Box<Expr>, Vec<Expr>),
-	Function(Option<Ident>, Vec<Ident>, Block),
+	Function(FunctionRef),
 	Ident(Ident),
 	Literal(Rc<Lit>),
-	MemberDot(Box<Expr>, Ident),
+	MemberDot(Box<Expr>, Name),
 	MemberIndex(Box<Expr>, ExprSeq),
 	Missing,
 	New(Box<Expr>, Option<Vec<Expr>>),
@@ -238,13 +317,15 @@ pub enum Op {
 	Void
 }
 
+#[derive(Debug)]
 pub enum Property {
 	Assignment(PropertyKey, Box<Expr>),
-	Getter(Option<Ident>, Block),
-	Setter(Option<Ident>, Ident, Block)
+	Getter(Option<Name>, FunctionRef),
+	Setter(Option<Name>, FunctionRef)
 }
 
+#[derive(Debug)]
 pub enum PropertyKey {
-	Ident(Ident),
+	Ident(Name),
 	Literal(Rc<Lit>)
 }
