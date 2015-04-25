@@ -1227,11 +1227,11 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_store(&mut self, ident: &'a Ident) {
-		match &*ident.state.borrow() {
-			&IdentState::Global => self.ir.emit(Ir::LoadGlobal(ident.name)),
-			&IdentState::Scoped => panic!("Not yet implemented"),
-			&IdentState::Arguments => self.ir.emit(Ir::LoadArguments),
-			&IdentState::Slot(slot_ref) => {
+		match ident.state.get() {
+			IdentState::Global => self.ir.emit(Ir::LoadGlobal(ident.name)),
+			IdentState::Scoped => panic!("Not yet implemented"),
+			IdentState::Arguments => self.ir.emit(Ir::LoadArguments),
+			IdentState::Slot(slot_ref) => {
 				let slot = &self.block_locals.slots[slot_ref.usize()];
 				if let Some(arg) = slot.arg {
 					self.ir.emit(Ir::LoadParam(arg));
@@ -1241,7 +1241,7 @@ impl<'a> IrGenerator<'a> {
 					self.ir.emit(Ir::LoadLocal(self.locals[slot_ref.usize()].unwrap()));
 				}
 			}
-			&IdentState::LiftedSlot(slot_ref, depth) => {
+			IdentState::LiftedSlot(slot_ref, depth) => {
 				self.ir.emit(Ir::LoadLifted(ident.name, depth));
 			}
 			_ => panic!()
@@ -1249,11 +1249,11 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_load(&mut self, ident: &'a Ident) {
-		match &*ident.state.borrow() {
-			&IdentState::Global => self.ir.emit(Ir::StoreGlobal(ident.name)),
-			&IdentState::Scoped => panic!("Not yet implemented"),
-			&IdentState::Arguments => self.ir.emit(Ir::StoreArguments),
-			&IdentState::Slot(slot_ref) => {
+		match ident.state.get() {
+			IdentState::Global => self.ir.emit(Ir::StoreGlobal(ident.name)),
+			IdentState::Scoped => panic!("Not yet implemented"),
+			IdentState::Arguments => self.ir.emit(Ir::StoreArguments),
+			IdentState::Slot(slot_ref) => {
 				let slot = &self.block_locals.slots[slot_ref.usize()];
 				if let Some(arg) = slot.arg {
 					self.ir.emit(Ir::StoreParam(arg));
@@ -1263,7 +1263,7 @@ impl<'a> IrGenerator<'a> {
 					self.ir.emit(Ir::StoreLocal(self.locals[slot_ref.usize()].unwrap()));
 				}
 			}
-			&IdentState::LiftedSlot(slot_ref, depth) => {
+			IdentState::LiftedSlot(slot_ref, depth) => {
 				self.ir.emit(Ir::StoreLifted(ident.name, depth));
 			}
 			_ => panic!()

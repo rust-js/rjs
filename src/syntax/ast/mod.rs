@@ -7,7 +7,7 @@ use util::interner::{StrInterner, RcStr};
 use std::rc::Rc;
 use std::ops::Deref;
 use std::fmt;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
 #[derive(Clone, PartialEq, Hash, PartialOrd, Eq, Ord)]
@@ -204,7 +204,7 @@ pub struct Label {
 #[derive(Debug)]
 pub struct Ident {
 	pub name: Name,
-	pub state: RefCell<IdentState>
+	pub state: Cell<IdentState>
 }
 
 /// Resolve state of an identifier. Variables can:
@@ -218,7 +218,7 @@ pub struct Ident {
 ///
 /// Locals have a reference to the slot and a depth. The depth is used to identify
 /// and resolve closures.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum IdentState {
 	None,
 	Global,

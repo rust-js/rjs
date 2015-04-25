@@ -4,7 +4,7 @@ use syntax::token::{Token, Lit};
 use syntax::Span;
 use syntax::token::keywords;
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use util::iter::*;
 use util::interner::StrInterner;
@@ -293,7 +293,7 @@ impl<'a> Parser<'a> {
 					
 					let ident = Ident {
 						name: name,
-						state: RefCell::new(IdentState::None)
+						state: Cell::new(IdentState::None)
 					};
 					
 					return Ok(Item::Function(ident, function_ref));
@@ -421,7 +421,7 @@ impl<'a> Parser<'a> {
 	fn parse_ident(&mut self) -> ParseResult<Ident> {
 		Ok(Ident {
 			name: try!(self.parse_name()),
-			state: RefCell::new(IdentState::None)
+			state: Cell::new(IdentState::None)
 		})
 	}
 	

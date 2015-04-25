@@ -60,14 +60,14 @@ impl<'a> LocalResolver<'a> {
 	
 		// If we've already resolved this one, skip it.
 		
-		let mut state = ident.state.borrow_mut();
+		let state = ident.state.get();
 		
 		if !state.is_none() {
 			return;
 		}
 		
 		if ident.name == keywords::ARGUMENTS {
-			*state = IdentState::Arguments;
+			ident.state.set(IdentState::Arguments);
 			return;
 		}
 		
@@ -97,11 +97,11 @@ impl<'a> LocalResolver<'a> {
 					
 					let depth = scopes - i - 1;
 					
-					*state = if depth == 0 {
+					ident.state.set(if depth == 0 {
 						IdentState::Slot(*local_slot_ref)
 					} else {
 						IdentState::LiftedSlot(*local_slot_ref, depth as u32)
-					};
+					});
 					
 					// If the depth is greater than zero, it's lifted and we need to update the block state.
 					
@@ -114,7 +114,7 @@ impl<'a> LocalResolver<'a> {
 			}
 		}
 		
-		*state = IdentState::Global;
+		ident.state.set(IdentState::Global);
 	} 
 
 	fn resolve_set_ident(&mut self, ident: &'a Ident) {
