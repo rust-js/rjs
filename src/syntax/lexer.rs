@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use syntax::Span;
 use syntax::reader::Reader;
 use syntax::token::{Token, TokenAndSpan, Lit};

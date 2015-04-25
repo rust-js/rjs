@@ -7,7 +7,6 @@ use std::rc::Rc;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use util::iter::*;
-use util::interner::StrInterner;
 
 mod locals;
 
@@ -19,7 +18,6 @@ pub type ParseResult<T> = Result<T, ParseError>;
 
 pub struct Parser<'a> {
 	lexer: &'a mut Lexer,
-	interner: &'a mut StrInterner,
 	context: &'a mut AstContext,
 	scopes: Vec<Scope>
 }
@@ -237,11 +235,10 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	pub fn parse_program(context: &'a mut AstContext, lexer: &'a mut Lexer, interner: &'a mut StrInterner) -> ParseResult<FunctionRef> {
+	pub fn parse_program(context: &'a mut AstContext, lexer: &'a mut Lexer) -> ParseResult<FunctionRef> {
 		let program = {
 			let mut parser = Parser {
 				lexer: lexer,
-				interner: interner,
 				context: context,
 				scopes: Vec::new()
 			};

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use syntax::Span;
 use syntax::ast::Name;
 use std::rc::Rc;

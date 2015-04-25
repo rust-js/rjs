@@ -1,5 +1,3 @@
-#![allow(unused_variables)]
-
 pub mod ir;
 
 use syntax::ast::*;
@@ -72,14 +70,14 @@ impl IrContext {
 			Ok(lexer) => lexer,
 			Err(err) => return Err(IrError::LexError(err))
 		};
-		let program = match Parser::parse_program(&mut self.ast, &mut lexer, &mut self.interner) {
+		let program = match Parser::parse_program(&mut self.ast, &mut lexer) {
 			Ok(program) => program,
 			Err(err) => return Err(IrError::ParseError(err))
 		};
 		
 		// Append the new functions to our functions.
 		
-		for i in offset..self.ast.functions.len() {
+		for _ in offset..self.ast.functions.len() {
 			self.functions.push(IrFunction {
 				block: None
 			});
@@ -443,7 +441,7 @@ impl<'a> IrGenerator<'a> {
 	fn emit_for_var_in(&mut self, label: &'a Option<Label>, var: &'a Ident, in_: &'a ExprSeq, stmt: &'a Item) -> IrResult<()> {
 		self.emit_for_in_init(
 			label,
-			|generator| Ok(var),
+			|_| Ok(var),
 			in_,
 			stmt
 		)
@@ -491,7 +489,7 @@ impl<'a> IrGenerator<'a> {
 		Ok(())
 	}
 	
-	fn emit_function(&mut self, ident: &'a Ident, function_ref: FunctionRef) -> IrResult<()> {
+	fn emit_function(&mut self, _ident: &'a Ident, _function_ref: FunctionRef) -> IrResult<()> {
 		// No-op.
 		
 		Ok(())
@@ -578,7 +576,7 @@ impl<'a> IrGenerator<'a> {
 					try!(self.emit_exprs(exprs, true));
 					self.ir.emit(Ir::JumpEq(label));
 				}
-				&SwitchClause::Default(ref stmts) => {
+				&SwitchClause::Default(..) => {
 					let label = self.ir.label();
 					default = Some(label);
 					targets.push(label);
@@ -848,18 +846,37 @@ impl<'a> IrGenerator<'a> {
 			&Expr::Ident(ref ident) => {
 				try!(load(self));
 				
+				if leave {
+					self.ir.emit(Ir::Dup);
+				}
+				
 				self.emit_store(ident);
 			},
 			&Expr::MemberDot(ref expr, ident) => {
-				try!(self.emit_expr(expr, true));
-				try!(load(self));
+				if leave {
+					try!(load(self));
+					self.ir.emit(Ir::Dup);
+					try!(self.emit_expr(expr, true));
+					self.ir.emit(Ir::Swap);
+				} else {
+					try!(self.emit_expr(expr, true));
+					try!(load(self));
+				}
 				
 				self.ir.emit(Ir::StoreName(ident));
 			},
 			&Expr::MemberIndex(ref expr, ref index) => {
-				try!(self.emit_expr(expr, true));
-				try!(self.emit_exprs(index, true));
-				try!(load(self));
+				if leave {
+					try!(load(self));
+					self.ir.emit(Ir::Dup);
+					try!(self.emit_expr(expr, true));
+					try!(self.emit_exprs(index, true));
+					self.ir.emit(Ir::Pick(2));
+				} else {
+					try!(self.emit_expr(expr, true));
+					try!(self.emit_exprs(index, true));
+					try!(load(self));
+				}
 				
 				self.ir.emit(Ir::StoreIndex);
 			}
@@ -909,10 +926,10 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_expr_ident(&mut self, ident: &'a Ident, leave: bool) -> IrResult<()> {
-		// TODO: This is wrong. Loading can have side effects if it's a global and
-		// has a property getter/setter.
-		
 		self.emit_load(ident);
+		if !leave {
+			self.ir.emit(Ir::Pop);
+		}
 		
 		Ok(())
 	}
@@ -1241,7 +1258,7 @@ impl<'a> IrGenerator<'a> {
 					self.ir.emit(Ir::LoadLocal(self.locals[slot_ref.usize()].unwrap()));
 				}
 			}
-			IdentState::LiftedSlot(slot_ref, depth) => {
+			IdentState::LiftedSlot(_, depth) => {
 				self.ir.emit(Ir::LoadLifted(ident.name, depth));
 			}
 			_ => panic!()
@@ -1263,7 +1280,7 @@ impl<'a> IrGenerator<'a> {
 					self.ir.emit(Ir::StoreLocal(self.locals[slot_ref.usize()].unwrap()));
 				}
 			}
-			IdentState::LiftedSlot(slot_ref, depth) => {
+			IdentState::LiftedSlot(_, depth) => {
 				self.ir.emit(Ir::StoreLifted(ident.name, depth));
 			}
 			_ => panic!()

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 pub mod reader;
 pub mod lexer;
 pub mod parser;
