@@ -13,3 +13,8 @@ path = "src/main.rs"
 
 name = "rjs"
 path = "src/lib.rs"
+
+[dependencies]
+
+libc = "0.1"
+time = "0.1"
