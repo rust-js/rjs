@@ -3,18 +3,13 @@ use syntax::ast::*;
 use syntax::token::{Token, Lit};
 use syntax::Span;
 use syntax::token::keywords;
+use ::{JsResult, JsError};
 use std::rc::Rc;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use util::iter::*;
 
 mod locals;
-
-pub enum ParseError {
-	Message(String)
-}
-
-pub type ParseResult<T> = Result<T, ParseError>;
 
 pub struct Parser<'a> {
 	lexer: &'a mut Lexer,
@@ -141,7 +136,7 @@ impl<'a> Parser<'a> {
 		self.lexer.bump_any();
 	}
 	
-	fn expect(&mut self, token: &Token) -> ParseResult<()> {
+	fn expect(&mut self, token: &Token) -> JsResult<()> {
 		let message = {
 			let next = self.next();
 			
@@ -168,7 +163,7 @@ impl<'a> Parser<'a> {
 		matched
 	}
 	
-	fn fatal<T>(&self, message: &str) -> ParseResult<T> {
+	fn fatal<T>(&self, message: &str) -> JsResult<T> {
 		let span = match self.lexer.peek(0) {
 			Some(token) => token.span().clone(),
 			_ => Span::new(-1, -1, -1, -1)
@@ -182,10 +177,10 @@ impl<'a> Parser<'a> {
 			panic!(message);
 		}
 		
-		Err(ParseError::Message(message))
+		Err(JsError::Parse(message))
 	}
 	
-	fn expect_eos(&mut self) -> ParseResult<()> {
+	fn expect_eos(&mut self) -> JsResult<()> {
 		// Find a valid end of statement. A valid end of statement is:
 		//
 		//   * A semi colon or newline, which is consumed;
@@ -235,7 +230,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	pub fn parse_program(context: &'a mut AstContext, lexer: &'a mut Lexer) -> ParseResult<FunctionRef> {
+	pub fn parse_program(context: &'a mut AstContext, lexer: &'a mut Lexer) -> JsResult<FunctionRef> {
 		let program = {
 			let mut parser = Parser {
 				lexer: lexer,
@@ -269,7 +264,7 @@ impl<'a> Parser<'a> {
 			})
 		};
 		
-		let program_ref = FunctionRef(context.functions.len());
+		let program_ref = FunctionRef(context.functions.len() as u32);
 		context.functions.push(program);
 		
 		locals::LocalResolver::resolve(context, program_ref);
@@ -277,31 +272,31 @@ impl<'a> Parser<'a> {
 		Ok(program_ref)
 	}
 	
-	fn parse_item(&mut self) -> ParseResult<Item> {
-		if self.scopes.len() > 1 {
-			if let Some(&Token::Function) = self.peek() {
-				if let Some(&Token::Identifier(..)) = self.peek_at(1) {
-					self.bump();
-					
-					let function_ref = try!(self.parse_function());
-					let name = self.context.functions[function_ref.usize()].name.unwrap();
-					
+	fn parse_item(&mut self) -> JsResult<Item> {
+		if let Some(&Token::Function) = self.peek() {
+			if let Some(&Token::Identifier(..)) = self.peek_at(1) {
+				self.bump();
+				
+				let function_ref = try!(self.parse_function());
+				let name = self.context.functions[function_ref.usize()].name.unwrap();
+				
+				if self.scopes.len() > 1 {
 					self.register_local(name, false);
-					
-					let ident = Ident {
-						name: name,
-						state: Cell::new(IdentState::None)
-					};
-					
-					return Ok(Item::Function(ident, function_ref));
 				}
+				
+				let ident = Ident {
+					name: name,
+					state: Cell::new(IdentState::None)
+				};
+				
+				return Ok(Item::Function(ident, function_ref));
 			}
 		}
 		
 		self.parse_stmt(None)
 	}
 	
-	fn parse_function(&mut self) -> ParseResult<FunctionRef> {
+	fn parse_function(&mut self) -> JsResult<FunctionRef> {
 		let name = try!(self.parse_opt_name());
 		
 		let args = try!(self.parse_parameter_list());
@@ -314,13 +309,13 @@ impl<'a> Parser<'a> {
 			block: block
 		});
 		
-		let function_ref = FunctionRef(self.context.functions.len());
+		let function_ref = FunctionRef(self.context.functions.len() as u32);
 		self.context.functions.push(function);
 		
 		Ok(function_ref)
 	}
 	
-	fn parse_function_block(&mut self, args: Vec<Name>) -> ParseResult<RootBlock> {
+	fn parse_function_block(&mut self, args: Vec<Name>) -> JsResult<RootBlock> {
 		self.push_scope();
 		
 		try!(self.expect(&Token::OpenBrace));
@@ -374,7 +369,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	fn parse_parameter_list(&mut self) -> ParseResult<Vec<Name>> {
+	fn parse_parameter_list(&mut self) -> JsResult<Vec<Name>> {
 		try!(self.expect(&Token::OpenParen));
 		
 		if self.consume(&Token::CloseParen) {
@@ -396,7 +391,7 @@ impl<'a> Parser<'a> {
 		self.fatal("Cannot parse parameter list")
 	}
 	
-	fn parse_name(&mut self) -> ParseResult<Name> {
+	fn parse_name(&mut self) -> JsResult<Name> {
 		if let Token::Identifier(name) = *self.next() {
 			Ok(name)
 		} else {
@@ -404,7 +399,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	fn parse_opt_name(&mut self) -> ParseResult<Option<Name>> {
+	fn parse_opt_name(&mut self) -> JsResult<Option<Name>> {
 		let name = match self.peek() {
 			Some(&Token::Identifier(name)) => name,
 			_ => return Ok(None)
@@ -415,14 +410,14 @@ impl<'a> Parser<'a> {
 		Ok(Some(name))
 	}
 	
-	fn parse_ident(&mut self) -> ParseResult<Ident> {
+	fn parse_ident(&mut self) -> JsResult<Ident> {
 		Ok(Ident {
 			name: try!(self.parse_name()),
 			state: Cell::new(IdentState::None)
 		})
 	}
 	
-	fn parse_ident_name(&mut self) -> ParseResult<Option<Name>> {
+	fn parse_ident_name(&mut self) -> JsResult<Option<Name>> {
 		// This is a special version of parse_ident that also accepts keywords.
 		
 		let name = match self.peek() {
@@ -486,7 +481,7 @@ impl<'a> Parser<'a> {
 		Ok(Some(name))
 	}
 	
-	fn parse_lit(&mut self) -> ParseResult<Rc<Lit>> {
+	fn parse_lit(&mut self) -> JsResult<Rc<Lit>> {
 		if let Token::Literal(ref lit) = *self.next() {
 			return Ok(lit.clone());
 		}
@@ -494,7 +489,7 @@ impl<'a> Parser<'a> {
 		self.fatal("Expected literal")
 	}
 	
-	fn parse_block(&mut self) -> ParseResult<Block> {
+	fn parse_block(&mut self) -> JsResult<Block> {
 		try!(self.expect(&Token::OpenBrace));
 		
 		let stmts = try!(self.parse_stmt_list());
@@ -507,7 +502,7 @@ impl<'a> Parser<'a> {
 		})
 	}
 	
-	fn parse_stmt(&mut self, label: Option<Label>) -> ParseResult<Item> {
+	fn parse_stmt(&mut self, label: Option<Label>) -> JsResult<Item> {
 		match self.peek() {
 			Some(&Token::OpenBrace) => Ok(Item::Block(label, try!(self.parse_block()))),
 			Some(&Token::Var) => self.parse_var_stmt(),
@@ -539,7 +534,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	fn parse_stmt_list(&mut self) -> ParseResult<Vec<Item>> {
+	fn parse_stmt_list(&mut self) -> JsResult<Vec<Item>> {
 		let mut stmts = Vec::new();
 		
 		loop {
@@ -555,7 +550,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	fn parse_var_stmt(&mut self) -> ParseResult<Item> {
+	fn parse_var_stmt(&mut self) -> JsResult<Item> {
 		self.bump();
 		
 		let var_decl = try!(self.parse_var_decl());
@@ -565,7 +560,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::VarDecl(var_decl))
 	}
 	
-	fn parse_var_decl(&mut self) -> ParseResult<Vec<Var>> {
+	fn parse_var_decl(&mut self) -> JsResult<Vec<Var>> {
 		let mut vars = Vec::new();
 		
 		while !self.is_eof() {
@@ -596,7 +591,7 @@ impl<'a> Parser<'a> {
 		self.fatal("Cannot parse variable declaration")
 	}
 	
-	fn parse_expr(&mut self) -> ParseResult<Expr> {
+	fn parse_expr(&mut self) -> JsResult<Expr> {
 		let mut expr = try!(match self.peek() {
 			Some(&Token::Function) => {
 				self.bump();
@@ -687,7 +682,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	fn parse_expr_member_index(&mut self, expr: Expr) -> ParseResult<Expr> {
+	fn parse_expr_member_index(&mut self, expr: Expr) -> JsResult<Expr> {
 		self.bump();
 		
 		let index = try!(self.parse_expr_seq());
@@ -697,7 +692,7 @@ impl<'a> Parser<'a> {
 		Ok(Expr::MemberIndex(Box::new(expr), index))
 	}
 	
-	fn parse_expr_member_dot(&mut self, expr: Expr) -> ParseResult<Expr> {
+	fn parse_expr_member_dot(&mut self, expr: Expr) -> JsResult<Expr> {
 		self.bump();
 		
 		if let Some(name) = try!(self.parse_ident_name()) {
@@ -707,13 +702,13 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	fn parse_expr_call(&mut self, expr: Expr) -> ParseResult<Expr> {
+	fn parse_expr_call(&mut self, expr: Expr) -> JsResult<Expr> {
 		let args = try!(self.parse_arguments());
 		
 		Ok(Expr::Call(Box::new(expr), args))
 	}
 	
-	fn parse_expr_binary(&mut self, expr: Expr, op: Op) -> ParseResult<Expr> {
+	fn parse_expr_binary(&mut self, expr: Expr, op: Op) -> JsResult<Expr> {
 		self.bump();
 		
 		let right = try!(self.parse_expr());
@@ -721,7 +716,7 @@ impl<'a> Parser<'a> {
 		Ok(Expr::Binary(op, Box::new(expr), Box::new(right)))
 	}
 	
-	fn parse_expr_binary_assign(&mut self, expr: Expr, op: Op) -> ParseResult<Expr> {
+	fn parse_expr_binary_assign(&mut self, expr: Expr, op: Op) -> JsResult<Expr> {
 		self.bump();
 		
 		let right = try!(self.parse_expr_seq());
@@ -729,7 +724,7 @@ impl<'a> Parser<'a> {
 		Ok(Expr::Assign(op, Box::new(expr), right))
 	}
 	
-	fn parse_expr_ternary(&mut self, expr: Expr) -> ParseResult<Expr> {
+	fn parse_expr_ternary(&mut self, expr: Expr) -> JsResult<Expr> {
 		self.bump();
 		
 		let then = try!(self.parse_expr());
@@ -741,21 +736,13 @@ impl<'a> Parser<'a> {
 		Ok(Expr::Ternary(Box::new(expr), Box::new(then), Box::new(else_)))
 	}
 	
-	fn parse_expr_new(&mut self) -> ParseResult<Expr> {
+	fn parse_expr_new(&mut self) -> JsResult<Expr> {
 		self.bump();
 		
-		let expr = try!(self.parse_expr());
-		
-		let args = if let Some(&Token::OpenParen) = self.peek() {
-			Some(try!(self.parse_arguments()))
-		} else {
-			None
-		};
-		
-		Ok(Expr::New(Box::new(expr), args))
+		Ok(Expr::New(Box::new(try!(self.parse_expr()))))
 	}
 	
-	fn parse_expr_unary_pre(&mut self, op: Op) -> ParseResult<Expr> {
+	fn parse_expr_unary_pre(&mut self, op: Op) -> JsResult<Expr> {
 		self.bump();
 		
 		let expr = try!(self.parse_expr());
@@ -774,13 +761,13 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	fn parse_expr_unary_post(&mut self, expr: Expr, op: Op) -> ParseResult<Expr> {
+	fn parse_expr_unary_post(&mut self, expr: Expr, op: Op) -> JsResult<Expr> {
 		self.bump();
 		
 		Ok(Expr::Unary(op, Box::new(expr)))
 	}
 	
-	fn parse_arguments(&mut self) -> ParseResult<Vec<Expr>> {
+	fn parse_arguments(&mut self) -> JsResult<Vec<Expr>> {
 		try!(self.expect(&Token::OpenParen));
 		
 		if self.consume(&Token::CloseParen) {
@@ -800,11 +787,11 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	fn parse_expr_ident(&mut self) -> ParseResult<Expr> {
+	fn parse_expr_ident(&mut self) -> JsResult<Expr> {
 		Ok(Expr::Ident(try!(self.parse_ident())))
 	}
 	
-	fn parse_expr_literal(&mut self) -> ParseResult<Expr> {
+	fn parse_expr_literal(&mut self) -> JsResult<Expr> {
 		if let &Token::Literal(ref lit) = self.next() {
 			return Ok(Expr::Literal(lit.clone()));
 		}
@@ -812,7 +799,7 @@ impl<'a> Parser<'a> {
 		self.fatal("Expected literal")
 	}
 	
-	fn parse_expr_paren(&mut self) -> ParseResult<Expr> {
+	fn parse_expr_paren(&mut self) -> JsResult<Expr> {
 		self.bump();
 		
 		let exprs = try!(self.parse_expr_seq());
@@ -822,7 +809,7 @@ impl<'a> Parser<'a> {
 		Ok(Expr::Paren(exprs))
 	}
 	
-	fn parse_expr_array_literal(&mut self) -> ParseResult<Expr> {
+	fn parse_expr_array_literal(&mut self) -> JsResult<Expr> {
 		self.bump();
 		
 		let mut elems = Vec::new();
@@ -859,7 +846,7 @@ impl<'a> Parser<'a> {
 		return Ok(Expr::ArrayLiteral(elems));
 	}
 	
-	fn parse_expr_object_literal(&mut self) -> ParseResult<Expr> {
+	fn parse_expr_object_literal(&mut self) -> JsResult<Expr> {
 		self.bump();
 		
 		let mut props = Vec::new();
@@ -889,7 +876,7 @@ impl<'a> Parser<'a> {
 		Ok(Expr::ObjectLiteral(props))
 	}
 	
-	fn parse_expr_object_literal_prop(&mut self) -> ParseResult<Property> {
+	fn parse_expr_object_literal_prop(&mut self) -> JsResult<Property> {
 		if let Some(name) = try!(self.parse_ident_name()) {
 			let prop_ident = try!(self.parse_ident_name());
 			
@@ -905,7 +892,7 @@ impl<'a> Parser<'a> {
 						block: block
 					});
 					
-					let function_ref = FunctionRef(self.context.functions.len());
+					let function_ref = FunctionRef(self.context.functions.len() as u32);
 					self.context.functions.push(function);
 					
 					Ok(Property::Getter(prop_ident, function_ref))
@@ -922,7 +909,7 @@ impl<'a> Parser<'a> {
 						block: block
 					});
 					
-					let function_ref = FunctionRef(self.context.functions.len());
+					let function_ref = FunctionRef(self.context.functions.len() as u32);
 					self.context.functions.push(function);
 					
 					Ok(Property::Setter(prop_ident, function_ref))
@@ -962,7 +949,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	fn parse_if(&mut self) -> ParseResult<Item> {
+	fn parse_if(&mut self) -> JsResult<Item> {
 		self.bump();
 		
 		try!(self.expect(&Token::OpenParen));
@@ -982,7 +969,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::If(expr, Box::new(then), else_))
 	}
 	
-	fn parse_expr_seq(&mut self) -> ParseResult<ExprSeq> {
+	fn parse_expr_seq(&mut self) -> JsResult<ExprSeq> {
 		let mut exprs = Vec::new();
 		
 		exprs.push(try!(self.parse_expr()));
@@ -996,7 +983,7 @@ impl<'a> Parser<'a> {
 		})
 	}
 	
-	fn parse_do(&mut self, label: Option<Label>) -> ParseResult<Item> {
+	fn parse_do(&mut self, label: Option<Label>) -> JsResult<Item> {
 		self.bump();
 		
 		let stmt = try!(self.parse_stmt(None));
@@ -1012,7 +999,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::Do(label, Box::new(expr), Box::new(stmt)))
 	}
 	
-	fn parse_while(&mut self, label: Option<Label>) -> ParseResult<Item> {
+	fn parse_while(&mut self, label: Option<Label>) -> JsResult<Item> {
 		self.bump();
 		
 		try!(self.expect(&Token::OpenParen));
@@ -1026,7 +1013,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::While(label, Box::new(expr), Box::new(stmt)))
 	}
 	
-	fn parse_for(&mut self, label: Option<Label>) -> ParseResult<Item> {
+	fn parse_for(&mut self, label: Option<Label>) -> JsResult<Item> {
 		self.bump();
 		
 		try!(self.expect(&Token::OpenParen));
@@ -1111,7 +1098,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	fn parse_for_tail(&mut self) -> ParseResult<(Option<ExprSeq>, Option<ExprSeq>, Item)> {
+	fn parse_for_tail(&mut self) -> JsResult<(Option<ExprSeq>, Option<ExprSeq>, Item)> {
 		let test = if self.consume(&Token::SemiColon) {
 			None
 		} else {
@@ -1137,7 +1124,7 @@ impl<'a> Parser<'a> {
 		Ok((test, incr, stmt))
 	}
 	
-	fn parse_continue(&mut self) -> ParseResult<Item> {
+	fn parse_continue(&mut self) -> JsResult<Item> {
 		self.bump();
 		
 		let label = if let Some(name) = try!(self.parse_opt_name()) {
@@ -1153,7 +1140,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::Continue(label))
 	}
 	
-	fn parse_break(&mut self) -> ParseResult<Item> {
+	fn parse_break(&mut self) -> JsResult<Item> {
 		self.bump();
 		
 		let label = if let Some(name) = try!(self.parse_opt_name()) {
@@ -1169,7 +1156,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::Break(label))
 	}
 	
-	fn parse_return(&mut self) -> ParseResult<Item> {
+	fn parse_return(&mut self) -> JsResult<Item> {
 		self.bump();
 		
 		let expr = if self.is_eos() {
@@ -1183,7 +1170,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::Return(expr))
 	}
 	
-	fn parse_with(&mut self) -> ParseResult<Item> {
+	fn parse_with(&mut self) -> JsResult<Item> {
 		self.bump();
 		
 		try!(self.expect(&Token::OpenParen));
@@ -1197,7 +1184,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::With(expr, Box::new(stmt)))
 	}
 	
-	fn parse_switch(&mut self, label: Option<Label>) -> ParseResult<Item> {
+	fn parse_switch(&mut self, label: Option<Label>) -> JsResult<Item> {
 		self.bump();
 		
 		try!(self.expect(&Token::OpenParen));
@@ -1245,7 +1232,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::Switch(label, expr, cases))
 	}
 	
-	fn parse_throw(&mut self) -> ParseResult<Item> {
+	fn parse_throw(&mut self) -> JsResult<Item> {
 		self.bump();
 		
 		let expr = try!(self.parse_expr_seq());
@@ -1255,7 +1242,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::Throw(expr))
 	}
 	
-	fn parse_try(&mut self) -> ParseResult<Item> {
+	fn parse_try(&mut self) -> JsResult<Item> {
 		self.bump();
 		
 		let try = try!(self.parse_block());
@@ -1297,7 +1284,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	fn parse_debugger(&mut self) -> ParseResult<Item> {
+	fn parse_debugger(&mut self) -> JsResult<Item> {
 		self.bump();
 		
 		try!(self.expect_eos());
@@ -1305,7 +1292,7 @@ impl<'a> Parser<'a> {
 		Ok(Item::Debugger)
 	}
 	
-	fn parse_labelled(&mut self) -> ParseResult<Item> {
+	fn parse_labelled(&mut self) -> JsResult<Item> {
 		let label = Label {
 			name: try!(self.parse_name())
 		};
@@ -1315,7 +1302,7 @@ impl<'a> Parser<'a> {
 		self.parse_stmt(Some(label))
 	}
 	
-	fn parse_expr_stmt(&mut self) -> ParseResult<Item> {
+	fn parse_expr_stmt(&mut self) -> JsResult<Item> {
 		let expr = try!(self.parse_expr_seq());
 		
 		try!(self.expect_eos());

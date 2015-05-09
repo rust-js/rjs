@@ -12156,7 +12156,7 @@ fn parse(file: &str) {
 	}
 	
 	let mut ctx = IrContext::new();
-	ctx.load_from_str(&js).ok();
+	ctx.eval(&js).ok();
 	
 	ctx.print_ir(&mut String::new()).ok();
 }

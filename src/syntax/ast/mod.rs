@@ -92,8 +92,7 @@ impl Name {
 	}
 
 	pub fn usize(&self) -> usize {
-		let Name(nm) = *self;
-		nm as usize
+		self.0 as usize
 	}
 }
 
@@ -110,12 +109,11 @@ impl AstContext {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct FunctionRef(pub usize);
+pub struct FunctionRef(pub u32);
 
 impl FunctionRef {
 	pub fn usize(&self) -> usize {
-		let &FunctionRef(index) = self;
-		index
+		self.0 as usize
 	}
 }
 
@@ -156,8 +154,7 @@ pub struct SlotRef(pub usize);
 
 impl SlotRef {
 	pub fn usize(&self) -> usize {
-		let &SlotRef(index) = self;
-		index
+		self.0
 	}
 }
 
@@ -268,7 +265,7 @@ pub enum Expr {
 	MemberDot(Box<Expr>, Name),
 	MemberIndex(Box<Expr>, ExprSeq),
 	Missing,
-	New(Box<Expr>, Option<Vec<Expr>>),
+	New(Box<Expr>),
 	ObjectLiteral(Vec<Property>),
 	Paren(ExprSeq),
 	Ternary(Box<Expr>, Box<Expr>, Box<Expr>),

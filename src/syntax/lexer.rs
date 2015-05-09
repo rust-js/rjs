@@ -2,17 +2,12 @@ use syntax::Span;
 use syntax::reader::Reader;
 use syntax::token::{Token, TokenAndSpan, Lit};
 use syntax::token::Token::*;
+use ::{JsResult, JsError};
 use util::interner::StrInterner;
 use std::{char, i32};
 use std::rc::Rc;
-
-pub enum LexError {
-	Message(String)
-}
-
-pub type LexResult<T> = Result<T, LexError>;
 	
-fn fatal<T>(reader: &Reader, message: &str) -> LexResult<T> {
+fn fatal<T>(reader: &Reader, message: &str) -> JsResult<T> {
 	let (line, col) = reader.pos();
 	
 	let message = format!("{}:{}: {}", line, col, message.to_string());
@@ -23,10 +18,10 @@ fn fatal<T>(reader: &Reader, message: &str) -> LexResult<T> {
 		panic!(message);
 	}
 	
-	Err(LexError::Message(message))
+	Err(JsError::Lex(message))
 }
 
-fn parse(reader: &mut Reader, interner: &StrInterner, strict: bool) -> LexResult<Vec<TokenAndSpan>> {
+fn parse(reader: &mut Reader, interner: &StrInterner, strict: bool) -> JsResult<Vec<TokenAndSpan>> {
 	let mut tokens = Vec::new();
 	
 	while !reader.is_eof() {
@@ -316,7 +311,7 @@ fn parse_str_number(value: &str, radix: u32) -> Option<Token> {
 	}
 }
 
-fn parse_hex(reader: &mut Reader) -> LexResult<Token> {
+fn parse_hex(reader: &mut Reader) -> JsResult<Token> {
 	let s = consume_while(reader, is_hex);
 	if s.len() == 0 {
 		fatal(reader, "Expected a hex digit")
@@ -327,7 +322,7 @@ fn parse_hex(reader: &mut Reader) -> LexResult<Token> {
 	}
 }
 
-fn parse_oct(reader: &mut Reader) -> LexResult<Token> {
+fn parse_oct(reader: &mut Reader) -> JsResult<Token> {
 	let s = consume_while(reader, is_oct);
 	if s.len() == 0 {
 		fatal(reader, "Expected a oct digit")
@@ -338,7 +333,7 @@ fn parse_oct(reader: &mut Reader) -> LexResult<Token> {
 	}
 }
 
-fn parse_decimal(reader: &mut Reader, prefix: String) -> LexResult<Token> {
+fn parse_decimal(reader: &mut Reader, prefix: String) -> JsResult<Token> {
 	// This method parses a decimal without already having seen a dot. The decimal
 	// prefix is parsed here and the rest is handled  by parse_decimal_tail.
 	
@@ -360,7 +355,7 @@ fn parse_decimal(reader: &mut Reader, prefix: String) -> LexResult<Token> {
 	parse_decimal_tail(reader, s)
 }
 
-fn parse_decimal_tail(reader: &mut Reader, prefix: String) -> LexResult<Token> {
+fn parse_decimal_tail(reader: &mut Reader, prefix: String) -> JsResult<Token> {
 	// This method parses decimal tails. The prefix contains what has already been
 	// parsed and may contain a dot. This method will not parse dots.
 	
@@ -1098,7 +1093,7 @@ pub struct Lexer {
 }
 
 impl Lexer {
-	pub fn new(reader: &mut Reader, interner: &StrInterner, strict: bool) -> LexResult<Lexer> {
+	pub fn new(reader: &mut Reader, interner: &StrInterner, strict: bool) -> JsResult<Lexer> {
 		Ok(Lexer {
 			offset: 0,
 			tokens: try!(parse(reader, interner, strict))

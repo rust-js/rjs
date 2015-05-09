@@ -168,7 +168,7 @@ macro_rules! declare_idents {(
 }}
 
 declare_idents! {
-	( "null", NULL, 0 );
+	( "", NONE, 0 );
 	( "true", TRUE, 1 );
 	( "false", FALSE, 2 );
 	( "break", BREAK, 3 );
@@ -216,4 +216,21 @@ declare_idents! {
 	( "get", GET, 45 );
 	( "set", SET, 46 );
 	( "arguments", ARGUMENTS, 47 );
+	( "Function", FUNCTION_CLASS, 48 );
+	( "constructor", CONSTRUCTOR, 49 );
+	( "call", CALL, 50 );
+	( "apply", APPLY, 51 );
+	( "toString", TO_STRING, 52 );
+	( "toLocaleString", TO_LOCALE_STRING, 53 );
+	( "length", LENGTH, 54 );
+	( "Object", OBJECT_CLASS, 55 );
+	( "valueOf", VALUE_OF, 56 );
+	( "hasOwnProperty", HAS_OWN_PROPERTY, 57 );
+	( "isPrototypeOf", IS_PROTOTYPE_OF, 58 );
+	( "propertyIsEnumerable", PROPERTY_IS_ENUMERABLE, 59 );
+	( "getPrototypeOf", GET_PROTOTYPE_OF, 60 );
+	( "defineProperty", DEFINE_PROPERTY, 61 );
+	( "prototype", PROTOTYPE, 62 );
+	( "null", NULL, 63 );
+	( "create", CREATE, 64 );
 }

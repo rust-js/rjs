@@ -1,217 +1,467 @@
+const INITIAL_LOCAL_SCOPE_CAPACITY : usize = 8;
+
 extern crate libc;
 extern crate time;
 
-// We can't use size_of in a static so we use conditional compilation instead.
-
-#[cfg(target_pointer_width = "32")]
-const PTR_SIZE : usize = 4;
-#[cfg(target_pointer_width = "64")]
-const PTR_SIZE : usize = 8;
-
-use std::ops::{Deref, DerefMut, Index, IndexMut};
+use std::ops::{Deref, DerefMut, Index};
 use std::marker::PhantomData;
 use std::ptr;
-use std::mem;
-use std::mem::size_of;
+use std::mem::{size_of, transmute, swap};
+use std::cell::RefCell;
+use std::slice;
 use self::strategy::Strategy;
 use self::strategy::copying::Copying;
 use self::libc::c_void;
+use std::fmt;
 
-mod os;
+pub mod os;
 mod strategy;
 
 #[macro_export]
 macro_rules! field_offset {
 	( $ty:ty, $ident:ident ) => {
-		unsafe { ((&(& *(std::ptr::null::<$ty>() as *const $ty)).$ident) as *const GcPtr<_>) as usize }
+		unsafe {
+			use std::ptr;
+			((&(& *(ptr::null::<$ty>() as *const $ty)).$ident) as *const _) as usize
+		}
 	}
 }
 
-// TODO: This is an ugnly hack. Consider removing this. This should be replaced
-// with RefCell's. See what the performance is to consider whether we want to
-// remove this.
-unsafe fn as_mut<T>(obj: &T) -> &mut T {
-	&mut *((obj as *const T) as *mut T)
+pub struct Root<'a, T: 'a> {
+	root: UnsafeRoot<T>,
+	_type: PhantomData<&'a T>
 }
 
-#[inline(always)]
-unsafe fn get_data<'a, T : ?Sized>(ptr: *const c_void) -> &'a T {
-	& *(ptr.offset(size_of::<GcMemHeader>() as isize) as *const T)
+impl<'a, T: 'a> Root<'a, T> {
+	pub fn as_ptr(&self) -> Ptr<T> {
+		self.root.as_ptr()
+	}
+	
+	fn from_raw_parts(heap: &'a GcHeap, ptr: *const c_void) -> Root<'a, T> {
+		Root {
+			root: UnsafeRoot::from_raw_parts(heap, ptr),
+			_type: PhantomData
+		}
+	}
+	
+	pub fn from_local(heap: &'a GcHeap, local: Local<T>) -> Root<'a, T> {
+		Root::from_raw_parts(heap, unsafe { (*local.handle).ptr })
+	}
+	
+	pub fn into_unsafe(self) -> UnsafeRoot<T> {
+		self.root
+	}
+	
+	pub fn from_unsafe(_heap: &'a GcHeap, root: UnsafeRoot<T>) -> Root<'a, T> {
+		Root {
+			root: root,
+			_type: PhantomData
+		}
+	}
 }
 
-#[inline(always)]
-unsafe fn get_header_mut<'a>(ptr: *const c_void) -> &'a mut GcMemHeader {
-	mem::transmute(ptr)
-}
-
-unsafe fn get_array_size_mut<'a>(ptr: *const c_void) -> &'a mut usize {
-	&mut *(ptr.offset(size_of::<GcMemHeader>() as isize) as *mut usize)
-}
-
-#[inline(always)]
-unsafe fn get_data_mut<'a, T : ?Sized>(ptr: *const c_void) -> &'a mut T {
-	&mut *(ptr.offset(size_of::<GcMemHeader>() as isize) as *mut T)
-}
-
-pub struct Gc<'a, T: ?Sized> {
-	owner: &'a GcHeap,
+pub struct UnsafeRoot<T> {
+	handles: *const RootHandles,
 	handle: u32,
 	_type: PhantomData<T>
 }
 
-impl<'a, T: ?Sized> Gc<'a, T> {
-	pub fn as_ptr(&self) -> GcPtr<T> {
-		GcPtr {
-			ptr: self.owner.handles.ptrs[self.handle as usize],
+impl<T> UnsafeRoot<T> {
+	pub fn as_ptr(&self) -> Ptr<T> {
+		unsafe {
+			Ptr::from_ptr((*self.handles).get_target(self.handle))
+		}
+	}
+	
+	fn from_raw_parts(heap: &GcHeap, ptr: *const c_void) -> UnsafeRoot<T> {
+		UnsafeRoot {
+			handles: &*heap.handles as *const RootHandles,
+			handle: heap.handles.add(ptr),
 			_type: PhantomData
 		}
 	}
 }
 
-impl<'a, T: ?Sized> Clone for Gc<'a, T> {
-	fn clone(&self) -> Gc<'a, T> {
-		let handle = unsafe { as_mut(self.owner) }.handles.add(self.owner.handles.ptrs[self.handle as usize]);
-		
-		Gc {
-			owner: self.owner,
-			handle: handle,
-			_type: PhantomData
-		}
-	}
-}
-
-impl<'a, T: ?Sized> Deref for Gc<'a, T> {
+impl<T> Deref for UnsafeRoot<T> {
 	type Target = T;
 	
 	fn deref(&self) -> &T {
-		unsafe { & *(self.owner.handles.deref(self.handle) as *const T) }
+		unsafe {
+			let ptr = (*self.handles).get_target(self.handle);
+			transmute(ptr.offset(size_of::<GcMemHeader>() as isize))
+		}
 	}
 }
 
-impl<'a, T: ?Sized> DerefMut for Gc<'a, T> {
+impl<T> DerefMut for UnsafeRoot<T> {
 	fn deref_mut(&mut self) -> &mut T {
-		unsafe { &mut *(self.owner.handles.deref(self.handle) as *mut T) }
+		unsafe {
+			let ptr = (*self.handles).get_target(self.handle);
+			transmute(ptr.offset(size_of::<GcMemHeader>() as isize))
+		}
 	}
 }
 
-impl<'a, T: ?Sized> Drop for Gc<'a, T> {
+impl<T> Clone for UnsafeRoot<T> {
+	fn clone(&self) -> UnsafeRoot<T> {
+		UnsafeRoot {
+			handles: self.handles,
+			handle: unsafe { (&*self.handles) }.clone_root(self.handle),
+			_type: PhantomData
+		}
+	}
+}
+
+impl<T> Drop for UnsafeRoot<T> {
 	fn drop(&mut self) {
-		unsafe { as_mut(self.owner) }.handles.remove(self.handle);
+		unsafe { (&*self.handles) }.remove(self.handle);
 	}
 }
 
-#[allow(raw_pointer_derive)]
-pub struct GcPtr<T: ?Sized> {
-	ptr: *mut c_void,
-	_type: PhantomData<T>
+impl<'a, T> Deref for Root<'a, T> {
+	type Target = T;
+	
+	fn deref(&self) -> &T {
+		&*self.root
+	}
 }
 
-impl<T: ?Sized> Copy for GcPtr<T> { }
+impl<'a, T> DerefMut for Root<'a, T> {
+	fn deref_mut(&mut self) -> &mut T {
+		&mut *self.root
+	}
+}
 
-impl<T: ?Sized> Clone for GcPtr<T> {
-	fn clone(&self) -> GcPtr<T> {
-		GcPtr {
-			ptr: self.ptr,
+impl<'a, T> Clone for Root<'a, T> {
+	fn clone(&self) -> Root<'a, T> {
+		Root {
+			root: self.root.clone(),
 			_type: PhantomData
 		}
 	}
 }
 
-impl<T: ?Sized> Deref for GcPtr<T> {
-	type Target = T;
-	
-	fn deref(&self) -> &T {
-		unsafe { get_data(self.ptr) }
-	}
-}
-
-impl<T: ?Sized> DerefMut for GcPtr<T> {
-	fn deref_mut(&mut self) -> &mut T {
-		unsafe { get_data_mut(self.ptr) }
-	}
-}
-
-pub struct GcVec<'a, T> {
-	owner: &'a GcHeap,
+pub struct ArrayRoot<'a, T> {
+	handles: &'a RootHandles,
 	handle: u32,
 	_type: PhantomData<T>
 }
 
-impl<'a, T> GcVec<'a, T> {
-	pub fn len(&self) -> usize {
-		unsafe { *(self.ptr() as *const usize) }
+impl<'a, T> ArrayRoot<'a, T> {
+	pub fn as_ptr(&self) -> Array<T> {
+		unsafe {
+			Array::from_ptr(self.handles.get_target(self.handle))
+		}
 	}
 	
-	pub fn as_ptr(&self) -> GcVecPtr<T> {
-		GcVecPtr {
-			ptr: self.owner.handles.ptrs[self.handle as usize],
+	fn from_raw_parts(heap: &'a GcHeap, ptr: *const c_void) -> ArrayRoot<'a, T> {
+		ArrayRoot {
+			handles: &heap.handles,
+			handle: heap.handles.add(ptr),
 			_type: PhantomData
 		}
 	}
 	
-	unsafe fn ptr(&self) -> *const c_void {
-		self.owner.handles.deref(self.handle)
+	pub fn from_local(heap: &'a GcHeap, local: ArrayLocal<T>) -> ArrayRoot<'a, T> {
+		ArrayRoot::from_raw_parts(heap, unsafe { (*local.handle).ptr })
 	}
 }
 
-impl<'a, T> Index<usize> for GcVec<'a, T> {
-	type Output = T;
+impl<'a, T> Deref for ArrayRoot<'a, T> {
+	type Target = [T];
 	
-	fn index<'b>(&self, index: usize) -> &'b T {
-		if index >= self.len() {
-			panic!("Index out of bounds");
+	fn deref(&self) -> &[T] {
+		unsafe {
+			let ptr = self.handles.get_target(self.handle).offset(size_of::<GcMemHeader>() as isize);
+			let size = *transmute::<_, *const usize>(ptr);
+			let ptr = ptr.offset(size_of::<usize>() as isize);
+			
+			slice::from_raw_parts(
+				transmute(ptr),
+				size
+			)
+		}
+	}
+}
+
+impl<'a, T> DerefMut for ArrayRoot<'a, T> {
+	fn deref_mut(&mut self) -> &mut [T] {
+		unsafe {
+			let ptr = self.handles.get_target(self.handle).offset(size_of::<GcMemHeader>() as isize);
+			let size = *transmute::<_, *const usize>(ptr);
+			let ptr = ptr.offset(size_of::<usize>() as isize);
+			
+			slice::from_raw_parts_mut(
+				transmute(ptr),
+				size
+			)
+		}
+	}
+}
+
+impl<'a, T> Clone for ArrayRoot<'a, T> {
+	fn clone(&self) -> ArrayRoot<'a, T> {
+		ArrayRoot {
+			handles: self.handles,
+			handle: self.handles.clone_root(self.handle),
+			_type: PhantomData
+		}
+	}
+}
+
+impl<'a, T> Drop for ArrayRoot<'a, T> {
+	fn drop(&mut self) {
+		self.handles.remove(self.handle);
+	}
+}
+
+pub struct Local<T> {
+	handle: *const Ptr<T>
+}
+
+impl<T> Local<T> {
+	pub fn from_ptr(ptr: Ptr<T>, heap: &GcHeap) -> Local<T> {
+		heap.alloc_local_from_ptr(ptr)
+	}
+	
+	pub fn as_ptr(&self) -> Ptr<T> {
+		unsafe { *self.handle }
+	}
+}
+
+impl<T> Copy for Local<T> { }
+
+impl<T> Clone for Local<T> {
+	fn clone(&self) -> Local<T> {
+		Local {
+			handle: self.handle
+		}
+	}
+}
+
+impl<T> Deref for Local<T> {
+	type Target = T;
+	
+	fn deref(&self) -> &T {
+		unsafe { &**self.handle }
+	}
+}
+
+impl<T> DerefMut for Local<T> {
+	fn deref_mut(&mut self) -> &mut T {
+		unsafe { &mut **(self.handle as *mut Ptr<T>) }
+	}
+}
+
+pub struct ArrayLocal<T> {
+	handle: *const Array<T>
+}
+
+impl<T> ArrayLocal<T> {
+	pub fn from_ptr(ptr: Array<T>, heap: &GcHeap) -> ArrayLocal<T> {
+		heap.alloc_array_local_from_ptr(ptr)
+	}
+	
+	pub fn as_ptr(&self) -> Array<T> {
+		unsafe { *self.handle }
+	}
+}
+
+impl<T> Copy for ArrayLocal<T> { }
+
+impl<T> Clone for ArrayLocal<T> {
+	fn clone(&self) -> ArrayLocal<T> {
+		ArrayLocal {
+			handle: self.handle
+		}
+	}
+}
+
+impl<T> Deref for ArrayLocal<T> {
+	type Target = [T];
+	
+	fn deref(&self) -> &[T] {
+		unsafe { &**self.handle }
+	}
+}
+
+impl<T> DerefMut for ArrayLocal<T> {
+	fn deref_mut(&mut self) -> &mut [T] {
+		unsafe { &mut **(self.handle as *mut Array<T>) }
+	}
+}
+
+pub struct LocalScope {
+	heap: *const GcHeap,
+	index: usize
+}
+
+impl Drop for LocalScope {
+	fn drop(&mut self) {
+		unsafe { &*self.heap }.drop_current_scope(self.index);
+	}
+}
+
+struct LocalScopeData {
+	current: Vec<*const c_void>,
+	handles: Vec<Vec<*const c_void>>
+}
+
+impl LocalScopeData {
+	fn new() -> LocalScopeData {
+		LocalScopeData {
+			current: Vec::with_capacity(INITIAL_LOCAL_SCOPE_CAPACITY),
+			handles: Vec::new()
+		}
+	}
+	
+	fn add(&mut self, ptr: *const c_void) -> *const *const c_void {
+		if self.current.len() == self.current.capacity() {
+			self.grow();
 		}
 		
-		let offset = size_of::<usize>() + (size_of::<T>() * index);
+		let index = self.current.len();
+		self.current.push(ptr);
 		
-		unsafe { & *(self.ptr().offset(offset as isize) as *const T) }
+		unsafe { (*self.current).as_ptr().offset(index as isize) }
+	}
+	
+	fn grow(&mut self) {
+		let mut new = Vec::with_capacity(self.current.capacity() * 2);
+		swap(&mut new, &mut self.current);
+		self.handles.push(new);
 	}
 }
 
-impl<'a, T> IndexMut<usize> for GcVec<'a, T> {
-	fn index_mut<'b>(&mut self, index: usize) -> &'b mut T {
-		let offset = size_of::<usize>() + (size_of::<T>() * index);
-		
-		unsafe { &mut *(self.ptr().offset(offset as isize) as *mut T) }
-	}
-}
-
-pub struct GcVecPtr<T> {
-	ptr: *mut c_void,
+pub struct Ptr<T> {
+	ptr: *const c_void,
 	_type: PhantomData<T>
 }
 
-impl<T> GcVecPtr<T> {
-	pub fn len(&self) -> usize {
-		unsafe { *(self.ptr.offset(size_of::<GcMemHeader>() as isize) as *const usize) }
+impl<T> PartialEq for Ptr<T> {
+	fn eq(&self, other: &Ptr<T>) -> bool {
+		self.ptr == other.ptr
 	}
 }
 
-impl<T> Index<usize> for GcVecPtr<T> {
-	type Output = T;
+impl<T> Copy for Ptr<T> { }
+
+impl<T> Clone for Ptr<T> {
+	fn clone(&self) -> Ptr<T> {
+		Self::from_ptr(self.ptr)
+	}
+}
+
+impl<T> fmt::Debug for Ptr<T> {
+	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		write!(fmt, "Ptr {{ ptr: {:?} }}", self.ptr)
+	}
+}
+
+impl<T> Ptr<T> {
+	pub fn as_ptr(&self) -> *const c_void {
+		self.ptr
+	}
 	
-	fn index<'a>(&self, index: usize) -> &'a T {
-		if index >= self.len() {
-			panic!("Index out of bounds");
+	pub fn from_ptr(ptr: *const c_void) -> Ptr<T> {
+		Ptr {
+			ptr: ptr,
+			_type: PhantomData
 		}
-		
-		let offset =
-			size_of::<GcMemHeader>() +
-			size_of::<usize>() +
-			(size_of::<T>() * index);
-		
-		unsafe { & *(self.ptr.offset(offset as isize) as *const T) }
+	}
+	
+	pub fn null() -> Ptr<T> {
+		Self::from_ptr(ptr::null())
+	}
+	
+	pub fn is_null(&self) -> bool {
+		self.ptr.is_null()
 	}
 }
 
-impl<T> IndexMut<usize> for GcVecPtr<T> {
-	fn index_mut<'a>(&mut self, index: usize) -> &'a mut T {
-		let offset =
-			size_of::<GcMemHeader>() +
-			size_of::<usize>() +
-			(size_of::<T>() * index);
-		
-		unsafe { &mut *(self.ptr.offset(offset as isize) as *mut T) }
+impl<T> Deref for Ptr<T> {
+	type Target = T;
+	
+	fn deref(&self) -> &T {
+		unsafe { transmute(self.ptr.offset(size_of::<GcMemHeader>() as isize)) }
+	}
+}
+
+impl<T> DerefMut for Ptr<T> {
+	fn deref_mut(&mut self) -> &mut T {
+		unsafe { transmute(self.ptr.offset(size_of::<GcMemHeader>() as isize)) }
+	}
+}
+
+pub struct Array<T> {
+	ptr: *const c_void,
+	_type: PhantomData<T>
+}
+
+impl<T> Copy for Array<T> { }
+
+impl<T> Clone for Array<T> {
+	fn clone(&self) -> Array<T> {
+		Self::from_ptr(self.ptr)
+	}
+}
+
+impl<T> fmt::Debug for Array<T> {
+	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		write!(fmt, "Ptr {{ ptr: {:?} }}", self.ptr)
+	}
+}
+
+impl<T> Array<T> {
+	pub fn as_ptr(&self) -> *const c_void {
+		self.ptr
+	}
+	
+	pub fn from_ptr(ptr: *const c_void) -> Array<T> {
+		Array {
+			ptr: ptr,
+			_type: PhantomData
+		}
+	}
+	
+	pub fn null() -> Array<T> {
+		Self::from_ptr(ptr::null())
+	}
+	
+	pub fn is_null(&self) -> bool {
+		self.ptr.is_null()
+	}
+}
+
+impl<T> Deref for Array<T> {
+	type Target = [T];
+	
+	fn deref(&self) -> &[T] {
+		unsafe {
+			let ptr = self.ptr.offset(size_of::<GcMemHeader>() as isize);
+			let size = *transmute::<_, *const usize>(ptr);
+			let ptr = ptr.offset(size_of::<usize>() as isize);
+			
+			slice::from_raw_parts(
+				transmute(ptr),
+				size
+			)
+		}
+	}
+}
+
+impl<T> DerefMut for Array<T> {
+	fn deref_mut(&mut self) -> &mut [T] {
+		unsafe {
+			let ptr = self.ptr.offset(size_of::<GcMemHeader>() as isize);
+			let size = *transmute::<_, *const usize>(ptr);
+			let ptr = ptr.offset(size_of::<usize>() as isize);
+			
+			slice::from_raw_parts_mut(
+				transmute(ptr),
+				size
+			)
+		}
 	}
 }
 
@@ -236,8 +486,7 @@ pub struct GcTypeId(u32);
 
 impl GcTypeId {
 	fn usize(&self) -> usize {
-		let GcTypeId(index) = *self;
-		index as usize
+		self.0 as usize
 	}
 }
 
@@ -282,7 +531,7 @@ impl GcType {
 pub enum GcTypeLayout {
 	None,
 	Bitmap(u64),
-	Callback(Box<Fn(usize, u32) -> GcTypeWalk>)
+	Callback(Box<Fn(*const c_void, u32) -> GcTypeWalk>)
 }
 
 impl GcTypeLayout {
@@ -316,48 +565,60 @@ pub enum GcTypeWalk {
 	End
 }
 
-struct GcHandles {
-	ptrs: Vec<*mut c_void>,
+struct RootHandles {
+	data: RefCell<RootHandlesData>
+}
+
+struct RootHandlesData {
+	ptrs: Vec<*const c_void>,
 	free: Vec<u32>
 }
 
-impl GcHandles {
-	fn new() -> GcHandles {
-		GcHandles {
-			ptrs: Vec::new(),
-			free: Vec::new()
+impl RootHandles {
+	fn new() -> RootHandles {
+		RootHandles {
+			data: RefCell::new(RootHandlesData {
+				ptrs: Vec::new(),
+				free: Vec::new()
+			})
 		}
 	}
 	
-	fn add(&mut self, ptr: *mut c_void) -> u32 {
-		let index = if let Some(index) = self.free.pop() {
-			assert_eq!(self.ptrs[index as usize], ptr::null_mut());
+	fn add(&self, ptr: *const c_void) -> u32 {
+		let mut data = self.data.borrow_mut();
+		
+		let index = if let Some(index) = data.free.pop() {
+			assert_eq!(data.ptrs[index as usize], ptr::null());
 			
-			self.ptrs[index as usize] = ptr;
+			data.ptrs[index as usize] = ptr;
 			index
 		} else {
-			let index = self.ptrs.len() as u32;
-			self.ptrs.push(ptr);
+			let index = data.ptrs.len() as u32;
+			data.ptrs.push(ptr);
 			index
 		};
 		
 		index
 	}
 	
-	fn remove(&mut self, handle: u32) {
-		self.free.push(handle);
-		self.ptrs[handle as usize] = ptr::null_mut();
+	fn remove(&self, handle: u32) -> *const c_void {
+		let mut data = self.data.borrow_mut();
+		
+		data.free.push(handle);
+		let ptr = data.ptrs[handle as usize];
+		data.ptrs[handle as usize] = ptr::null();
+		
+		ptr
 	}
 	
-	unsafe fn deref(&self, handle: u32) -> *const c_void {
-		self.ptrs[handle as usize].offset(size_of::<GcMemHeader>() as isize)
+	fn clone_root(&self, handle: u32) -> u32 {
+		let ptr = self.data.borrow().ptrs[handle as usize];
+		self.add(ptr)
 	}
-}
-
-pub struct GcHeap {
-	types: GcTypes,
-	handles: GcHandles,
-	heap: Copying
+	
+	unsafe fn get_target(&self, handle: u32) -> *const c_void {
+		self.data.borrow().ptrs[handle as usize]
+	}
 }
 
 struct GcMemHeader {
@@ -386,6 +647,13 @@ impl GcMemHeader {
 	}
 }
 
+pub struct GcHeap {
+	types: GcTypes,
+	handles: Box<RootHandles>,
+	heap: RefCell<Copying>,
+	scopes: RefCell<Vec<LocalScopeData>>
+}
+
 impl GcHeap {
 	pub fn new(opts: GcOpts) -> GcHeap {
 		if opts.fast_growth_factor <= 1f64 {
@@ -397,8 +665,9 @@ impl GcHeap {
 		
 		GcHeap {
 			types: GcTypes::new(),
-			handles: GcHandles::new(),
-			heap: Copying::new(opts)
+			handles: Box::new(RootHandles::new()),
+			heap: RefCell::new(Copying::new(opts)),
+			scopes: RefCell::new(Vec::new())
 		}
 	}
 	
@@ -406,12 +675,12 @@ impl GcHeap {
 		&mut self.types
 	}
 	
-	unsafe fn alloc_raw(&mut self, size: usize) -> *mut c_void {
-		let mut ptr = self.heap.alloc_raw(size);
+	unsafe fn alloc_raw(&self, size: usize) -> *const c_void {
+		let mut ptr = self.heap.borrow_mut().alloc_raw(size);
 		if ptr.is_null() {
 			self.gc();
 			
-			ptr = self.heap.alloc_raw(size);
+			ptr = self.heap.borrow_mut().alloc_raw(size);
 			if ptr.is_null() {
 				panic!("Could not allocate memory after GC");
 			}
@@ -420,101 +689,191 @@ impl GcHeap {
 		ptr
 	}
 	
-	pub fn alloc<T>(&self, type_id: GcTypeId) -> GcPtr<T> {
-		unsafe {
-			let ptr = as_mut(self).alloc_raw(
-				self.types.get(type_id).size +
-				size_of::<GcMemHeader>()
-			);
-			
-			*get_header_mut(ptr) = GcMemHeader::new(type_id, false);
-			
-			GcPtr {
-				ptr: ptr,
-				_type: PhantomData
-			}
-		}
-	}
-	
-	pub fn alloc_handle<T>(&self, type_id: GcTypeId) -> Gc<T> {
-		let pointer = self.alloc::<T>(type_id).ptr;
-		let index = unsafe { as_mut(self) }.handles.add(pointer);
+	pub unsafe fn alloc<T>(&self, type_id: GcTypeId) -> Ptr<T> {
+		let ptr = self.alloc_raw(
+			self.types.get(type_id).size +
+			size_of::<GcMemHeader>()
+		);
 		
-		Gc {
-			owner: self,
-			handle: index,
-			_type: PhantomData
-		}
-	}
-	
-	pub fn alloc_array<T>(&self, type_id: GcTypeId, size: usize) -> GcVecPtr<T> {
-		unsafe {
-			let ptr = as_mut(self).alloc_raw(
-				PTR_SIZE +
-				(self.types.get(type_id).size * size) +
-				size_of::<GcMemHeader>()
-			);
-			
-			*get_header_mut(ptr) = GcMemHeader::new(type_id, true);
-			*get_array_size_mut(ptr) = size;
-			
-			GcVecPtr {
-				ptr: ptr,
-				_type: PhantomData
-			}
-		}
-	}
-	
-	pub fn alloc_array_handle<T>(&self, type_id: GcTypeId, size: usize) -> GcVec<T> {
-		let pointer = self.alloc_array::<T>(type_id, size).ptr;
-		let index = unsafe { as_mut(self) }.handles.add(pointer);
+		*transmute::<_, *mut GcMemHeader>(ptr) = GcMemHeader::new(type_id, false);
 		
-		GcVec {
-			owner: self,
-			handle: index,
-			_type: PhantomData
+		Ptr::from_ptr(ptr)
+	}
+	
+	pub fn alloc_root<T>(&self, type_id: GcTypeId) -> Root<T> {
+		Root::from_raw_parts(self, unsafe { self.alloc::<T>(type_id).ptr })
+	}
+	
+	pub fn alloc_local<T>(&self, type_id: GcTypeId) -> Local<T> {
+		self.alloc_local_from_ptr(unsafe { self.alloc::<T>(type_id) })
+	}
+	
+	fn alloc_local_from_ptr<T>(&self, ptr: Ptr<T>) -> Local<T> {
+		let mut scopes = self.scopes.borrow_mut();
+		let len = scopes.len();
+		if len == 0 {
+			panic!("No local scope present");
 		}
+		
+		Local {
+			handle: unsafe { transmute(scopes[len - 1].add(ptr.ptr)) }
+		}
+	}
+	
+	pub fn alloc_array_root<T>(&self, type_id: GcTypeId, size: usize) -> ArrayRoot<T> {
+		ArrayRoot::from_raw_parts(self, unsafe { self.alloc_array::<T>(type_id, size).ptr })
+	}
+	
+	pub fn alloc_array_local<T>(&self, type_id: GcTypeId, size: usize) -> ArrayLocal<T> {
+		self.alloc_array_local_from_ptr(unsafe { self.alloc_array::<T>(type_id, size) })
+	}
+	
+	fn alloc_array_local_from_ptr<T>(&self, ptr: Array<T>) -> ArrayLocal<T> {
+		let mut scopes = self.scopes.borrow_mut();
+		let len = scopes.len();
+		if len == 0 {
+			panic!("No local scope present");
+		}
+		
+		ArrayLocal {
+			handle: unsafe { transmute(scopes[len - 1].add(ptr.ptr)) }
+		}
+	}
+	
+	pub unsafe fn alloc_array<T>(&self, type_id: GcTypeId, size: usize) -> Array<T> {
+		let ptr = self.alloc_raw(
+			size_of::<usize>() +
+			(self.types.get(type_id).size * size) +
+			size_of::<GcMemHeader>()
+		);
+		
+		*transmute::<_, *mut GcMemHeader>(ptr) = GcMemHeader::new(type_id, true);
+		*transmute::<_, *mut usize>(ptr.offset(size_of::<GcMemHeader>() as isize)) = size;
+		
+		Array::from_ptr(ptr)
 	}
 	
 	pub fn gc(&self) {
-		let heap = unsafe { as_mut(self) };
+		let mut handles = self.handles.data.borrow_mut();
+		let scopes = self.scopes.borrow_mut();
 		
-		heap.heap.gc(&self.types, RootWalker {
-			handles: &mut heap.handles,
-			offset: 0
-		});
+		let mut walkers : Vec<Box<RootWalker>> = Vec::new();
+		
+		// Add the root handles walker if there are root handles.
+		
+		if handles.ptrs.len() != handles.free.len() {
+			let ptr = (*handles.ptrs).as_mut_ptr();
+			let end = unsafe { ptr.offset(handles.ptrs.len() as isize) };
+			
+			walkers.push(Box::new(RootHandlesWalker {
+				ptr: ptr,
+				end: end
+			}));
+		}
+		
+		// Add the local scopes walker if there are any.
+		
+		if scopes.len() > 0 {
+			walkers.push(Box::new(LocalScopesWalker {
+				scopes: &scopes,
+				scope: 0,
+				vec: 0,
+				index: 0
+			}));
+		}
+		
+		self.heap.borrow_mut().gc(&self.types, &mut walkers);
 	}
 	
 	pub fn mem_allocated(&self) -> usize {
-		self.heap.mem_allocated()
+		self.heap.borrow().mem_allocated()
 	}
 	
 	pub fn mem_used(&self) -> usize {
-		self.heap.mem_used()
+		self.heap.borrow().mem_used()
+	}
+	
+	pub fn new_local_scope(&self) -> LocalScope {
+		let mut scopes = self.scopes.borrow_mut();
+		
+		let index = scopes.len();
+		scopes.push(LocalScopeData::new());
+		
+		LocalScope {
+			heap: self as *const GcHeap,
+			index: index
+		}
+	}
+	
+	fn drop_current_scope(&self, index: usize) {
+		let mut scopes = self.scopes.borrow_mut();
+		
+		if scopes.len() != index + 1 {
+			panic!("Local scopes must be destoryed in the order they are created");
+		}
+		
+		scopes.pop();
 	}
 }
 
-struct RootWalker<'a> {
-	handles: &'a mut GcHandles,
-	offset: usize
+trait RootWalker {
+	unsafe fn next(&mut self) -> *mut *const c_void;
+}
+struct RootHandlesWalker {
+	ptr: *mut *const c_void,
+	end: *mut *const c_void
 }
 
-impl<'a> RootWalker<'a> {
-	fn next(&mut self) -> *const c_void {
-		let end = self.handles.ptrs.len();
-		while self.offset < end {
-			let ptr = self.handles.ptrs[self.offset];
-			self.offset += 1;
+impl RootWalker for RootHandlesWalker {
+	unsafe fn next(&mut self) -> *mut *const c_void {
+		while self.ptr < self.end {
+			let ptr = self.ptr;
+			self.ptr = self.ptr.offset(1);
 			
-			if !ptr.is_null() {
+			if !(*ptr).is_null() {
 				return ptr;
 			}
 		}
 		
-		ptr::null()
+		ptr::null_mut()
 	}
-	
-	fn rewrite(&mut self, ptr: *const c_void) {
-		self.handles.ptrs[self.offset - 1] = ptr as *mut c_void;
+}
+
+struct LocalScopesWalker<'a> {
+	scopes: &'a [LocalScopeData],
+	scope: usize,
+	vec: usize,
+	index: usize
+}
+
+impl<'a> RootWalker for LocalScopesWalker<'a> {
+	unsafe fn next(&mut self) -> *mut *const c_void {
+		if self.scope == self.scopes.len() {
+			return ptr::null_mut();
+		}
+		
+		let scope = &self.scopes[self.scope];
+		
+		let vec = if self.vec == 0 {
+			&scope.current
+		} else {
+			&scope.handles[self.vec - 1]
+		};
+		
+		let ptr = (*vec).as_ptr().offset(self.index as isize) as *mut *const c_void;
+		
+		self.index += 1;
+		
+		if self.index == vec.len() {
+			self.vec += 1;
+			self.index = 0;
+			
+			if self.vec - 1 == scope.handles.len() {
+				self.vec = 0;
+				self.scope += 1;
+			}
+		}
+		
+		ptr
 	}
 }

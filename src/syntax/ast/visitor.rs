@@ -324,13 +324,8 @@ pub trait AstVisitor<'a> {
 	}
 	
 	fn visit_expr_new(&mut self, expr: &'a Expr) {
-		if let &Expr::New(ref expr, ref args) = expr {
+		if let &Expr::New(ref expr) = expr {
 			self.visit_expr(expr);
-			if let &Some(ref args) = args {
-				for arg in args {
-					self.visit_expr(arg);
-				}
-			}
 		}
 	}
 	

@@ -12,5 +12,5 @@ pub trait Strategy {
 	
 	fn mem_used(&self) -> usize;
 	
-	fn gc(&mut self, types: &GcTypes, walker: RootWalker);
+	fn gc(&mut self, types: &GcTypes, walkers: &mut [Box<RootWalker>]);
 }
