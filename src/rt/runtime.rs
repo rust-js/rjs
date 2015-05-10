@@ -2,7 +2,7 @@ use super::*;
 use gc::*;
 use ::{JsResult, JsError};
 use syntax::ast::FunctionRef;
-use super::hash::Property;
+use super::hash::{Property, PropertyValue};
 use syntax::token::keywords;
 use std::f64;
 
@@ -39,8 +39,20 @@ impl JsEnv {
 		}
 	}
 	
-	pub fn call_op(&mut self, args: JsArgs) -> JsResult<Local<JsValue>> {
-		Ok(match args.function.get_object().function.as_ref().unwrap() {
+	// http://ecma-international.org/ecma-262/5.1/#sec-11.2.3
+	pub fn call_function(&mut self, args: JsArgs) -> JsResult<Local<JsValue>> {
+		if args.function.ty() != JsType::Object {
+			return Err(JsError::Type);
+		};
+		
+		let function = &args.function.get_object().function;
+		if !function.is_some() {
+			return Err(JsError::Type);
+		}
+		
+		let function = function.as_ref().unwrap();
+		
+		Ok(match function {
 			&JsFunction::Ir(function_ref) => {
 				let function = try!(self.ir.get_function_ir(function_ref));
 				
@@ -217,8 +229,8 @@ impl JsEnv {
 		
 		let result_value = result.as_value(self);
 		
-		result.props.add(keywords::PROTOTYPE, &Property::new_value(proto.as_value(self), false, true, false), self);
-		proto.props.add(keywords::CONSTRUCTOR, &Property::new_value(result_value, false, true, false), self);
+		result.props.add(keywords::PROTOTYPE, &Property::new_value(proto.as_value(self), true, false, true), self);
+		proto.props.add(keywords::CONSTRUCTOR, &Property::new_value(result_value, true, false, true), self);
 		
 		result_value
 	}
@@ -248,7 +260,7 @@ impl JsEnv {
 		} else {
 			let mut obj = JsObject::new_local(self);
 			obj.class = Some(keywords::OBJECT_CLASS);
-			let proto = function.get(keywords::PROTOTYPE, self);
+			let proto = try!(function.get(keywords::PROTOTYPE, self));
 			obj.prototype = if proto.ty() == JsType::Object {
 				proto.get_object()
 			} else {
@@ -264,7 +276,7 @@ impl JsEnv {
 				mode: JsFnMode::New
 			};
 			
-			let result = try!(self.call_op(args));
+			let result = try!(self.call_function(args));
 			
 			if result.ty() == JsType::Object {
 				Ok(result)
@@ -297,6 +309,7 @@ impl JsEnv {
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.9.4
+	// http://ecma-international.org/ecma-262/5.1/#sec-11.9.5
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.9.6
 	pub fn strict_eq(&mut self, lref: Local<JsValue>, rref: Local<JsValue>) -> bool {
 		let lval = self.get_value(lref);
@@ -337,6 +350,71 @@ impl JsEnv {
 				JsType::Object => lval.get_object() == rval.get_object(),
 				JsType::None => panic!()
 			}
+		}
+	}
+	
+	// http://ecma-international.org/ecma-262/5.1/#sec-15.2.2
+	// TODO: Wrapping value not yet implemented.
+	pub fn new_object(&mut self) -> Local<JsObject> {
+		let mut obj = JsObject::new_local(self);
+		obj.prototype = self.object_prototype.as_ptr();
+		obj.class = Some(keywords::OBJECT_CLASS);
+		obj
+	}
+	
+	// http://ecma-international.org/ecma-262/5.1/#sec-8.10.4
+	pub fn from_property_descriptor(&mut self, property: Option<Property>) -> JsResult<Local<JsValue>> {
+		match property {
+			Some(property) => {
+				let mut obj = self.new_object();
+				
+				match property.value {
+					PropertyValue::Value { value } => {
+						obj.define_own_property(
+							keywords::VALUE,
+							&Property::new_simple_value(value),
+							false,
+							self
+						);
+						obj.define_own_property(
+							keywords::WRITABLE,
+							&Property::new_simple_value(JsValue::new_bool(property.is_writable()).as_local(self)),
+							false,
+							self
+						);
+					}
+					PropertyValue::Accessor { get, set } => {
+						obj.define_own_property(
+							keywords::GET,
+							&Property::new_simple_value(get),
+							false,
+							self
+						);
+						obj.define_own_property(
+							keywords::SET,
+							&Property::new_simple_value(set),
+							false,
+							self
+						);
+					}
+				}
+				
+				obj.define_own_property(
+					keywords::ENUMERABLE,
+					&Property::new_simple_value(JsValue::new_bool(property.is_enumerable()).as_local(self)),
+					false,
+					self
+				);
+				obj.define_own_property(
+					keywords::CONFIGURABLE,
+					&Property::new_simple_value(JsValue::new_bool(property.is_configurable()).as_local(self)),
+					false,
+					self
+				);
+				
+				Ok(obj.as_value(self))
+			}
+			None => Ok(JsValue::new_undefined().as_local(self))
 		}
 	}
 }

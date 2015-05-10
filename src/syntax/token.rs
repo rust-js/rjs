@@ -233,4 +233,17 @@ declare_idents! {
 	( "prototype", PROTOTYPE, 62 );
 	( "null", NULL, 63 );
 	( "create", CREATE, 64 );
+	( "getOwnPropertyDescriptor", GET_OWN_PROPERTY_DESCRIPTOR, 65 );
+	( "value", VALUE, 66 );
+	( "writable", WRITABLE, 67 );
+	( "enumerable", ENUMERABLE, 68 );
+	( "configurable", CONFIGURABLE, 69 );
+	( "escape", ESCAPE, 70 );
+	( "unescape", UNESCAPE, 71 );
+	( "String", STRING_CLASS, 72 );
+	( "substr", SUBSTR, 73 );
+	( "Date", DATE_CLASS, 74 );
+	( "getYear", GET_YEAR, 75 );
+	( "setYear", SET_YEAR, 76 );
+	( "toGMTString", TO_GMT_STRING, 77 );
 }

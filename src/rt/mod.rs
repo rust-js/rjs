@@ -51,6 +51,7 @@ pub struct JsEnv {
 	global: UnsafeRoot<JsObject>,
 	object_prototype: UnsafeRoot<JsObject>,
 	function_prototype: UnsafeRoot<JsObject>,
+	string_prototype: UnsafeRoot<JsObject>,
 	ir: IrContext,
 	stack: stack::Stack
 }
@@ -70,6 +71,7 @@ impl JsEnv {
 		let global = heap.alloc_root::<JsObject>(types.object).into_unsafe();
 		let object_prototype = heap.alloc_root::<JsObject>(types.object).into_unsafe();
 		let function_prototype = heap.alloc_root::<JsObject>(types.object).into_unsafe();
+		let string_prototype = heap.alloc_root::<JsObject>(types.object).into_unsafe();
 		
 		let mut env = JsEnv {
 			heap: heap,
@@ -77,6 +79,7 @@ impl JsEnv {
 			global: global,
 			object_prototype: object_prototype,
 			function_prototype: function_prototype,
+			string_prototype: string_prototype,
 			ir: IrContext::new(),
 			stack: stack::Stack::new()
 		};
@@ -148,6 +151,10 @@ impl JsEnv {
 	
 	unsafe fn alloc_object_entry_array(&self, size: usize) -> Array<hash::Entry> {
 		self.heap.alloc_array::<hash::Entry>(self.types.object_entry, size)
+	}
+	
+	pub fn intern(&self, name: &str) -> Name {
+		self.ir.interner().intern(name)
 	}
 }
 
@@ -328,22 +335,26 @@ impl JsValue {
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-8.12.1
 	// TODO: INCOMPLETE (getters/setters)
-	pub fn get_own_property(&self, name: Name, env: &JsEnv) -> Option<Property> {
+	pub fn get_own_property(&self, name: Name, env: &JsEnv) -> JsResult<Option<Property>> {
 		match self.ty {
-			JsType::Object => self.get_object().get_own_property(name, env),
+			JsType::Null | JsType::Undefined => Err(JsError::Type),
+			JsType::Object => Ok(self.get_object().get_own_property(name, env)),
+			JsType::String => Ok(env.string_prototype.get_own_property(name, env)),
 			_ => panic!("{:?}", self.ty)
 		}
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-8.12.2
 	// TODO: INCOMPLETE
-	pub fn get_property(&self, name: Name, env: &JsEnv) -> Option<Property> {
-		let value = self.get_own_property(name, env);
+	pub fn get_property(&self, name: Name, env: &JsEnv) -> JsResult<Option<Property>> {
+		let value = try!(self.get_own_property(name, env));
 		if value.is_some() {
-			value
+			Ok(value)
 		} else {
 			match self.ty {
-				JsType::Object => self.get_object().get_property(name),
+				JsType::Null | JsType::Undefined => Err(JsError::Type),
+				JsType::Object => Ok(self.get_object().get_property(name)),
+				JsType::String => Ok(env.string_prototype.get_property(name)),
 				_ => panic!("{:?}", self.ty)
 			}
 		}
@@ -356,56 +367,56 @@ impl JsValue {
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-8.12.3
-	pub fn get(&self, name: Name, env: &JsEnv) -> Local<JsValue> {
-		if let Some(property) = self.get_property(name, env) {
+	pub fn get(&self, name: Name, env: &JsEnv) -> JsResult<Local<JsValue>> {
+		if let Some(property) = try!(self.get_property(name, env)) {
 			match property.value {
-				PropertyValue::Value { value } => value,
+				PropertyValue::Value { value } => Ok(value),
 				PropertyValue::Accessor { get, .. } => {
 					if get.is_undefined() {
-						get
+						Ok(get)
 					} else {
 						unimplemented!();
 					}
 				}
 			}
 		} else {
-			JsValue::new_undefined().as_local(env)
+			Ok(JsValue::new_undefined().as_local(env))
 		}
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-8.12.4
 	// TODO: INCOMPLETE ([[Extensible]] is not checked)
-	pub fn can_put(&self, name: Name, env: &JsEnv) -> bool {
-		if let Some(property) = self.get_own_property(name, env) {
+	pub fn can_put(&self, name: Name, env: &JsEnv) -> JsResult<bool> {
+		if let Some(property) = try!(self.get_own_property(name, env)) {
 			match property.value {
-				PropertyValue::Accessor { set, .. } => !set.is_undefined(),
-				PropertyValue::Value { .. } => !property.is_read_only()
+				PropertyValue::Accessor { set, .. } => Ok(!set.is_undefined()),
+				PropertyValue::Value { .. } => Ok(property.is_writable())
 			}
 		} else {
 			match self.ty {
 				JsType::Object => {
 					let prototype = self.get_object().prototype;
 					if prototype.is_null() {
-						true
+						Ok(true)
 					} else {
 						if let Some(property) = prototype.get_property(name) {
 							match property.value {
-								PropertyValue::Accessor { set, .. } => !set.is_undefined(),
-								PropertyValue::Value { .. } => !property.is_read_only()
+								PropertyValue::Accessor { set, .. } => Ok(!set.is_undefined()),
+								PropertyValue::Value { .. } => Ok(property.is_writable())
 							}
 						} else {
-							true
+							Ok(true)
 						}
 					}
 				}
-				_ => false
+				_ => Ok(false)
 			}
 		}
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-8.12.5
 	pub fn put(&self, name: Name, value: Local<JsValue>, throw: bool, env: &JsEnv) -> JsResult<()> {
-		if !self.can_put(name, env) {
+		if !try!(self.can_put(name, env)) {
 			return if throw {
 				Err(JsError::Type)
 			} else {
@@ -413,7 +424,7 @@ impl JsValue {
 			};
 		}
 		
-		if let Some(mut property) = self.get_own_property(name, env) {
+		if let Some(mut property) = try!(self.get_own_property(name, env)) {
 			if let PropertyValue::Value { .. } = property.value {
 				property.value = PropertyValue::Value {
 					value: value
@@ -425,13 +436,13 @@ impl JsValue {
 			}
 		}
 		
-		if let Some(property) = self.get_property(name, env) {
+		if let Some(property) = try!(self.get_property(name, env)) {
 			if let PropertyValue::Accessor { .. } = property.value {
 				unimplemented!();
 			}
 		}
 		
-		let property = Property::new_value(value, false, false, false);
+		let property = Property::new_simple_value(value);
 		
 		if !self.get_object().props.replace(name, &property) {
 			self.get_object().props.add(name, &property, env);
@@ -445,7 +456,7 @@ impl JsValue {
 		if self.ty() != JsType::Object || val.ty() != JsType::Object {
 			Ok(false)
 		} else {
-			let obj = self.get(keywords::PROTOTYPE, env);
+			let obj = try!(self.get(keywords::PROTOTYPE, env));
 			if obj.ty() != JsType::Object {
 				Err(JsError::Type)
 			} else {
@@ -506,11 +517,11 @@ impl JsRawValue {
 	}
 	
 	fn get_number(&self) -> f64 {
-		unsafe { *mem::transmute::<&u64, &f64>(&self.data) }
+		unsafe { *mem::transmute::<_, &f64>(&self.data) }
 	}
 	
 	fn set_number(&mut self, value: f64) {
-		unsafe { *mem::transmute::<&u64, &mut f64>(&self.data) = value; }
+		unsafe { *mem::transmute::<_, &mut f64>(&self.data) = value; }
 	}
 	
 	fn get_bool(&self) -> bool {
@@ -635,8 +646,8 @@ impl JsObject {
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-8.12.9
 	// TODO: INCOMPLETE
-	pub fn define_own_property(&self, _name: Name, _value: Local<JsValue>) {
-		unimplemented!();
+	pub fn define_own_property(&mut self, name: Name, property: &Property, _throw: bool, env: &JsEnv) {
+		self.props.add(name, property, env);
 	}
 }
 

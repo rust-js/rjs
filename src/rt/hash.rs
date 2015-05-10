@@ -5,10 +5,10 @@ use syntax::ast::Name;
 use super::{JsEnv, JsValue};
 use std::mem::{transmute, size_of};
 
-const READ_ONLY   : u32 = 0b0001;
-const DONT_ENUM   : u32 = 0b0010;
-const DONT_DELETE : u32 = 0b0100;
-const ACCESSOR    : u32 = 0b1000;
+const WRITABLE     : u32 = 0b0001;
+const ENUMERABLE   : u32 = 0b0010;
+const CONFIGURABLE : u32 = 0b0100;
+const ACCESSOR     : u32 = 0b1000;
 
 #[cfg(target_pointer_width = "64")]
 const ENTRY_VALUE1_OFFSET : u32 = 2;
@@ -72,29 +72,37 @@ pub struct Property {
 }
 
 impl Property {
-	pub fn new_value(value: Local<JsValue>, read_only: bool, dont_enum: bool, dont_delete: bool) -> Property {
+	pub fn new_value(value: Local<JsValue>, writable: bool, enumerable: bool, configurable: bool) -> Property {
 		Property {
 			value: PropertyValue::Value {
 				value: value
 			},
 			flags:
-				if read_only { READ_ONLY } else { 0 } |
-				if dont_enum { DONT_ENUM } else { 0 } |
-				if dont_delete { DONT_DELETE } else { 0 }
+				if writable { WRITABLE } else { 0 } |
+				if enumerable { ENUMERABLE } else { 0 } |
+				if configurable { CONFIGURABLE } else { 0 }
 		}
 	}
 	
-	pub fn new_accessor(get: Local<JsValue>, set: Local<JsValue>, read_only: bool, dont_enum: bool, dont_delete: bool) -> Property {
+	pub fn new_simple_value(value: Local<JsValue>) -> Property {
+		Self::new_value(value, true, true, true)
+	}
+	
+	pub fn new_accessor(get: Local<JsValue>, set: Local<JsValue>, writable: bool, enumerable: bool, configurable: bool) -> Property {
 		Property {
 			value: PropertyValue::Accessor {
 				get: get,
 				set: set
 			},
 			flags:
-				if read_only { READ_ONLY } else { 0 } |
-				if dont_enum { DONT_ENUM } else { 0 } |
-				if dont_delete { DONT_DELETE } else { 0 }
+				if writable { WRITABLE } else { 0 } |
+				if enumerable { ENUMERABLE } else { 0 } |
+				if configurable { CONFIGURABLE } else { 0 }
 		}
+	}
+	
+	pub fn new_simple_accessor(get: Local<JsValue>, set: Local<JsValue>) -> Property {
+		Self::new_accessor(get, set, true, true, true)
 	}
 	
 	fn as_entry(&self, name: Name, next: i32) -> Entry {
@@ -118,28 +126,28 @@ impl Property {
 		}
 	}
 	
-	pub fn is_read_only(&self) -> bool {
-		self.has_flag(READ_ONLY)
+	pub fn is_writable(&self) -> bool {
+		self.has_flag(WRITABLE)
 	}
 	
-	pub fn set_read_only(&mut self, value: bool) {
-		self.set_flag(READ_ONLY, value);
+	pub fn set_writable(&mut self, value: bool) {
+		self.set_flag(WRITABLE, value);
 	}
 
-	pub fn is_dont_enum(&self) -> bool {
-		self.has_flag(DONT_ENUM)
+	pub fn is_enumerable(&self) -> bool {
+		self.has_flag(ENUMERABLE)
 	}
 	
-	pub fn set_dont_enum(&mut self, value: bool) {
-		self.set_flag(DONT_ENUM, value);
+	pub fn set_enumerable(&mut self, value: bool) {
+		self.set_flag(ENUMERABLE, value);
 	}
 
-	pub fn is_dont_delete(&self) -> bool {
-		self.has_flag(DONT_DELETE)
+	pub fn is_configurable(&self) -> bool {
+		self.has_flag(CONFIGURABLE)
 	}
 	
-	pub fn set_dont_delete(&mut self, value: bool) {
-		self.set_flag(DONT_DELETE, value);
+	pub fn set_configurable(&mut self, value: bool) {
+		self.set_flag(CONFIGURABLE, value);
 	}
 	
 	fn has_flag(&self, flag: u32) -> bool {

@@ -423,7 +423,9 @@ fn parse_string(reader: &mut Reader, quote: char) -> Token {
 			} else {
 				s.push_str(&parse_escape(reader))
 			}
-		} 
+		} else {
+			s.push(c);
+		}
 	}
 	
 	Literal(Rc::new(Lit::String(s)))

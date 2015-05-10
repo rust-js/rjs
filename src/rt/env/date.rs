@@ -1,0 +1,19 @@
+use ::JsResult;
+use super::super::{JsEnv, JsArgs, JsValue};
+use gc::*;
+
+pub fn Date_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	unimplemented!();
+}
+
+pub fn Date_getYear(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	unimplemented!();
+}
+
+pub fn Date_setYear(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	unimplemented!();
+}
+
+pub fn Date_toGMTString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	unimplemented!();
+}

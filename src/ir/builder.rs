@@ -66,7 +66,6 @@ impl Block {
 			
 			match &self.ir[i] {
 				&Ir::Add => string.push_str("add"),
-				&Ir::And => string.push_str("and"),
 				&Ir::BitAnd => string.push_str("bit.and"),
 				&Ir::BitNot => string.push_str("bit.not"),
 				&Ir::BitOr => string.push_str("bit.or"),
@@ -175,7 +174,6 @@ impl Block {
 					self.print_label(string, label);
 				},
 				&Ir::Not => string.push_str("not"),
-				&Ir::Or => string.push_str("or"),
 				&Ir::Pick(offset) => { write!(string, "pick {}", offset).ok(); },
 				&Ir::Pop => string.push_str("pop"),
 				&Ir::Positive => string.push_str("pos"),
@@ -213,6 +211,7 @@ impl Block {
 				&Ir::Subtract => string.push_str("sub"),
 				&Ir::Swap => string.push_str("swap"),
 				&Ir::Throw => string.push_str("throw"),
+				&Ir::ToBoolean => string.push_str("cast.bool"),
 				&Ir::Typeof => string.push_str("typeof")
 			}
 			
@@ -398,7 +397,6 @@ impl IrBuilder {
 
 pub enum Ir {
 	Add,
-	And,
 	BitAnd,
 	BitNot,
 	BitOr,
@@ -457,7 +455,6 @@ pub enum Ir {
 	NewObject,
 	NextIter(Local, Label),
 	Not,
-	Or,
 	Pick(u32),
 	Pop,
 	Positive,
@@ -482,6 +479,7 @@ pub enum Ir {
 	Subtract,
 	Swap,
 	Throw,
+	ToBoolean,
 	Typeof
 }
 

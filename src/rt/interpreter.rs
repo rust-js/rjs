@@ -31,7 +31,6 @@ impl JsEnv {
 					self.stack.drop_frame(frame);
 					self.stack.push(*result);
 				}
-				&Ir::And => { panic!(); },
 				&Ir::BitAnd => { panic!(); },
 				&Ir::BitNot => { panic!(); },
 				&Ir::BitOr => { panic!(); },
@@ -47,6 +46,7 @@ impl JsEnv {
 					
 					let this = frame.get(0).as_local(self);
 					let function = frame.get(1).as_local(self);
+					let function = self.get_value(function);
 					
 					let args = JsArgs {
 						function: function,
@@ -55,7 +55,7 @@ impl JsEnv {
 						mode: JsFnMode::Call
 					};
 					
-					let result = try!(self.call_op(args));
+					let result = try!(self.call_function(args));
 					
 					self.stack.drop_frame(frame);
 					self.stack.push(*result);
@@ -132,7 +132,7 @@ impl JsEnv {
 					let result = self.compare_le(arg1, arg2);
 					self.stack.drop_frame(frame);
 					self.stack.push(JsValue::new_bool(result));
-				},
+				}
 				&Ir::Leave(label) => { panic!(); },
 				&Ir::LeaveWith => { panic!(); },
 				&Ir::LoadArguments => { panic!(); },
@@ -148,7 +148,7 @@ impl JsEnv {
 				&Ir::LoadGlobal(name) => {
 					let _scope = self.heap.new_local_scope();
 					
-					let value = JsValue::new_object(self.global.as_ptr()).as_local(self).get(name, self);
+					let value = try!(JsValue::new_object(self.global.as_ptr()).as_local(self).get(name, self));
 					self.stack.push(*value);
 				}
 				&Ir::LoadGlobalThis => {
@@ -156,7 +156,21 @@ impl JsEnv {
 				}
 				&Ir::LoadI32(value) => self.stack.push(JsValue::new_number(value as f64)),
 				&Ir::LoadI64(value) => self.stack.push(JsValue::new_number(value as f64)),
-				&Ir::LoadIndex => { panic!(); },
+				&Ir::LoadIndex => {
+					let _scope = self.heap.new_local_scope();
+					
+					let frame = self.stack.create_frame(2);
+					
+					let index = frame.get(1).as_local(self);
+					let index = self.to_string(index);
+					let index = self.intern(&index.to_string());
+					
+					let result = try!(frame.get(0).get(index, self));
+					
+					self.stack.drop_frame(frame);
+					
+					self.stack.push(*result);
+				}
 				&Ir::LoadLifted(name, depth) => { panic!(); },
 				&Ir::LoadLocal(local) => self.stack.push(locals.get(local.offset())),
 				&Ir::LoadMissing => { panic!(); },
@@ -164,7 +178,7 @@ impl JsEnv {
 					let _scope = self.heap.new_local_scope();
 					
 					let frame = self.stack.create_frame(1);
-					let result = frame.get(0).get(name, self);
+					let result = try!(frame.get(0).get(name, self));
 					self.stack.drop_frame(frame);
 					self.stack.push(*result);
 				}
@@ -236,9 +250,11 @@ impl JsEnv {
 					self.stack.drop_frame(frame);
 					self.stack.push(*result);
 				},
-				&Ir::Or => { panic!(); },
 				&Ir::Pick(depth) => { panic!(); },
-				&Ir::Pop => { panic!(); },
+				&Ir::Pop => {
+					let frame = self.stack.create_frame(1);
+					self.stack.drop_frame(frame);
+				},
 				&Ir::Positive => { panic!(); },
 				&Ir::PushArray => { panic!(); },
 				&Ir::Return => {
@@ -257,7 +273,19 @@ impl JsEnv {
 					try!(JsValue::new_object(self.global.as_ptr()).as_local(self).put(name, frame.get(0).as_local(self), true, self));
 					self.stack.drop_frame(frame);
 				}
-				&Ir::StoreIndex => { panic!(); },
+				&Ir::StoreIndex => {
+					let _scope = self.heap.new_local_scope();
+					
+					let frame = self.stack.create_frame(3);
+					
+					let index = frame.get(1).as_local(self);
+					let index = self.to_string(index);
+					let index = self.intern(&index.to_string());
+					
+					try!(frame.get(0).put(index, frame.get(2).as_local(self), true, self));
+					
+					self.stack.drop_frame(frame);
+				}
 				&Ir::StoreLifted(name, depth) => { panic!(); },
 				&Ir::StoreLocal(local) => {
 					let frame = self.stack.create_frame(1);
@@ -288,10 +316,30 @@ impl JsEnv {
 					
 					self.stack.push(JsValue::new_bool(result));
 				},
-				&Ir::StrictNe => { panic!(); },
+				&Ir::StrictNe => {
+					let _scope = self.heap.new_local_scope();
+					
+					let frame = self.stack.create_frame(2);
+					let arg1 = frame.get(0).as_local(self);
+					let arg2 = frame.get(1).as_local(self);
+					let result = self.strict_eq(arg1, arg2);
+					self.stack.drop_frame(frame);
+					
+					self.stack.push(JsValue::new_bool(!result));
+				},
 				&Ir::Subtract => { panic!(); },
 				&Ir::Swap => { panic!(); },
 				&Ir::Throw => { panic!(); },
+				&Ir::ToBoolean => {
+					let _scope = self.heap.new_local_scope();
+					
+					let frame = self.stack.create_frame(1);
+					let arg = frame.get(0).as_local(self);
+					let result = self.to_boolean(arg);
+					self.stack.drop_frame(frame);
+					
+					self.stack.push(JsValue::new_bool(result));
+				}
 				&Ir::Typeof => {
 					let _scope = self.heap.new_local_scope();
 					

@@ -18,6 +18,22 @@ fn run(file: &str) {
 		return
 	}
 	
+	let mut is_es6 = header.headers.get("es6id").is_some();
+	
+	if let Some(header) = header.headers.get("features") {
+		if let &Header::List(ref items) = header {
+			for item in items {
+				if item == "arrow-function" {
+					is_es6 = true;
+				}
+			}
+		}
+	}
+	
+	if is_es6 {
+		return;
+	}
+	
 	let mut includes = vec![
 		"sta.js".to_string(),
 		"cth.js".to_string(),
@@ -41,7 +57,10 @@ fn run(file: &str) {
 		env.run(&("tests/tc39/harness/".to_string() + include)).ok().unwrap();
 	}
 	
-	env.run(&file).ok().unwrap();
+	match env.run(&file) {
+		Ok(_) => {},
+		Err(error) => panic!("{}: Failed with error {:?}", file, error)
+	}
 }
 
 struct TestHeader {
@@ -69,17 +88,25 @@ impl TestHeader {
 		
 		if let Some(start) = js.find("/*---") {
 			if let Some(end) = js[start..js.len()].find("---*/") {
-				let yaml = js[start + 5..start + end].trim();
+				let yaml = js[start + 5..start + end].to_string();
+				let mut indent = -1;
 				let mut index = None;
 				let mut header = None;
 				
-				for line in yaml.lines() {
-					if line.len() == 0 {
-						continue;
+				for line in yaml.lines().map(|line| line.trim_right()).filter(|line| line.len() > 0) {
+					if indent == -1 {
+						let chars = line.chars().collect::<Vec<_>>();
+						
+						for i in 0.. {
+							if !chars[i].is_whitespace() {
+								indent = i;
+								break;
+							}
+						}
 					}
 					
-					let chars = line.trim_right().chars().collect::<Vec<_>>();
-					
+					let chars = line[indent..].chars().collect::<Vec<_>>();
+
 					if chars[0].is_whitespace() {
 						if let Some(ref mut header) = header {
 							match header {

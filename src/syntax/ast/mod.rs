@@ -312,6 +312,95 @@ pub enum Op {
 	Void
 }
 
+impl Op {
+	pub fn precedence(&self) -> u32 {
+		// From https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence.
+		
+		match *self {
+			// 19: Grouping
+			// 18: Member access
+			// 18: Computed member access
+			// 18: New with argument list
+			// 17: Function call
+			// 17: New without argument list
+			// 16: Postfix increment
+			Op::PostIncr => 16,
+			// 16: Postfix decrement
+			Op::PostDecr => 16,
+			// 15: Logical NOT
+			Op::Not => 15,
+			// 15: Bitwise NOT
+			Op::BitNot => 15,
+			// 15: Unary plus
+			Op::Positive => 15,
+			// 15: Unary negation
+			Op::Negative => 15,
+			// 15: Prefix increment
+			Op::PreIncr => 15,
+			// 15: Prefix decrement
+			Op::PreDecr => 15,
+			// 15: Typeof
+			Op::Typeof => 15,
+			// 15: Void
+			Op::Void => 15,
+			// 15: Delete
+			Op::Delete => 15,
+			// 14: Multiplication
+			Op::Multiply => 14,
+			// 14: Division
+			Op::Divide => 14,
+			// 14: Remainder
+			Op::Modulus => 14,
+			// 13: Addition
+			Op::Add => 13,
+			// 13: Subtraction
+			Op::Subtract => 13,
+			// 12: Bitwise left shift
+			Op::LeftShiftArithmetic => 12,
+			// 12: Bitwise right shift
+			Op::RightShiftArithmetic => 12,
+			// 12: Bitwise unsigned right shift
+			Op::RightShiftLogical => 12,
+			// 11: Less than
+			Op::LessThan => 11,
+			// 11: Less than or equal
+			Op::LessThanEquals => 11,
+			// 11: Greater than
+			Op::GreaterThan => 11,
+			// 11: Greater than or equal
+			Op::GreaterThanEquals => 11,
+			// 11: In
+			Op::In => 11,
+			// 11: Instanceof
+			Op::InstanceOf => 11,
+			// 10: Equality
+			Op::Equals => 10,
+			// 10: Inequality
+			Op::NotEquals => 10,
+			// 10: Strict equality
+			Op::IdentityEquals => 10,
+			// 10: Strict inequality
+			Op::IdentityNotEquals => 10,
+			// 9: Bitwise AND
+			Op::BitAnd => 9,
+			// 8: Bitwise XOR
+			Op::BitXOr => 8,
+			// 7: Bitwise OR
+			Op::BitOr => 7,
+			// 6: Logical AND
+			Op::And => 6,
+			// 5: Logical OR
+			Op::Or => 5,
+			// 4: Conditional
+			// 3: Assignment
+			Op::Assign => 3
+			// 2: Yield
+			// 1: Spread
+			// 0: Comma, sequence
+		}
+	}
+}
+
 #[derive(Debug)]
 pub enum Property {
 	Assignment(PropertyKey, Box<Expr>),

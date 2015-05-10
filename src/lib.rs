@@ -5,6 +5,7 @@ pub mod util;
 pub mod gc;
 pub mod rt;
 
+#[derive(Debug)]
 pub enum JsError {
 	Io(std::io::Error),
 	Lex(String),

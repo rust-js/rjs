@@ -713,7 +713,29 @@ impl<'a> Parser<'a> {
 		
 		let right = try!(self.parse_expr());
 		
-		Ok(Expr::Binary(op, Box::new(expr), Box::new(right)))
+		let rebalance = if let &Expr::Binary(rop, _, _) = &right {
+			rop.precedence() < op.precedence() 
+		} else {
+			false
+		};
+		
+		Ok(if rebalance {
+			if let Expr::Binary(rop, rleft, rright) = right {
+				Expr::Binary(
+					rop,
+					Box::new(Expr::Binary(
+						op,
+						Box::new(expr),
+						rleft
+					)),
+					rright
+				)
+			} else {
+				unreachable!();
+			}
+		} else {
+			Expr::Binary(op, Box::new(expr), Box::new(right))
+		})
 	}
 	
 	fn parse_expr_binary_assign(&mut self, expr: Expr, op: Op) -> JsResult<Expr> {

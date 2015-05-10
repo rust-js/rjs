@@ -2,7 +2,6 @@ pub mod builder;
 
 use std::io::prelude::*;
 use std::fs::File;
-use std::mem::transmute;
 use syntax::ast::*;
 use syntax::token::Lit;
 use syntax::ast::visitor::AstVisitor;
@@ -76,8 +75,8 @@ impl IrContext {
 		self.build_ir(&mut StringReader::new("(global)", js))
 	}
 	
-	pub fn get_function_ir(&self, function_ref: FunctionRef) -> JsResult<Rc<builder::Block>> {
-		try!(unsafe { transmute::<_, &mut IrContext>(self) }.build_function_ir(function_ref));
+	pub fn get_function_ir(&mut self, function_ref: FunctionRef) -> JsResult<Rc<builder::Block>> {
+		try!(self.build_function_ir(function_ref));
 		
 		Ok(self.functions[function_ref.usize()].block.as_ref().unwrap().clone())
 	}
@@ -826,7 +825,6 @@ impl<'a> IrGenerator<'a> {
 	fn emit_op(&mut self, op: Op) {
 		match op {
 			Op::Add => self.ir.emit(Ir::Add),
-			Op::And => self.ir.emit(Ir::And),
 			Op::BitAnd => self.ir.emit(Ir::BitAnd),
 			Op::BitNot => self.ir.emit(Ir::BitNot),
 			Op::BitOr => self.ir.emit(Ir::BitOr),
@@ -848,7 +846,6 @@ impl<'a> IrGenerator<'a> {
 			Op::Negative => self.ir.emit(Ir::Negative),
 			Op::Not => self.ir.emit(Ir::Not),
 			Op::NotEquals => self.ir.emit(Ir::Ne),
-			Op::Or => self.ir.emit(Ir::Or),
 			Op::Positive => self.ir.emit(Ir::Positive),
 			Op::RightShiftArithmetic => self.ir.emit(Ir::Rsh),
 			Op::RightShiftLogical => self.ir.emit(Ir::RshZeroFill),
@@ -926,7 +923,33 @@ impl<'a> IrGenerator<'a> {
 		Ok(())
 	}
 	
+		
 	fn emit_expr_binary(&mut self, op: Op, lhs: &'a Expr, rhs: &'a Expr, leave: bool) -> JsResult<()> {
+		match op {
+			Op::And | Op::Or => {
+				let after = self.ir.label();
+				
+				try!(self.emit_expr(lhs, true));
+				self.ir.emit(Ir::Dup);
+				self.ir.emit(Ir::ToBoolean);
+				if op == Op::And {
+					self.ir.emit(Ir::JumpFalse(after));
+				} else {
+					self.ir.emit(Ir::JumpTrue(after));
+				}
+				self.ir.emit(Ir::Pop);
+				try!(self.emit_expr(rhs, true));
+				self.ir.mark(after);
+				
+				if !leave {
+					self.ir.emit(Ir::Pop);
+				}
+				
+				return Ok(());
+			}
+			_ => {}
+		}
+		
 		if leave {
 			try!(self.emit_expr(lhs, true));
 			try!(self.emit_expr(rhs, true));

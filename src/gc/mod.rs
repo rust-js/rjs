@@ -1,3 +1,7 @@
+// TODO: The handles field of UnsafeRoot currently is a Rc. This is not preferable
+// because of performance. However there is a problem. If the field is changed to
+// a *const and the Rc is changed to a Box, a segmentation fault will occur.
+
 const INITIAL_LOCAL_SCOPE_CAPACITY : usize = 8;
 
 extern crate libc;
@@ -13,6 +17,7 @@ use self::strategy::Strategy;
 use self::strategy::copying::Copying;
 use self::libc::c_void;
 use std::fmt;
+use std::rc::Rc;
 
 pub mod os;
 mod strategy;
@@ -61,21 +66,19 @@ impl<'a, T: 'a> Root<'a, T> {
 }
 
 pub struct UnsafeRoot<T> {
-	handles: *const RootHandles,
+	handles: Rc<RootHandles>,
 	handle: u32,
 	_type: PhantomData<T>
 }
 
 impl<T> UnsafeRoot<T> {
 	pub fn as_ptr(&self) -> Ptr<T> {
-		unsafe {
-			Ptr::from_ptr((*self.handles).get_target(self.handle))
-		}
+		unsafe { Ptr::from_ptr(self.handles.get_target(self.handle)) }
 	}
 	
 	fn from_raw_parts(heap: &GcHeap, ptr: *const c_void) -> UnsafeRoot<T> {
 		UnsafeRoot {
-			handles: &*heap.handles as *const RootHandles,
+			handles: heap.handles.clone(),
 			handle: heap.handles.add(ptr),
 			_type: PhantomData
 		}
@@ -87,7 +90,7 @@ impl<T> Deref for UnsafeRoot<T> {
 	
 	fn deref(&self) -> &T {
 		unsafe {
-			let ptr = (*self.handles).get_target(self.handle);
+			let ptr = self.handles.get_target(self.handle);
 			transmute(ptr.offset(size_of::<GcMemHeader>() as isize))
 		}
 	}
@@ -95,8 +98,8 @@ impl<T> Deref for UnsafeRoot<T> {
 
 impl<T> DerefMut for UnsafeRoot<T> {
 	fn deref_mut(&mut self) -> &mut T {
-		unsafe {
-			let ptr = (*self.handles).get_target(self.handle);
+		unsafe { 
+			let ptr = self.handles.get_target(self.handle);
 			transmute(ptr.offset(size_of::<GcMemHeader>() as isize))
 		}
 	}
@@ -105,8 +108,8 @@ impl<T> DerefMut for UnsafeRoot<T> {
 impl<T> Clone for UnsafeRoot<T> {
 	fn clone(&self) -> UnsafeRoot<T> {
 		UnsafeRoot {
-			handles: self.handles,
-			handle: unsafe { (&*self.handles) }.clone_root(self.handle),
+			handles: self.handles.clone(),
+			handle: self.handles.clone_root(self.handle),
 			_type: PhantomData
 		}
 	}
@@ -114,7 +117,7 @@ impl<T> Clone for UnsafeRoot<T> {
 
 impl<T> Drop for UnsafeRoot<T> {
 	fn drop(&mut self) {
-		unsafe { (&*self.handles) }.remove(self.handle);
+		self.handles.remove(self.handle);
 	}
 }
 
@@ -649,7 +652,7 @@ impl GcMemHeader {
 
 pub struct GcHeap {
 	types: GcTypes,
-	handles: Box<RootHandles>,
+	handles: Rc<RootHandles>,
 	heap: RefCell<Copying>,
 	scopes: RefCell<Vec<LocalScopeData>>
 }
@@ -665,7 +668,7 @@ impl GcHeap {
 		
 		GcHeap {
 			types: GcTypes::new(),
-			handles: Box::new(RootHandles::new()),
+			handles: Rc::new(RootHandles::new()),
 			heap: RefCell::new(Copying::new(opts)),
 			scopes: RefCell::new(Vec::new())
 		}
