@@ -99,7 +99,6 @@ impl JsEnv {
 				let result = self.to_primitive(value, ToPrimitiveHint::String);
 				self.to_string(result)
 			}
-			JsType::None => panic!()
 		}
 	}
 	
@@ -111,8 +110,7 @@ impl JsEnv {
 			JsType::Boolean => "boolean",
 			JsType::Number => "number",
 			JsType::String => "string",
-			JsType::Object => if value.get_object().function.is_some() { "function" } else { "object" },
-			JsType::None => panic!()
+			JsType::Object => if value.get_object().function.is_some() { "function" } else { "object" }
 		})
 	}
 	
@@ -127,8 +125,7 @@ impl JsEnv {
 			JsType::Object => {
 				let value = self.to_primitive(value, ToPrimitiveHint::Number);
 				self.to_number(value)
-			},
-			JsType::None => panic!()
+			}
 		}
 	}
 	
@@ -303,8 +300,7 @@ impl JsEnv {
 				!(value == 0f64 || value.is_nan())
 			}
 			JsType::String => value.get_string().chars.len() > 0,
-			JsType::Object => true,
-			JsType::None => panic!()
+			JsType::Object => true
 		}
 	}
 	
@@ -347,8 +343,7 @@ impl JsEnv {
 					}
 				}
 				JsType::Boolean => lval.get_bool() == rval.get_bool(),
-				JsType::Object => lval.get_object() == rval.get_object(),
-				JsType::None => panic!()
+				JsType::Object => lval.get_object() == rval.get_object()
 			}
 		}
 	}

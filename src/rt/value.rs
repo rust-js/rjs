@@ -19,7 +19,6 @@ impl fmt::Debug for JsValue {
 	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
 		try!(write!(fmt, "JsValue {{ ty: {:?}, value: ", self.ty));
 		match self.ty {
-			JsType::None => try!(write!(fmt, "none")),
 			JsType::Undefined => try!(write!(fmt, "undefined")),
 			JsType::Null => try!(write!(fmt, "null")),
 			JsType::Number => try!(write!(fmt, "{}", self.get_number())),
@@ -48,13 +47,6 @@ impl JsValue {
 		JsValue {
 			ty: ty,
 			value: value
-		}
-	}
-	
-	pub fn new_none() -> JsValue {
-		JsValue {
-			ty: JsType::None,
-			value: JsRawValue::new()
 		}
 	}
 	

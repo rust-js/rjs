@@ -97,7 +97,7 @@ impl Property {
 					flags: self.flags | VALID,
 					next: next,
 					value1: *value,
-					value2: JsValue::new_none()
+					value2: JsValue::new_undefined()
 				}
 			}
 			PropertyValue::Accessor { get, set } => {

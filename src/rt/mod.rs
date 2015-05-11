@@ -162,13 +162,12 @@ impl JsEnv {
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum JsType {
-	None = 0,
-	Undefined = 1,
-	Null = 2,
-	Number = 3,
-	Boolean = 4,
-	String = 5,
-	Object = 6
+	Undefined = 0,
+	Null = 1,
+	Number = 2,
+	Boolean = 3,
+	String = 4,
+	Object = 5
 }
 
 impl JsType {
