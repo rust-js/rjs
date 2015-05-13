@@ -3,7 +3,7 @@ use gc::*;
 use ::{JsResult, JsError};
 use syntax::ast::FunctionRef;
 use super::hash::{Property, PropertyValue};
-use syntax::token::keywords;
+use syntax::token::name;
 use std::f64;
 
 pub enum ToPrimitiveHint {
@@ -219,18 +219,18 @@ impl JsEnv {
 	pub fn new_function(&mut self, function_ref: FunctionRef) -> Local<JsValue> {
 		let mut proto = JsObject::new_local(self);
 	
-		proto.class = Some(keywords::FUNCTION_CLASS);
+		proto.class = Some(name::FUNCTION_CLASS);
 		
 		let mut result = JsObject::new_local(self);
 		
 		result.prototype = self.function_prototype.as_ptr();
-		result.class = Some(keywords::FUNCTION_CLASS);
+		result.class = Some(name::FUNCTION_CLASS);
 		result.function = Some(JsFunction::Ir(function_ref));
 		
 		let result_value = result.as_value(self);
 		
-		result.props.add(keywords::PROTOTYPE, &Property::new_value(proto.as_value(self), true, false, true), self);
-		proto.props.add(keywords::CONSTRUCTOR, &Property::new_value(result_value, true, false, true), self);
+		result.props.add(name::PROTOTYPE, &Property::new_value(proto.as_value(self), true, false, true), self);
+		proto.props.add(name::CONSTRUCTOR, &Property::new_value(result_value, true, false, true), self);
 		
 		result_value
 	}
@@ -259,8 +259,8 @@ impl JsEnv {
 			Err(JsError::Type)
 		} else {
 			let mut obj = JsObject::new_local(self);
-			obj.class = Some(keywords::OBJECT_CLASS);
-			let proto = try!(function.get(keywords::PROTOTYPE, self));
+			obj.class = Some(name::OBJECT_CLASS);
+			let proto = try!(function.get(name::PROTOTYPE, self));
 			obj.prototype = if proto.ty() == JsType::Object {
 				proto.get_object()
 			} else {
@@ -358,7 +358,7 @@ impl JsEnv {
 	pub fn new_object(&mut self) -> Local<JsObject> {
 		let mut obj = JsObject::new_local(self);
 		obj.prototype = self.object_prototype.as_ptr();
-		obj.class = Some(keywords::OBJECT_CLASS);
+		obj.class = Some(name::OBJECT_CLASS);
 		obj
 	}
 	
@@ -371,13 +371,13 @@ impl JsEnv {
 				match property.value {
 					PropertyValue::Value { value } => {
 						obj.define_own_property(
-							keywords::VALUE,
+							name::VALUE,
 							&Property::new_simple_value(value),
 							false,
 							self
 						);
 						obj.define_own_property(
-							keywords::WRITABLE,
+							name::WRITABLE,
 							&Property::new_simple_value(JsValue::new_bool(property.is_writable()).as_local(self)),
 							false,
 							self
@@ -385,13 +385,13 @@ impl JsEnv {
 					}
 					PropertyValue::Accessor { get, set } => {
 						obj.define_own_property(
-							keywords::GET,
+							name::GET,
 							&Property::new_simple_value(get),
 							false,
 							self
 						);
 						obj.define_own_property(
-							keywords::SET,
+							name::SET,
 							&Property::new_simple_value(set),
 							false,
 							self
@@ -400,13 +400,13 @@ impl JsEnv {
 				}
 				
 				obj.define_own_property(
-					keywords::ENUMERABLE,
+					name::ENUMERABLE,
 					&Property::new_simple_value(JsValue::new_bool(property.is_enumerable()).as_local(self)),
 					false,
 					self
 				);
 				obj.define_own_property(
-					keywords::CONFIGURABLE,
+					name::CONFIGURABLE,
 					&Property::new_simple_value(JsValue::new_bool(property.is_configurable()).as_local(self)),
 					false,
 					self

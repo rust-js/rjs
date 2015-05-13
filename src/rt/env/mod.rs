@@ -5,7 +5,7 @@ use super::{JsEnv, JsObject, JsFunction, JsFn, JsValue};
 use super::hash::Property;
 use ::JsResult;
 use syntax::ast::Name;
-use syntax::token::keywords;
+use syntax::token::name;
 use gc::*;
 
 use self::global::*;
@@ -62,19 +62,19 @@ fn setup_global(env: &mut JsEnv) {
 	let mut function_prototype = new_function(env, None, 0, Box::new(Function_baseConstructor), &object_prototype).as_object(env);
 	env.function_prototype = Root::from_local(&env.heap, function_prototype).into_unsafe();
 	
-	let function_class = new_function(env, Some(keywords::FUNCTION_CLASS), 0, Box::new(Function_constructor), &function_prototype);
+	let function_class = new_function(env, Some(name::FUNCTION_CLASS), 0, Box::new(Function_constructor), &function_prototype);
 	let mut function_class_object = function_class.as_object(env);
-	function_class_object.class = Some(keywords::FUNCTION_CLASS);
+	function_class_object.class = Some(name::FUNCTION_CLASS);
 	
 	setup_function(env, &mut function_prototype, &function_class_object);
 	
-	env.global().props.add(keywords::FUNCTION_CLASS, &Property::new_value(function_class, true, false, true), env);
+	env.global().props.add(name::FUNCTION_CLASS, &Property::new_value(function_class, true, false, true), env);
 	
 	// Build Object
 	
 	let object_class = setup_object(env, &mut object_prototype, &function_prototype);
 	
-	env.global().props.add(keywords::OBJECT_CLASS, &Property::new_value(object_class, true, false, true), env);
+	env.global().props.add(name::OBJECT_CLASS, &Property::new_value(object_class, true, false, true), env);
 	
 	// Build String
 	
@@ -86,71 +86,71 @@ fn setup_global(env: &mut JsEnv) {
 	
 	// Build global functions
 	
-	function!(env.global(), keywords::ESCAPE, Global_escape, 1, &function_prototype, env);
-	function!(env.global(), keywords::UNESCAPE, Global_unescape, 1, &function_prototype, env);
+	function!(env.global(), name::ESCAPE, Global_escape, 1, &function_prototype, env);
+	function!(env.global(), name::UNESCAPE, Global_unescape, 1, &function_prototype, env);
 }
 
 fn setup_function(env: &JsEnv, prototype: &mut Local<JsObject>, class: &Local<JsObject>) {
-	prototype.props.add(keywords::CONSTRUCTOR, &Property::new_value(class.as_value(env), true, false, true), env);
+	prototype.props.add(name::CONSTRUCTOR, &Property::new_value(class.as_value(env), true, false, true), env);
 	
-	function!(prototype, keywords::CALL, Function_call, 1, prototype, env);
-	function!(prototype, keywords::APPLY, Function_apply, 2, prototype, env);
-	function!(prototype, keywords::TO_STRING, Function_toString, 0, prototype, env);
-	function!(prototype, keywords::TO_LOCALE_STRING, Function_toLocaleString, 0, prototype, env);
-	accessor!(prototype, keywords::LENGTH, Function_length_get, Function_length_set, prototype, env);
+	function!(prototype, name::CALL, Function_call, 1, prototype, env);
+	function!(prototype, name::APPLY, Function_apply, 2, prototype, env);
+	function!(prototype, name::TO_STRING, Function_toString, 0, prototype, env);
+	function!(prototype, name::TO_LOCALE_STRING, Function_toLocaleString, 0, prototype, env);
+	accessor!(prototype, name::LENGTH, Function_length_get, Function_length_set, prototype, env);
 }
 
 fn setup_object<'a>(env: &JsEnv, prototype: &mut Local<JsObject>, function_prototype: &Local<JsObject>) -> Local<JsValue> {
-	function!(prototype, keywords::TO_STRING, Object_toString, 0, function_prototype, env);
-	function!(prototype, keywords::TO_LOCALE_STRING, Object_valueOf, 0, function_prototype, env);
-	function!(prototype, keywords::VALUE_OF, Object_toString, 0, function_prototype, env);
-	function!(prototype, keywords::HAS_OWN_PROPERTY, Object_hasOwnProperty, 1, function_prototype, env);
-	function!(prototype, keywords::IS_PROTOTYPE_OF, Object_isPrototypeOf, 1, function_prototype, env);
-	function!(prototype, keywords::PROPERTY_IS_ENUMERABLE, Object_propertyIsEnumerable, 1, function_prototype, env);
-	function!(prototype, keywords::GET_PROTOTYPE_OF, Object_getPrototypeOf, 1, function_prototype, env);
-	function!(prototype, keywords::DEFINE_PROPERTY, Object_defineProperty, 1, function_prototype, env);
+	function!(prototype, name::TO_STRING, Object_toString, 0, function_prototype, env);
+	function!(prototype, name::TO_LOCALE_STRING, Object_valueOf, 0, function_prototype, env);
+	function!(prototype, name::VALUE_OF, Object_toString, 0, function_prototype, env);
+	function!(prototype, name::HAS_OWN_PROPERTY, Object_hasOwnProperty, 1, function_prototype, env);
+	function!(prototype, name::IS_PROTOTYPE_OF, Object_isPrototypeOf, 1, function_prototype, env);
+	function!(prototype, name::PROPERTY_IS_ENUMERABLE, Object_propertyIsEnumerable, 1, function_prototype, env);
+	function!(prototype, name::GET_PROTOTYPE_OF, Object_getPrototypeOf, 1, function_prototype, env);
+	function!(prototype, name::DEFINE_PROPERTY, Object_defineProperty, 1, function_prototype, env);
 	
-	let class = new_function(env, Some(keywords::OBJECT_CLASS), 0, Box::new(Object_constructor), prototype);
+	let class = new_function(env, Some(name::OBJECT_CLASS), 0, Box::new(Object_constructor), prototype);
 	
-	function!(class.get_object(), keywords::CREATE, Object_create, 1, function_prototype, env);
-	function!(class.get_object(), keywords::GET_OWN_PROPERTY_DESCRIPTOR, Object_getOwnPropertyDescriptor, 2, function_prototype, env);
+	function!(class.get_object(), name::CREATE, Object_create, 1, function_prototype, env);
+	function!(class.get_object(), name::GET_OWN_PROPERTY_DESCRIPTOR, Object_getOwnPropertyDescriptor, 2, function_prototype, env);
 	
 	class
 }
 
 fn setup_string<'a>(env: &mut JsEnv, function_prototype: &Local<JsObject>) {
-	let class = new_function(env, Some(keywords::STRING_CLASS), 0, Box::new(String_constructor), &function_prototype);	
+	let class = new_function(env, Some(name::STRING_CLASS), 0, Box::new(String_constructor), &function_prototype);	
 
-	env.global().props.add(keywords::STRING_CLASS, &Property::new_value(class, true, false, true), env);
+	env.global().props.add(name::STRING_CLASS, &Property::new_value(class, true, false, true), env);
 
-	let mut prototype = class.get(keywords::PROTOTYPE, env).ok().unwrap().as_object(env);
+	let mut prototype = class.get(name::PROTOTYPE, env).ok().unwrap().as_object(env);
 	
 	env.string_prototype = Root::from_local(&env.heap, prototype).into_unsafe();
 	
-	class.as_object(env).class = Some(keywords::STRING_CLASS);
+	class.as_object(env).class = Some(name::STRING_CLASS);
 	
-	function!(&mut prototype, keywords::SUBSTR, String_substr, 1, function_prototype, env);
+	function!(&mut prototype, name::SUBSTR, String_substr, 1, function_prototype, env);
 }
 
 fn setup_date<'a>(env: &mut JsEnv, function_prototype: &Local<JsObject>) {
-	let class = new_function(env, Some(keywords::DATE_CLASS), 0, Box::new(Date_constructor), &function_prototype);	
+	let class = new_function(env, Some(name::DATE_CLASS), 0, Box::new(Date_constructor), &function_prototype);	
 
-	env.global().props.add(keywords::DATE_CLASS, &Property::new_value(class, true, false, true), env);
+	env.global().props.add(name::DATE_CLASS, &Property::new_value(class, true, false, true), env);
 
-	let mut prototype = class.get(keywords::PROTOTYPE, env).ok().unwrap().as_object(env);
+	let mut prototype = class.get(name::PROTOTYPE, env).ok().unwrap().as_object(env);
 	
-	class.as_object(env).class = Some(keywords::DATE_CLASS);
+	class.as_object(env).class = Some(name::DATE_CLASS);
 	
-	function!(&mut prototype, keywords::GET_YEAR, Date_getYear, 0, function_prototype, env);
-	function!(&mut prototype, keywords::SET_YEAR, Date_setYear, 1, function_prototype, env);
-	function!(&mut prototype, keywords::TO_GMT_STRING, Date_toGMTString, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_YEAR, Date_getYear, 0, function_prototype, env);
+	function!(&mut prototype, name::SET_YEAR, Date_setYear, 1, function_prototype, env);
+	function!(&mut prototype, name::TO_GMT_STRING, Date_toGMTString, 0, function_prototype, env);
 }
 
 fn new_naked_function<'a>(env: &JsEnv, name: Option<Name>, args: u32, function: Box<JsFn>, prototype: &Local<JsObject>) -> Local<JsObject> {
 	let mut result = JsObject::new_local(env);
 	
 	result.prototype = prototype.as_ptr();
-	result.class = Some(keywords::FUNCTION_CLASS);
+	result.class = Some(name::FUNCTION_CLASS);
 	result.function = Some(JsFunction::Native(name, args, function));
 	
 	result
@@ -161,13 +161,13 @@ fn new_naked_function<'a>(env: &JsEnv, name: Option<Name>, args: u32, function: 
 fn new_function<'a>(env: &JsEnv, name: Option<Name>, args: u32, function: Box<JsFn>, prototype: &Local<JsObject>) -> Local<JsValue> {
 	let mut proto = JsObject::new_local(env);
 	
-	proto.class = Some(keywords::FUNCTION_CLASS);
+	proto.class = Some(name::FUNCTION_CLASS);
 	
 	let mut result = new_naked_function(env, name, args, function, &prototype);
 	let result_value = result.as_value(env);
 	
-	result.props.add(keywords::PROTOTYPE, &Property::new_value(proto.as_value(env), true, false, true), env);
-	proto.props.add(keywords::CONSTRUCTOR, &Property::new_value(result_value, true, false, true), env);
+	result.props.add(name::PROTOTYPE, &Property::new_value(proto.as_value(env), true, false, true), env);
+	proto.props.add(name::CONSTRUCTOR, &Property::new_value(result_value, true, false, true), env);
 	
 	result_value
 }

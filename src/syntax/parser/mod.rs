@@ -2,7 +2,7 @@ use syntax::lexer::Lexer;
 use syntax::ast::*;
 use syntax::token::{Token, Lit};
 use syntax::Span;
-use syntax::token::keywords;
+use syntax::token::name;
 use ::{JsResult, JsError};
 use std::rc::Rc;
 use std::cell::{Cell, RefCell};
@@ -65,7 +65,7 @@ impl<'a> Parser<'a> {
 		let len = self.scopes.len();
 		let scope = &mut self.scopes[len - 1];
 		
-		let block = if name == keywords::ARGUMENTS {
+		let block = if name == name::ARGUMENTS {
 			// If this is the arguments variable, we can just drop it.
 			
 			return;
@@ -424,55 +424,55 @@ impl<'a> Parser<'a> {
 			Some(&Token::Identifier(name)) => name,
 			Some(&Token::Literal(ref value)) => {
 				match *value.clone() {
-					Lit::Boolean(value) => if value { keywords::TRUE } else { keywords::FALSE },
-					Lit::Null => keywords::NULL,
+					Lit::Boolean(value) => if value { name::TRUE } else { name::FALSE },
+					Lit::Null => name::NULL,
 					_ => return Ok(None)
 				}
 			},
 			// Reserved words
-			Some(&Token::Break) => keywords::BREAK,
-			Some(&Token::Do) => keywords::DO,
-			Some(&Token::Instanceof) => keywords::INSTANCEOF,
-			Some(&Token::Typeof) => keywords::TYPEOF,
-			Some(&Token::Case) => keywords::CASE,
-			Some(&Token::Else) => keywords::ELSE,
-			Some(&Token::New) => keywords::NEW,
-			Some(&Token::Var) => keywords::VAR,
-			Some(&Token::Catch) => keywords::CATCH,
-			Some(&Token::Finally) => keywords::FINALLY,
-			Some(&Token::Return) => keywords::RETURN,
-			Some(&Token::Void) => keywords::VOID,
-			Some(&Token::Continue) => keywords::CONTINUE,
-			Some(&Token::For) => keywords::FOR,
-			Some(&Token::Switch) => keywords::SWITCH,
-			Some(&Token::While) => keywords::WHILE,
-			Some(&Token::Debugger) => keywords::DEBUGGER,
-			Some(&Token::Function) => keywords::FUNCTION,
-			Some(&Token::This) => keywords::THIS,
-			Some(&Token::With) => keywords::WHILE,
-			Some(&Token::Default) => keywords::DEFAULT,
-			Some(&Token::If) => keywords::IF,
-			Some(&Token::Throw) => keywords::THROW,
-			Some(&Token::Delete) => keywords::DELETE,
-			Some(&Token::In) => keywords::IN,
-			Some(&Token::Try) => keywords::TRY,
+			Some(&Token::Break) => name::BREAK,
+			Some(&Token::Do) => name::DO,
+			Some(&Token::Instanceof) => name::INSTANCEOF,
+			Some(&Token::Typeof) => name::TYPEOF,
+			Some(&Token::Case) => name::CASE,
+			Some(&Token::Else) => name::ELSE,
+			Some(&Token::New) => name::NEW,
+			Some(&Token::Var) => name::VAR,
+			Some(&Token::Catch) => name::CATCH,
+			Some(&Token::Finally) => name::FINALLY,
+			Some(&Token::Return) => name::RETURN,
+			Some(&Token::Void) => name::VOID,
+			Some(&Token::Continue) => name::CONTINUE,
+			Some(&Token::For) => name::FOR,
+			Some(&Token::Switch) => name::SWITCH,
+			Some(&Token::While) => name::WHILE,
+			Some(&Token::Debugger) => name::DEBUGGER,
+			Some(&Token::Function) => name::FUNCTION,
+			Some(&Token::This) => name::THIS,
+			Some(&Token::With) => name::WHILE,
+			Some(&Token::Default) => name::DEFAULT,
+			Some(&Token::If) => name::IF,
+			Some(&Token::Throw) => name::THROW,
+			Some(&Token::Delete) => name::DELETE,
+			Some(&Token::In) => name::IN,
+			Some(&Token::Try) => name::TRY,
 			// Future reserved words
-			Some(&Token::Class) => keywords::CLASS,
-			Some(&Token::Enum) => keywords::ENUM,
-			Some(&Token::Extends) => keywords::EXTENDS,
-			Some(&Token::Super) => keywords::SUPER,
-			Some(&Token::Const) => keywords::CONST,
-			Some(&Token::Export) => keywords::EXPORT,
-			Some(&Token::Import) => keywords::IMPORT,
-			Some(&Token::Implements) => keywords::IMPLEMENTS,
-			Some(&Token::Let) => keywords::LET,
-			Some(&Token::Private) => keywords::PRIVATE,
-			Some(&Token::Public) => keywords::PUBLIC,
-			Some(&Token::Interface) => keywords::INTERFACE,
-			Some(&Token::Package) => keywords::PACKAGE,
-			Some(&Token::Protected) => keywords::PROTECTED,
-			Some(&Token::Static) => keywords::STATIC,
-			Some(&Token::Yield) => keywords::YIELD,
+			Some(&Token::Class) => name::CLASS,
+			Some(&Token::Enum) => name::ENUM,
+			Some(&Token::Extends) => name::EXTENDS,
+			Some(&Token::Super) => name::SUPER,
+			Some(&Token::Const) => name::CONST,
+			Some(&Token::Export) => name::EXPORT,
+			Some(&Token::Import) => name::IMPORT,
+			Some(&Token::Implements) => name::IMPLEMENTS,
+			Some(&Token::Let) => name::LET,
+			Some(&Token::Private) => name::PRIVATE,
+			Some(&Token::Public) => name::PUBLIC,
+			Some(&Token::Interface) => name::INTERFACE,
+			Some(&Token::Package) => name::PACKAGE,
+			Some(&Token::Protected) => name::PROTECTED,
+			Some(&Token::Static) => name::STATIC,
+			Some(&Token::Yield) => name::YIELD,
 			_ => return Ok(None)
 		};
 		
@@ -903,7 +903,7 @@ impl<'a> Parser<'a> {
 			let prop_ident = try!(self.parse_ident_name());
 			
 			if self.consume(&Token::OpenParen) {
-				if name == keywords::GET {
+				if name == name::GET {
 					try!(self.expect(&Token::CloseParen));
 					
 					let block = try!(self.parse_function_block(Vec::new()));
@@ -918,7 +918,7 @@ impl<'a> Parser<'a> {
 					self.context.functions.push(function);
 					
 					Ok(Property::Getter(prop_ident, function_ref))
-				} else if name == keywords::SET {
+				} else if name == name::SET {
 					let args = vec![try!(self.parse_name())];
 					
 					try!(self.expect(&Token::CloseParen));

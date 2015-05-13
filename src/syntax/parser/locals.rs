@@ -1,6 +1,6 @@
 use syntax::ast::*;
 use syntax::ast::visitor::AstVisitor;
-use syntax::token::keywords;
+use syntax::token::name;
 use std::cell::RefCell;
 
 pub struct LocalResolver<'a> {
@@ -66,7 +66,7 @@ impl<'a> LocalResolver<'a> {
 			return;
 		}
 		
-		if ident.name == keywords::ARGUMENTS {
+		if ident.name == name::ARGUMENTS {
 			ident.state.set(IdentState::Arguments);
 			return;
 		}

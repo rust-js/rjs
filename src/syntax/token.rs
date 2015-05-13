@@ -147,7 +147,7 @@ pub enum Lit {
 macro_rules! declare_idents {(
 	$( ($str:expr, $name:ident, $num:expr); )*
 ) => {
-	pub mod keywords {
+	pub mod name {
 		use syntax::ast;
 		use util::interner::StrInterner;
 		

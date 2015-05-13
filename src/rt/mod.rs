@@ -9,7 +9,7 @@ use std::mem;
 use std::fmt;
 use self::hash::{Property, PropertyValue};
 use ::{JsResult, JsError};
-use syntax::token::keywords;
+use syntax::token::name;
 
 const INITIAL_OBJECT : usize = 20;
 
@@ -456,7 +456,7 @@ impl JsValue {
 		if self.ty() != JsType::Object || val.ty() != JsType::Object {
 			Ok(false)
 		} else {
-			let obj = try!(self.get(keywords::PROTOTYPE, env));
+			let obj = try!(self.get(name::PROTOTYPE, env));
 			if obj.ty() != JsType::Object {
 				Err(JsError::Type)
 			} else {

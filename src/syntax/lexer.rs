@@ -1217,7 +1217,7 @@ mod test {
 	use super::*;
 	use syntax::reader::StringReader;
 	use syntax::token::Token::*;
-	use syntax::token::keywords;
+	use syntax::token::name;
 	use util::interner::StrInterner;
 	
 	macro_rules! assert_match {
@@ -1243,7 +1243,7 @@ mod test {
 	}
 	
 	#[test] fn function_test() {
-		let mut interner = keywords::new_interner();
+		let mut interner = name::new_interner();
 		let mut lexer = parse_with_interner("function f() { var a = 1; }", &mut interner);
 		
 		assert_match!(lexer, Function);
@@ -1261,7 +1261,7 @@ mod test {
 	}
 	
 	fn parse(text: &str) -> Lexer {
-		let mut interner = keywords::new_interner();
+		let mut interner = name::new_interner();
 		
 		parse_with_interner(text, &mut interner)
 	}

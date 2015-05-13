@@ -7,7 +7,7 @@ use syntax::token::Lit;
 use syntax::ast::visitor::AstVisitor;
 use self::builder::Ir;
 use util::interner::StrInterner;
-use syntax::token::keywords;
+use syntax::token::name;
 use syntax::lexer::Lexer;
 use syntax::parser::Parser;
 use syntax::reader::StringReader;
@@ -48,7 +48,7 @@ struct LhsRef<'a> {
 impl IrContext {
 	pub fn new() -> IrContext {
 		IrContext {
-			interner: keywords::new_interner(),
+			interner: name::new_interner(),
 			functions: Vec::new(),
 			ast: AstContext::new()
 		}
