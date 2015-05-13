@@ -2,6 +2,7 @@ pub mod builder;
 
 use std::io::prelude::*;
 use std::fs::File;
+use syntax::Name;
 use syntax::ast::*;
 use syntax::token::Lit;
 use syntax::ast::visitor::AstVisitor;

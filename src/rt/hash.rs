@@ -1,14 +1,15 @@
 extern crate libc;
 
 use gc::*;
-use syntax::ast::Name;
+use syntax::Name;
 use super::{JsEnv, JsValue};
 use std::mem::{transmute, size_of};
 
-const WRITABLE     : u32 = 0b0001;
-const ENUMERABLE   : u32 = 0b0010;
-const CONFIGURABLE : u32 = 0b0100;
-const ACCESSOR     : u32 = 0b1000;
+const VALID        : u32 = 0b00001;
+const WRITABLE     : u32 = 0b00010;
+const ENUMERABLE   : u32 = 0b00100;
+const CONFIGURABLE : u32 = 0b01000;
+const ACCESSOR     : u32 = 0b10000;
 
 #[cfg(target_pointer_width = "64")]
 const ENTRY_VALUE1_OFFSET : u32 = 2;
@@ -37,23 +38,6 @@ fn entry_walker(ptr: *const libc::c_void, index: u32) -> GcTypeWalk {
 
 pub fn build_entry_gc_type(heap: &mut GcHeap) -> GcTypeId {
 	heap.types().add(GcType::new(size_of::<Entry>(), GcTypeLayout::Callback(Box::new(entry_walker))))
-}
-
-#[derive(Copy, Clone)]
-struct Tag(u32);
-
-impl Tag {
-	fn new(name: Name, flags: u32) -> Tag {
-		Tag((name.0 << 4) | (flags & 0xf))
-	}
-	
-	fn name(self) -> Name {
-		Name(self.0 >> 4)
-	}
-	
-	fn flags(self) -> u32 {
-		self.0 & 0xf
-	}
 }
 
 pub enum PropertyValue {
@@ -109,7 +93,8 @@ impl Property {
 		match self.value {
 			PropertyValue::Value { value } => {
 				Entry {
-					tag: Tag::new(name, self.flags),
+					name: name,
+					flags: self.flags | VALID,
 					next: next,
 					value1: *value,
 					value2: JsValue::new_none()
@@ -117,7 +102,8 @@ impl Property {
 			}
 			PropertyValue::Accessor { get, set } => {
 				Entry {
-					tag: Tag::new(name, self.flags | ACCESSOR),
+					name: name,
+					flags: self.flags | ACCESSOR | VALID,
 					next: next,
 					value1: *get,
 					value2: *set
@@ -165,7 +151,8 @@ impl Property {
 
 #[derive(Copy, Clone)]
 pub struct Entry {
-	tag: Tag,
+	name: Name,
+	flags: u32,
 	next: i32,
 	value1: JsValue,
 	value2: JsValue
@@ -173,14 +160,12 @@ pub struct Entry {
 
 impl Entry {
 	fn is_valid(&self) -> bool {
-		self.tag.0 != 0
+		(self.flags & VALID) != 0
 	}
 	
 	fn as_property(&self, env: &JsEnv) -> Property {
-		let flags = self.tag.flags();
-		
 		Property {
-			value: if (flags & ACCESSOR) != 0 {
+			value: if (self.flags & ACCESSOR) != 0 {
 				PropertyValue::Accessor {
 					get: self.value1.as_local(env),
 					set: self.value2.as_local(env)
@@ -190,7 +175,7 @@ impl Entry {
 					value: self.value1.as_local(env)
 				}
 			},
-			flags: flags & 0x7
+			flags: self.flags & (WRITABLE | ENUMERABLE | CONFIGURABLE)
 		}
 	}
 }
@@ -215,7 +200,7 @@ impl Hash {
 	fn find_entry(&self, name: Name) -> Option<usize> {
 		let entries = unsafe { &*self.entries };
 		
-		let mut offset = self.hash(name.usize() as u32) as usize;
+		let mut offset = self.hash(name) as usize;
 		
 		// If the first entry isn't valid, we don't have it in the list.
 		
@@ -229,7 +214,7 @@ impl Hash {
 		loop {
 			// If the name is equal, we've found the correct entry.
 			
-			if entries[offset].tag.name() == name {
+			if entries[offset].name == name {
 				return Some(offset);
 			}
 			
@@ -254,8 +239,8 @@ impl Hash {
 		unsafe { &*self.entries }.len()
 	}
 	
-	fn hash(&self, value: u32) -> u32 {
-		value % self.capacity() as u32
+	fn hash(&self, name: Name) -> u32 {
+		name.value() as u32 % self.capacity() as u32
 	}
 	
 	fn max_load_factor(&self) -> u32 {
@@ -278,17 +263,17 @@ impl Hash {
         // If the entry at the ideal location doesn't have the correct has,
         // we're going to move that entry.
 		
-		let hash = self.hash(name.usize() as u32);
+		let hash = self.hash(name);
 		
 		if
 			entries[hash as usize].is_valid() &&
-			self.hash(entries[hash as usize].tag.name().0) != hash
+			self.hash(entries[hash as usize].name) != hash
 		{
 			// Create a copy of the current entry and remove it.
 			
 			let copy = entries[hash as usize];
 			
-			self.remove(copy.tag.name());
+			self.remove(copy.name);
 			
 			// Put the new entry at the ideal location.
 			
@@ -300,11 +285,11 @@ impl Hash {
 			
 			// And now add the previous entry.
 			
-			self.add(copy.tag.name(), &copy.as_property(env), env);
+			self.add(copy.name, &copy.as_property(env), env);
 		} else {
 			// Find the end of the chain currently at the entry.
 			
-			let mut entry = self.hash(name.usize() as u32) as i32;
+			let mut entry = self.hash(name) as i32;
 			let mut free;
 			
 			if entries[entry as usize].is_valid() {
@@ -366,7 +351,7 @@ impl Hash {
 		
 		for entry in entries {
 			if entry.is_valid() {
-				self.add(entry.tag.name(), &entry.as_property(env), env);
+				self.add(entry.name, &entry.as_property(env), env);
 			}
 		}
 	}
@@ -377,9 +362,9 @@ impl Hash {
 		// Find the position of the element.
 		
 		let mut last = -1;
-		let mut index = self.hash(name.usize() as u32) as i32;
+		let mut index = self.hash(name) as i32;
 		
-		while index != -1 && entries[index as usize].tag.name() != name {
+		while index != -1 && entries[index as usize].name != name {
 			last = index;
 			index = entries[index as usize].next;
 		}
@@ -399,19 +384,19 @@ impl Hash {
                 
         		entries[last as usize].next = next;
         		
-        		entries[index].tag = Tag(0);
+        		entries[index].flags = 0;
         	} else if next != -1 {
                 // Otherwise, we replace the head of the chain with the
                 // next entry and invalidate the next entry.
         		
         		entries[index] = entries[next as usize];
         		
-        		entries[next as usize].tag = Tag(0);
+        		entries[next as usize].flags = 0;
         	} else {
                 // If we're the head and there is no next entry, just
                 // invalidate this one.
         		
-        		entries[index].tag = Tag(0);
+        		entries[index].flags = 0;
         	}
         	
         	// Decrement the count.
@@ -434,7 +419,7 @@ impl Hash {
 	pub fn replace(&self, name: Name, value: &Property) -> bool {
 		if let Some(index) = self.find_entry(name) {
 			let entry = &mut unsafe { &mut *self.entries }[index];
-			*entry = value.as_entry(entry.tag.name(), entry.next);
+			*entry = value.as_entry(entry.name, entry.next);
 			
 			true
 		} else {
@@ -466,7 +451,7 @@ impl Iterator for HashIter {
 			self.offset += 1;
 			
 			if entry.is_valid() {
-				return Some(entry.tag.name());
+				return Some(entry.name);
 			}
 		}
 		

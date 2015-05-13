@@ -1,100 +1,10 @@
 pub mod visitor;
 
 use syntax::token::Lit;
-use util::interner::{StrInterner, RcStr};
+use super::Name;
 use std::rc::Rc;
-use std::ops::Deref;
-use std::fmt;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-
-#[derive(Clone, PartialEq, Hash, PartialOrd, Eq, Ord)]
-pub struct InternedString {
-    string: RcStr,
-}
-
-/// Represents a string stored in the task-local interner. Because the
-/// interner lives for the life of the task, this can be safely treated as an
-/// immortal string, as long as it never crosses between tasks.
-///
-/// FIXME(pcwalton): You must be careful about what you do in the destructors
-/// of objects stored in TLS, because they may run after the interner is
-/// destroyed. In particular, they must not access string contents. This can
-/// be fixed in the future by just leaking all strings until task death
-/// somehow.
-impl InternedString {
-    #[inline]
-    pub fn new(string: &'static str) -> InternedString {
-        InternedString {
-            string: RcStr::new(string),
-        }
-    }
-
-    #[inline]
-    fn new_from_rc_str(string: RcStr) -> InternedString {
-        InternedString {
-            string: string,
-        }
-    }
-}
-
-impl Deref for InternedString {
-    type Target = str;
-
-    fn deref(&self) -> &str { &*self.string }
-}
-
-impl fmt::Debug for InternedString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.string, f)
-    }
-}
-
-impl fmt::Display for InternedString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.string, f)
-    }
-}
-
-impl<'a> PartialEq<&'a str> for InternedString {
-    #[inline(always)]
-    fn eq(&self, other: & &'a str) -> bool {
-        PartialEq::eq(&self.string[..], *other)
-    }
-
-    #[inline(always)]
-    fn ne(&self, other: & &'a str) -> bool {
-        PartialEq::ne(&self.string[..], *other)
-    }
-}
-
-impl<'a> PartialEq<InternedString> for &'a str {
-    #[inline(always)]
-    fn eq(&self, other: &InternedString) -> bool {
-        PartialEq::eq(*self, &other.string[..])
-    }
-    
-    #[inline(always)]
-    fn ne(&self, other: &InternedString) -> bool {
-        PartialEq::ne(*self, &other.string[..])
-    }
-}
-
-#[derive(Eq, Ord, PartialEq, PartialOrd, Hash, Clone, Copy, Debug)]
-pub struct Name(pub u32);
-
-impl Name {
-	pub fn as_str<'a>(&'a self, interner: &StrInterner) -> &'a str {
-		unsafe {
-			// FIXME #12938: can't use copy_lifetime since &str isn't a &T
-			::std::mem::transmute::<&str,&str>(&InternedString::new_from_rc_str(interner.get(*self)))
-		}
-	}
-
-	pub fn usize(&self) -> usize {
-		self.0 as usize
-	}
-}
 
 pub struct AstContext {
 	pub functions: Vec<Box<Function>>

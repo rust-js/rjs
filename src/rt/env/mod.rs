@@ -4,7 +4,7 @@
 use super::{JsEnv, JsObject, JsFunction, JsFn, JsValue};
 use super::hash::Property;
 use ::JsResult;
-use syntax::ast::Name;
+use syntax::Name;
 use syntax::token::name;
 use gc::*;
 

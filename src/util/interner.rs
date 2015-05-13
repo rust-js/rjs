@@ -12,7 +12,7 @@
 //! allows bidirectional lookup; i.e. given a value, one can easily find the
 //! type, and vice versa.
 
-use syntax::ast::Name;
+use syntax::Name;
 
 use std::borrow::Borrow;
 use std::cell::RefCell;
@@ -22,75 +22,6 @@ use std::fmt;
 use std::hash::Hash;
 use std::ops::Deref;
 use std::rc::Rc;
-
-pub struct Interner<T> {
-    map: RefCell<HashMap<T, Name>>,
-    vect: RefCell<Vec<T> >,
-}
-
-// when traits can extend traits, we should extend index<Name,T> to get []
-impl<T: Eq + Hash + Clone + 'static> Interner<T> {
-    pub fn new() -> Interner<T> {
-        Interner {
-            map: RefCell::new(HashMap::new()),
-            vect: RefCell::new(Vec::new()),
-        }
-    }
-
-    pub fn prefill(init: &[T]) -> Interner<T> {
-        let rv = Interner::new();
-        for v in init {
-            rv.intern((*v).clone());
-        }
-        rv
-    }
-
-    pub fn intern(&self, val: T) -> Name {
-        let mut map = self.map.borrow_mut();
-        match (*map).get(&val) {
-            Some(&idx) => return idx,
-            None => (),
-        }
-
-        let mut vect = self.vect.borrow_mut();
-        let new_idx = Name((*vect).len() as u32);
-        (*map).insert(val.clone(), new_idx);
-        (*vect).push(val);
-        new_idx
-    }
-
-    pub fn gensym(&self, val: T) -> Name {
-        let mut vect = self.vect.borrow_mut();
-        let new_idx = Name((*vect).len() as u32);
-        // leave out of .map to avoid colliding
-        (*vect).push(val);
-        new_idx
-    }
-
-    pub fn get(&self, idx: Name) -> T {
-        let vect = self.vect.borrow();
-        (*vect)[idx.usize()].clone()
-    }
-
-    pub fn len(&self) -> usize {
-        let vect = self.vect.borrow();
-        (*vect).len()
-    }
-
-    pub fn find<Q: ?Sized>(&self, val: &Q) -> Option<Name>
-    where T: Borrow<Q>, Q: Eq + Hash {
-        let map = self.map.borrow();
-        match (*map).get(val) {
-            Some(v) => Some(*v),
-            None => None,
-        }
-    }
-
-    pub fn clear(&self) {
-        *self.map.borrow_mut() = HashMap::new();
-        *self.vect.borrow_mut() = Vec::new();
-    }
-}
 
 #[derive(Clone, PartialEq, Hash, PartialOrd)]
 pub struct RcStr {
@@ -168,7 +99,7 @@ impl StrInterner {
             None => (),
         }
 
-        let new_idx = Name(self.len() as u32);
+        let new_idx = Name::from_name(self.len());
         let val = RcStr::new(val);
         map.insert(val.clone(), new_idx);
         self.vect.borrow_mut().push(val);
@@ -176,7 +107,7 @@ impl StrInterner {
     }
 
     pub fn gensym(&self, val: &str) -> Name {
-        let new_idx = Name(self.len() as u32);
+        let new_idx = Name::from_name(self.len());
         // leave out of .map to avoid colliding
         self.vect.borrow_mut().push(RcStr::new(val));
         new_idx
@@ -193,16 +124,26 @@ impl StrInterner {
     /// Create a gensym with the same name as an existing
     /// entry.
     pub fn gensym_copy(&self, idx : Name) -> Name {
-        let new_idx = Name(self.len() as u32);
-        // leave out of map to avoid colliding
-        let mut vect = self.vect.borrow_mut();
-        let existing = (*vect)[idx.usize()].clone();
-        vect.push(existing);
-        new_idx
+    	if idx.is_index() {
+    		idx
+    	} else {
+	        let new_idx = Name::from_name(self.len());
+	        // leave out of map to avoid colliding
+	        let mut vect = self.vect.borrow_mut();
+	        let existing = (*vect)[idx.name().unwrap()].clone();
+	        vect.push(existing);
+	        new_idx
+        }
     }
 
     pub fn get(&self, idx: Name) -> RcStr {
-        (*self.vect.borrow())[idx.usize()].clone()
+    	if let Some(index) = idx.index() {
+    		RcStr {
+    			string: Rc::new(index.to_string())
+    		}
+    	} else {
+	        (*self.vect.borrow())[idx.name().unwrap()].clone()
+        }
     }
 
     pub fn len(&self) -> usize {

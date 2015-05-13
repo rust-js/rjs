@@ -1,5 +1,5 @@
 use syntax::Span;
-use syntax::ast::Name;
+use syntax::Name;
 use std::rc::Rc;
 
 pub struct TokenAndSpan {
@@ -148,18 +148,19 @@ macro_rules! declare_idents {(
 	$( ($str:expr, $name:ident, $num:expr); )*
 ) => {
 	pub mod name {
-		use syntax::ast;
+		use syntax;
 		use util::interner::StrInterner;
 		
 		$(
-			pub const $name: ast::Name = ast::Name($num);
+			pub const $name: syntax::Name = syntax::Name(-($num as i32 + 1));
 		)*
 		
 		pub fn new_interner() -> StrInterner {
 			let interner = StrInterner::new();
 			
 			$(
-				interner.intern($str);
+				let interned = interner.intern($str);
+				assert_eq!(interned, $name);
 			)*
 			
 			interner
@@ -168,7 +169,7 @@ macro_rules! declare_idents {(
 }}
 
 declare_idents! {
-	( "", NONE, 0 );
+	( "null", NULL, 0 );
 	( "true", TRUE, 1 );
 	( "false", FALSE, 2 );
 	( "break", BREAK, 3 );
@@ -231,7 +232,7 @@ declare_idents! {
 	( "getPrototypeOf", GET_PROTOTYPE_OF, 60 );
 	( "defineProperty", DEFINE_PROPERTY, 61 );
 	( "prototype", PROTOTYPE, 62 );
-	( "null", NULL, 63 );
+	( "toGMTString", TO_GMT_STRING, 63 );
 	( "create", CREATE, 64 );
 	( "getOwnPropertyDescriptor", GET_OWN_PROPERTY_DESCRIPTOR, 65 );
 	( "value", VALUE, 66 );
@@ -245,5 +246,4 @@ declare_idents! {
 	( "Date", DATE_CLASS, 74 );
 	( "getYear", GET_YEAR, 75 );
 	( "setYear", SET_YEAR, 76 );
-	( "toGMTString", TO_GMT_STRING, 77 );
 }

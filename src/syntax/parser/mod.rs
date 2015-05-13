@@ -1,4 +1,5 @@
 use syntax::lexer::Lexer;
+use syntax::Name;
 use syntax::ast::*;
 use syntax::token::{Token, Lit};
 use syntax::Span;

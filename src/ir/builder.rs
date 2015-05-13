@@ -1,4 +1,5 @@
-use syntax::ast::{Name, FunctionRef};
+use syntax::Name;
+use syntax::ast::FunctionRef;
 use util::interner::StrInterner;
 use std::fmt::Write;
 
@@ -183,7 +184,7 @@ impl Block {
 				&Ir::RshZeroFill => string.push_str("rsh.zf"),
 				&Ir::StoreArguments => string.push_str("st.arguments"),
 				&Ir::StoreGetter(function) => { write!(string, "st.getter {}", function.usize()).ok(); },
-				&Ir::StoreNameGetter(name, function) => { write!(string, "st.getter.name {}, {}", name.usize(), function.usize()).ok(); },
+				&Ir::StoreNameGetter(name, function) => { write!(string, "st.getter.name {}, {}", name.value(), function.usize()).ok(); },
 				&Ir::StoreGlobal(name) => {
 					string.push_str("st.global ");
 					self.print_name(string, name, interner);
@@ -205,7 +206,7 @@ impl Block {
 				&Ir::StoreNameLit => string.push_str("st.name.lit"),
 				&Ir::StoreParam(index) => { write!(string, "st.arg {}", index).ok(); },
 				&Ir::StoreSetter(function) => { write!(string, "st.setter {}", function.usize()).ok(); },
-				&Ir::StoreNameSetter(name, function) => { write!(string, "st.setter.name {}, {}", name.usize(), function.usize()).ok(); },
+				&Ir::StoreNameSetter(name, function) => { write!(string, "st.setter.name {}, {}", name.value(), function.usize()).ok(); },
 				&Ir::StrictEq => string.push_str("eq.strict"),
 				&Ir::StrictNe => string.push_str("ne.strict"),
 				&Ir::Subtract => string.push_str("sub"),

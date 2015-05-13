@@ -4,7 +4,8 @@ extern crate libc;
 
 use gc::*;
 use ir::IrContext;
-use syntax::ast::{Name, FunctionRef};
+use syntax::Name;
+use syntax::ast::FunctionRef;
 use std::mem;
 use std::fmt;
 use self::hash::{Property, PropertyValue};
