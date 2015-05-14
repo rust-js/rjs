@@ -1,5 +1,5 @@
 use ::JsResult;
-use super::super::{JsEnv, JsString, JsFnMode, JsArgs, JsValue};
+use super::super::{JsEnv, JsString, JsFnMode, JsArgs, JsValue, JsItem};
 use syntax::ast::FunctionRef;
 use gc::*;
 
@@ -10,7 +10,7 @@ pub fn Function_baseConstructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local
 
 pub fn Function_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	if args.mode == JsFnMode::Call {
-		return env.construct(args.function, args.args);
+		return args.function.construct(env, args.args);
 	}
 	
 	let body;
@@ -42,7 +42,7 @@ pub fn Function_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 	
 	let function_ref = FunctionRef(function_ref.0 - 1);
 	
-	Ok(env.new_function(function_ref))
+	env.new_function(function_ref)
 }
 
 pub fn Function_call(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {

@@ -1,6 +1,6 @@
 #![allow(unused_variables)]
 
-use super::{JsEnv, JsValue, JsString, JsArgs, JsFnMode};
+use super::{JsEnv, JsValue, JsString, JsItem};
 use gc::*;
 use ::JsResult;
 use ir::builder::{Block, Ir};
@@ -46,16 +46,9 @@ impl JsEnv {
 					
 					let this = frame.get(0).as_local(self);
 					let function = frame.get(1).as_local(self);
-					let function = self.get_value(function);
+					let mut function = self.get_value(function);
 					
-					let args = JsArgs {
-						function: function,
-						this: this,
-						args: args,
-						mode: JsFnMode::Call
-					};
-					
-					let result = try!(self.call_function(args));
+					let result = try!(function.call(self, this, args));
 					
 					self.stack.drop_frame(frame);
 					self.stack.push(*result);
@@ -142,13 +135,13 @@ impl JsEnv {
 				&Ir::LoadFunction(function) => {
 					let _scope = self.heap.new_local_scope();
 					
-					let function = *self.new_function(function);
+					let function = *try!(self.new_function(function));
 					self.stack.push(function);
 				}
 				&Ir::LoadGlobal(name) => {
 					let _scope = self.heap.new_local_scope();
 					
-					let value = try!(JsValue::new_object(self.global.as_ptr()).as_local(self).get(name, self));
+					let value = try!(self.global.as_local(self).get(self, name));
 					self.stack.push(*value);
 				}
 				&Ir::LoadGlobalThis => {
@@ -165,7 +158,7 @@ impl JsEnv {
 					let index = self.to_string(index);
 					let index = self.intern(&index.to_string());
 					
-					let result = try!(frame.get(0).get(index, self));
+					let result = try!(frame.get(0).as_local(self).get(self, index));
 					
 					self.stack.drop_frame(frame);
 					
@@ -178,7 +171,7 @@ impl JsEnv {
 					let _scope = self.heap.new_local_scope();
 					
 					let frame = self.stack.create_frame(1);
-					let result = try!(frame.get(0).get(name, self));
+					let result = try!(frame.get(0).as_local(self).get(self, name));
 					self.stack.drop_frame(frame);
 					self.stack.push(*result);
 				}
@@ -233,7 +226,7 @@ impl JsEnv {
 					
 					let constructor = frame.get(0).as_local(self);
 					
-					let result = try!(self.construct(constructor, args));
+					let result = try!(constructor.construct(self, args));
 					
 					self.stack.drop_frame(frame);
 					self.stack.push(*result);
@@ -270,7 +263,8 @@ impl JsEnv {
 					let _scope = self.heap.new_local_scope();
 					
 					let frame = self.stack.create_frame(1);
-					try!(JsValue::new_object(self.global.as_ptr()).as_local(self).put(name, frame.get(0).as_local(self), true, self));
+					let value = frame.get(0).as_local(self);
+					try!(self.global.as_local(self).put(self, name, value, true));
 					self.stack.drop_frame(frame);
 				}
 				&Ir::StoreIndex => {
@@ -282,7 +276,8 @@ impl JsEnv {
 					let index = self.to_string(index);
 					let index = self.intern(&index.to_string());
 					
-					try!(frame.get(0).put(index, frame.get(2).as_local(self), true, self));
+					let value = frame.get(2).as_local(self);
+					try!(frame.get(0).as_local(self).put(self, index, value, true));
 					
 					self.stack.drop_frame(frame);
 				}
@@ -296,7 +291,8 @@ impl JsEnv {
 					let _scope = self.heap.new_local_scope();
 					
 					let frame = self.stack.create_frame(2);
-					try!(frame.get(0).put(name, frame.get(1).as_local(self), true, self));
+					let value = frame.get(1).as_local(self);
+					try!(frame.get(0).as_local(self).put(self, name, value, true));
 					self.stack.drop_frame(frame);
 				}
 				&Ir::StoreNameLit => { panic!(); },

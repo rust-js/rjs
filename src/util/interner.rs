@@ -22,6 +22,8 @@ use std::fmt;
 use std::hash::Hash;
 use std::ops::Deref;
 use std::rc::Rc;
+use std::str::FromStr;
+use std::i32;
 
 #[derive(Clone, PartialEq, Hash, PartialOrd)]
 pub struct RcStr {
@@ -91,19 +93,33 @@ impl StrInterner {
         for &v in init { rv.intern(v); }
         rv
     }
+    
+    fn parse_index(&self, val: &str) -> Option<u32> {
+    	if let Ok(index) = FromStr::from_str(val) {
+    		if index <= i32::MAX as u32 {
+	    		return Some(index);
+    		}
+    	}
+    	
+    	None
+    }
 
     pub fn intern(&self, val: &str) -> Name {
-        let mut map = self.map.borrow_mut();
-        match map.get(val) {
-            Some(&idx) => return idx,
-            None => (),
+    	if let Some(index) = self.parse_index(val) {
+    		Name::from_index(index)
+    	} else {
+	        let mut map = self.map.borrow_mut();
+	        match map.get(val) {
+	            Some(&idx) => return idx,
+	            None => (),
+	        }
+	
+	        let new_idx = Name::from_name(self.len());
+	        let val = RcStr::new(val);
+	        map.insert(val.clone(), new_idx);
+	        self.vect.borrow_mut().push(val);
+	        new_idx
         }
-
-        let new_idx = Name::from_name(self.len());
-        let val = RcStr::new(val);
-        map.insert(val.clone(), new_idx);
-        self.vect.borrow_mut().push(val);
-        new_idx
     }
 
     pub fn gensym(&self, val: &str) -> Name {

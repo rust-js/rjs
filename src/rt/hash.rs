@@ -2,7 +2,7 @@ extern crate libc;
 
 use gc::*;
 use syntax::Name;
-use super::{JsEnv, JsValue};
+use super::{JsEnv, JsValue, JsDescriptor};
 use std::mem::{transmute, size_of};
 
 const VALID        : u32 = 0b00001;
@@ -40,115 +40,6 @@ pub fn build_entry_gc_type(heap: &mut GcHeap) -> GcTypeId {
 	heap.types().add(GcType::new(size_of::<Entry>(), GcTypeLayout::Callback(Box::new(entry_walker))))
 }
 
-pub enum PropertyValue {
-	Value {
-		value: Local<JsValue>
-	},
-	Accessor {
-		get: Local<JsValue>,
-		set: Local<JsValue>
-	}
-}
-
-pub struct Property {
-	pub value: PropertyValue,
-	flags: u32
-}
-
-impl Property {
-	pub fn new_value(value: Local<JsValue>, writable: bool, enumerable: bool, configurable: bool) -> Property {
-		Property {
-			value: PropertyValue::Value {
-				value: value
-			},
-			flags:
-				if writable { WRITABLE } else { 0 } |
-				if enumerable { ENUMERABLE } else { 0 } |
-				if configurable { CONFIGURABLE } else { 0 }
-		}
-	}
-	
-	pub fn new_simple_value(value: Local<JsValue>) -> Property {
-		Self::new_value(value, true, true, true)
-	}
-	
-	pub fn new_accessor(get: Local<JsValue>, set: Local<JsValue>, writable: bool, enumerable: bool, configurable: bool) -> Property {
-		Property {
-			value: PropertyValue::Accessor {
-				get: get,
-				set: set
-			},
-			flags:
-				if writable { WRITABLE } else { 0 } |
-				if enumerable { ENUMERABLE } else { 0 } |
-				if configurable { CONFIGURABLE } else { 0 }
-		}
-	}
-	
-	pub fn new_simple_accessor(get: Local<JsValue>, set: Local<JsValue>) -> Property {
-		Self::new_accessor(get, set, true, true, true)
-	}
-	
-	fn as_entry(&self, name: Name, next: i32) -> Entry {
-		match self.value {
-			PropertyValue::Value { value } => {
-				Entry {
-					name: name,
-					flags: self.flags | VALID,
-					next: next,
-					value1: *value,
-					value2: JsValue::new_undefined()
-				}
-			}
-			PropertyValue::Accessor { get, set } => {
-				Entry {
-					name: name,
-					flags: self.flags | ACCESSOR | VALID,
-					next: next,
-					value1: *get,
-					value2: *set
-				}
-			}
-		}
-	}
-	
-	pub fn is_writable(&self) -> bool {
-		self.has_flag(WRITABLE)
-	}
-	
-	pub fn set_writable(&mut self, value: bool) {
-		self.set_flag(WRITABLE, value);
-	}
-
-	pub fn is_enumerable(&self) -> bool {
-		self.has_flag(ENUMERABLE)
-	}
-	
-	pub fn set_enumerable(&mut self, value: bool) {
-		self.set_flag(ENUMERABLE, value);
-	}
-
-	pub fn is_configurable(&self) -> bool {
-		self.has_flag(CONFIGURABLE)
-	}
-	
-	pub fn set_configurable(&mut self, value: bool) {
-		self.set_flag(CONFIGURABLE, value);
-	}
-	
-	fn has_flag(&self, flag: u32) -> bool {
-		(self.flags & flag) != 0
-	}
-	
-	fn set_flag(&mut self, flag: u32, value: bool) {
-		if value {
-			self.flags |= flag;
-		} else {
-			self.flags &= !flag;
-		}
-	}
-}
-
 #[derive(Copy, Clone)]
 pub struct Entry {
 	name: Name,
@@ -163,19 +54,65 @@ impl Entry {
 		(self.flags & VALID) != 0
 	}
 	
-	fn as_property(&self, env: &JsEnv) -> Property {
-		Property {
-			value: if (self.flags & ACCESSOR) != 0 {
-				PropertyValue::Accessor {
-					get: self.value1.as_local(env),
-					set: self.value2.as_local(env)
-				}
+	fn as_property(&self, env: &JsEnv) -> JsDescriptor {
+		if (self.flags & ACCESSOR) != 0 {
+			JsDescriptor {
+				value: None,
+				get: Some(self.value1.as_local(env)),
+				set: Some(self.value2.as_local(env)),
+				writable: None,
+				enumerable: Some((self.flags & ENUMERABLE) != 0),
+				configurable: Some((self.flags & CONFIGURABLE) != 0)
+			}
+		} else {
+			JsDescriptor {
+				value: Some(self.value1.as_local(env)),
+				get: None,
+				set: None,
+				writable: Some((self.flags & WRITABLE) != 0),
+				enumerable: Some((self.flags & ENUMERABLE) != 0),
+				configurable: Some((self.flags & CONFIGURABLE) != 0)
+			}
+		}
+	}
+	
+	
+	fn from_descriptor(descriptor: &JsDescriptor, name: Name, next: i32) -> Entry {
+		let flags = VALID |
+			if descriptor.writable.unwrap_or(true) { WRITABLE } else { 0 } |
+			if descriptor.configurable.unwrap_or(true) { CONFIGURABLE } else { 0 } |
+			if descriptor.enumerable.unwrap_or(true) { ENUMERABLE } else { 0 } |
+			if descriptor.is_accessor() { ACCESSOR } else { 0 };
+		
+		let value1;
+		let value2;
+		
+		if descriptor.is_accessor() {
+			value1 = if let Some(get) = descriptor.get {
+				*get
 			} else {
-				PropertyValue::Value {
-					value: self.value1.as_local(env)
-				}
-			},
-			flags: self.flags & (WRITABLE | ENUMERABLE | CONFIGURABLE)
+				JsValue::new_undefined()
+			};
+			value2 = if let Some(set) = descriptor.set {
+				*set
+			} else {
+				JsValue::new_undefined()
+			};
+		} else {
+			value1 = if let Some(value) = descriptor.value {
+				*value
+			} else {
+				JsValue::new_undefined()
+			};
+			value2 = JsValue::new_undefined();
+		}
+		
+		Entry {
+			name: name,
+			flags: flags,
+			next: next,
+			value1: value1,
+			value2: value2
 		}
 	}
 }
@@ -247,7 +184,7 @@ impl Hash {
 		(self.capacity() * 7 / 10) as u32
 	}
 	
-	pub fn add(&mut self, name: Name, value: &Property, env: &JsEnv) {
+	pub fn add(&mut self, name: Name, value: &JsDescriptor, env: &JsEnv) {
 		let mut entries = unsafe { &mut *self.entries };
 		
 		assert!(!self.find_entry(name).is_some());
@@ -277,7 +214,7 @@ impl Hash {
 			
 			// Put the new entry at the ideal location.
 			
-			entries[hash as usize] = value.as_entry(name, -1);
+			entries[hash as usize] = Entry::from_descriptor(value, name, -1);
 			
 			// Increment the count.
 			
@@ -324,7 +261,7 @@ impl Hash {
 			
 			// Put the new entry into the free location.
 			
-			entries[free] = value.as_entry(name, -1);
+			entries[free] = Entry::from_descriptor(value, name, -1);
 			
 			// Fixup the chain if we have one.
 			
@@ -407,7 +344,7 @@ impl Hash {
         }
 	}
 	
-	pub fn get_value(&self, name: Name, env: &JsEnv) -> Option<Property> {
+	pub fn get_value(&self, name: Name, env: &JsEnv) -> Option<JsDescriptor> {
 		if let Some(index) = self.find_entry(name) {
 			let entry = &unsafe { &*self.entries }[index];
 			Some(entry.as_property(env))
@@ -416,10 +353,10 @@ impl Hash {
 		}
 	}
 	
-	pub fn replace(&self, name: Name, value: &Property) -> bool {
+	pub fn replace(&self, name: Name, value: &JsDescriptor) -> bool {
 		if let Some(index) = self.find_entry(name) {
 			let entry = &mut unsafe { &mut *self.entries }[index];
-			*entry = value.as_entry(entry.name, entry.next);
+			*entry = Entry::from_descriptor(value, entry.name, entry.next);
 			
 			true
 		} else {

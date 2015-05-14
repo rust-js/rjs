@@ -1,6 +1,7 @@
 use gc::{Array, Local};
-use super::{JsEnv, JsValue};
+use super::{JsEnv, JsValue, JsItem};
 use super::utf;
+use gc::Ptr;
 
 pub struct JsString {
 	// TODO: Make private.
@@ -59,13 +60,38 @@ impl JsString {
 		result
 	}
 	
+	pub fn equals(x: Ptr<JsString>, y: Ptr<JsString>) -> bool {
+		let x_chars = &*x.chars;
+		let y_chars = &*y.chars;
+		
+		if x_chars.len() != y_chars.len() {
+			false
+		} else {
+			for i in 0..x_chars.len() {
+				if x_chars[i] != y_chars[i] {
+					return false
+				}
+			}
+			
+			true
+		}
+	}
+	
 	pub fn to_string(&self) -> String {
 		String::from_utf16(&*self.chars).ok().unwrap()
 	}
 }
 
-impl Local<JsString> {
-	pub fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
+impl JsItem for Local<JsString> {
+	fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
 		JsValue::new_string(self.as_ptr()).as_local(env)
+	}
+	
+	fn has_prototype(&self, _: &JsEnv) -> bool {
+		true
+	}
+	
+	fn prototype(&self, env: &JsEnv) -> Option<Local<JsValue>> {
+		Some(env.string_prototype.as_value(env))
 	}
 }

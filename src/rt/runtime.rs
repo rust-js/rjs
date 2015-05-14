@@ -2,7 +2,6 @@ use super::*;
 use gc::*;
 use ::{JsResult, JsError};
 use syntax::ast::FunctionRef;
-use super::hash::{Property, PropertyValue};
 use syntax::token::name;
 use std::f64;
 
@@ -45,7 +44,8 @@ impl JsEnv {
 			return Err(JsError::Type);
 		};
 		
-		let function = &args.function.get_object().function;
+		let function = args.function.get_object();
+		let function = function.function();
 		if !function.is_some() {
 			return Err(JsError::Type);
 		}
@@ -110,7 +110,7 @@ impl JsEnv {
 			JsType::Boolean => "boolean",
 			JsType::Number => "number",
 			JsType::String => "string",
-			JsType::Object => if value.get_object().function.is_some() { "function" } else { "object" }
+			JsType::Object => if value.get_object().function().is_some() { "function" } else { "object" }
 		})
 	}
 	
@@ -213,23 +213,17 @@ impl JsEnv {
 		}
 	}
 	
-	pub fn new_function(&mut self, function_ref: FunctionRef) -> Local<JsValue> {
+	pub fn new_function(&mut self, function_ref: FunctionRef) -> JsResult<Local<JsValue>> {
 		let mut proto = JsObject::new_local(self);
 	
-		proto.class = Some(name::FUNCTION_CLASS);
+		proto.set_class(self, Some(name::FUNCTION_CLASS));
 		
-		let mut result = JsObject::new_local(self);
+		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), self.function_prototype.as_local(self)).as_value(self);
 		
-		result.prototype = self.function_prototype.as_ptr();
-		result.class = Some(name::FUNCTION_CLASS);
-		result.function = Some(JsFunction::Ir(function_ref));
+		try!(result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(proto.as_value(self), true, false, true), false));
+		try!(proto.define_own_property(self, name::CONSTRUCTOR, JsDescriptor::new_value(result, true, false, true), false));
 		
-		let result_value = result.as_value(self);
-		
-		result.props.add(name::PROTOTYPE, &Property::new_value(proto.as_value(self), true, false, true), self);
-		proto.props.add(name::CONSTRUCTOR, &Property::new_value(result_value, true, false, true), self);
-		
-		result_value
+		Ok(result)
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.6
@@ -237,50 +231,8 @@ impl JsEnv {
 		let lval = self.get_value(lref);
 		let rval = self.get_value(rref);
 		
-		if rval.ty() != JsType::Object {
-			Err(JsError::Type)
-		} else{
-			let result = if lval.ty() != JsType::Object {
-				false
-			} else {
-				try!(rval.has_instance(lval, self))
-			};
-				
-			Ok(JsValue::new_bool(result).as_local(self))
-		}
-	}
-	
-	// http://ecma-international.org/ecma-262/5.1/#sec-13.2.2
-	pub fn construct(&mut self, function: Local<JsValue>, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>> {
-		if function.ty() != JsType::Object {
-			Err(JsError::Type)
-		} else {
-			let mut obj = JsObject::new_local(self);
-			obj.class = Some(name::OBJECT_CLASS);
-			let proto = try!(function.get(name::PROTOTYPE, self));
-			obj.prototype = if proto.ty() == JsType::Object {
-				proto.get_object()
-			} else {
-				self.object_prototype.as_ptr()
-			};
-			
-			let obj = obj.as_value(self);
-			
-			let args = JsArgs {
-				function: function,
-				this: obj,
-				args: args,
-				mode: JsFnMode::New
-			};
-			
-			let result = try!(self.call_function(args));
-			
-			if result.ty() == JsType::Object {
-				Ok(result)
-			} else {
-				Ok(obj)
-			}
-		}
+		let result = try!(rval.has_instance(self, lval));
+		Ok(JsValue::new_bool(result).as_local(self))
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.4.9
@@ -291,7 +243,7 @@ impl JsEnv {
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-9.2
-	pub fn to_boolean(&mut self, value: Local<JsValue>) -> bool {
+	pub fn to_boolean(&self, value: Local<JsValue>) -> bool {
 		match value.ty() {
 			JsType::Undefined | JsType::Null => false,
 			JsType::Boolean => value.get_bool(),
@@ -350,66 +302,45 @@ impl JsEnv {
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-15.2.2
 	// TODO: Wrapping value not yet implemented.
-	pub fn new_object(&mut self) -> Local<JsObject> {
+	pub fn new_object(&self) -> Local<JsObject> {
 		let mut obj = JsObject::new_local(self);
-		obj.prototype = self.object_prototype.as_ptr();
-		obj.class = Some(name::OBJECT_CLASS);
+		
+		obj.set_prototype(self, Some(self.object_prototype.as_value(self)));
+		obj.set_class(self, Some(name::OBJECT_CLASS));
+		
 		obj
 	}
 	
-	// http://ecma-international.org/ecma-262/5.1/#sec-8.10.4
-	pub fn from_property_descriptor(&mut self, property: Option<Property>) -> JsResult<Local<JsValue>> {
-		match property {
-			Some(property) => {
-				let mut obj = self.new_object();
-				
-				match property.value {
-					PropertyValue::Value { value } => {
-						obj.define_own_property(
-							name::VALUE,
-							&Property::new_simple_value(value),
-							false,
-							self
-						);
-						obj.define_own_property(
-							name::WRITABLE,
-							&Property::new_simple_value(JsValue::new_bool(property.is_writable()).as_local(self)),
-							false,
-							self
-						);
-					}
-					PropertyValue::Accessor { get, set } => {
-						obj.define_own_property(
-							name::GET,
-							&Property::new_simple_value(get),
-							false,
-							self
-						);
-						obj.define_own_property(
-							name::SET,
-							&Property::new_simple_value(set),
-							false,
-							self
-						);
+	// 9.12 The SameValue Algorithm
+	pub fn same_value(&self, x: Local<JsValue>, y: Local<JsValue>) -> bool {
+		let x_ty = x.ty();
+		let y_ty = y.ty();
+		
+		if x_ty != y_ty {
+			false
+		} else {
+			match x_ty {
+				JsType::Undefined | JsType::Null => true,
+				JsType::Number => {
+					let x_number = x.get_number();
+					let y_number = y.get_number();
+					
+					if x_number.is_nan() && y_number.is_nan() {
+						true
+					} else if x_number == y_number {
+						if (x_number == -0f64 && y_number != -0f64) || (x_number != -0f64 && y_number == -0f64) {
+							false
+						} else {
+							true
+						}
+					} else {
+						false
 					}
 				}
-				
-				obj.define_own_property(
-					name::ENUMERABLE,
-					&Property::new_simple_value(JsValue::new_bool(property.is_enumerable()).as_local(self)),
-					false,
-					self
-				);
-				obj.define_own_property(
-					name::CONFIGURABLE,
-					&Property::new_simple_value(JsValue::new_bool(property.is_configurable()).as_local(self)),
-					false,
-					self
-				);
-				
-				Ok(obj.as_value(self))
+				JsType::String => JsString::equals(x.get_string(), y.get_string()),
+				JsType::Boolean => x.get_bool() == y.get_bool(),
+				JsType::Object => x.get_object().as_ptr() == y.get_object().as_ptr()
 			}
-			None => Ok(JsValue::new_undefined().as_local(self))
 		}
 	}
 }

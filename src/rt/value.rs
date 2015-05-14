@@ -1,10 +1,9 @@
 extern crate libc;
 
-use super::{JsEnv, JsString, JsType, JsObject};
-use ::{JsResult, JsError};
-use super::hash::{Property, PropertyValue};
-use syntax::ast::Name;
-use syntax::token::name;
+use super::{JsEnv, JsString, JsType, JsObject, JsItem, JsDescriptor, JsScope, JsDefaultValueHint};
+use super::{JsNull, JsUndefined, JsNumber, JsBoolean};
+use ::JsResult;
+use syntax::Name;
 use gc::{Local, Ptr};
 use std::fmt;
 use std::mem::transmute;
@@ -155,153 +154,142 @@ impl JsValue {
 	pub fn set_object(&mut self, value: Ptr<JsObject>) {
 		*self = JsValue::new_object(value);
 	}
-	
-	// http://ecma-international.org/ecma-262/5.1/#sec-8.12.1
-	// TODO: INCOMPLETE (getters/setters)
-	pub fn get_own_property(&self, name: Name, env: &JsEnv) -> JsResult<Option<Property>> {
-		match self.ty {
-			JsType::Null | JsType::Undefined => Err(JsError::Type),
-			JsType::Object => Ok(self.get_object().get_own_property(name, env)),
-			JsType::String => Ok(env.string_prototype.get_own_property(name, env)),
-			_ => panic!("{:?}", self.ty)
+}
+
+macro_rules! delegate {
+	( $target:expr, $env:expr, $method:ident ( $( $arg:expr ),* ) ) => {
+		match $target.ty() {
+			JsType::Undefined => JsUndefined::new().$method( $( $arg ),* ),
+			JsType::Null => JsNull::new().$method( $( $arg ),* ),
+			JsType::Number => JsNumber::new($target.get_number()).$method( $( $arg ),* ),
+			JsType::Boolean => JsBoolean::new($target.get_bool()).$method( $( $arg ),* ),
+			JsType::Object => $target.as_object($env).$method( $( $arg ),* ),
+			JsType::String => $target.as_string($env).$method( $( $arg ),* )
 		}
 	}
-	
-	// http://ecma-international.org/ecma-262/5.1/#sec-8.12.2
-	// TODO: INCOMPLETE
-	pub fn get_property(&self, name: Name, env: &JsEnv) -> JsResult<Option<Property>> {
-		let value = try!(self.get_own_property(name, env));
-		if value.is_some() {
-			Ok(value)
-		} else {
-			match self.ty {
-				JsType::Null | JsType::Undefined => Err(JsError::Type),
-				JsType::Object => Ok(self.get_object().get_property(name)),
-				JsType::String => Ok(env.string_prototype.get_property(name)),
-				_ => panic!("{:?}", self.ty)
-			}
-		}
+}
+
+impl JsItem for Local<JsValue> {
+	fn as_value(&self, _: &JsEnv) -> Local<JsValue> {
+		*self
 	}
 	
-	// http://ecma-international.org/ecma-262/5.1/#sec-8.12.9
-	// TODO: INCOMPLETE
-	pub fn define_own_property(&self, _name: Name, _value: Local<JsValue>) {
-		unimplemented!();
+	fn get_own_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
+		delegate!(self, env, get_own_property(env, property))
 	}
 	
-	// http://ecma-international.org/ecma-262/5.1/#sec-8.12.3
-	pub fn get(&self, name: Name, env: &JsEnv) -> JsResult<Local<JsValue>> {
-		if let Some(property) = try!(self.get_property(name, env)) {
-			match property.value {
-				PropertyValue::Value { value } => Ok(value),
-				PropertyValue::Accessor { get, .. } => {
-					if get.is_undefined() {
-						Ok(get)
-					} else {
-						unimplemented!();
-					}
-				}
-			}
-		} else {
-			Ok(JsValue::new_undefined().as_local(env))
-		}
+	fn get_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
+		delegate!(self, env, get_property(env, property))
 	}
 	
-	// http://ecma-international.org/ecma-262/5.1/#sec-8.12.4
-	// TODO: INCOMPLETE ([[Extensible]] is not checked)
-	pub fn can_put(&self, name: Name, env: &JsEnv) -> JsResult<bool> {
-		if let Some(property) = try!(self.get_own_property(name, env)) {
-			match property.value {
-				PropertyValue::Accessor { set, .. } => Ok(!set.is_undefined()),
-				PropertyValue::Value { .. } => Ok(property.is_writable())
-			}
-		} else {
-			match self.ty {
-				JsType::Object => {
-					let prototype = self.get_object().prototype;
-					if prototype.is_null() {
-						Ok(true)
-					} else {
-						if let Some(property) = prototype.get_property(name) {
-							match property.value {
-								PropertyValue::Accessor { set, .. } => Ok(!set.is_undefined()),
-								PropertyValue::Value { .. } => Ok(property.is_writable())
-							}
-						} else {
-							Ok(true)
-						}
-					}
-				}
-				_ => Ok(false)
-			}
-		}
+	fn get(&self, env: &mut JsEnv, property: Name) -> JsResult<Local<JsValue>> {
+		delegate!(self, env, get(env, property))
 	}
 	
-	// http://ecma-international.org/ecma-262/5.1/#sec-8.12.5
-	pub fn put(&self, name: Name, value: Local<JsValue>, throw: bool, env: &JsEnv) -> JsResult<()> {
-		if !try!(self.can_put(name, env)) {
-			return if throw {
-				Err(JsError::Type)
-			} else {
-				Ok(())
-			};
-		}
-		
-		if let Some(mut property) = try!(self.get_own_property(name, env)) {
-			if let PropertyValue::Value { .. } = property.value {
-				property.value = PropertyValue::Value {
-					value: value
-				};
-				
-				self.get_object().props.replace(name, &property);
-				
-				return Ok(())
-			}
-		}
-		
-		if let Some(property) = try!(self.get_property(name, env)) {
-			if let PropertyValue::Accessor { .. } = property.value {
-				unimplemented!();
-			}
-		}
-		
-		let property = Property::new_simple_value(value);
-		
-		if !self.get_object().props.replace(name, &property) {
-			self.get_object().props.add(name, &property, env);
-		}
-		
-		Ok(())
+	fn can_put(&self, env: &JsEnv, property: Name) -> bool {
+		delegate!(self, env, can_put(env, property))
 	}
 	
-	// http://ecma-international.org/ecma-262/5.1/#sec-15.3.5.3
-	pub fn has_instance(&self, val: Local<JsValue>, env: &JsEnv) -> JsResult<bool> {
-		if self.ty() != JsType::Object || val.ty() != JsType::Object {
-			Ok(false)
-		} else {
-			let obj = try!(self.get(name::PROTOTYPE, env));
-			if obj.ty() != JsType::Object {
-				Err(JsError::Type)
-			} else {
-				let obj = obj.get_object();
-				let mut prototype = val.get_object().prototype;
-				loop {
-					if prototype.is_null() {
-						return Ok(false);
-					} else if prototype == obj {
-						return Ok(true);
-					}
-					
-					prototype = prototype.prototype;
-				}
-			}
-		}
+	fn put(&mut self, env: &mut JsEnv, property: Name, value: Local<JsValue>, throw: bool) -> JsResult<()> {
+		delegate!(self, env, put(env, property, value, throw))
+	}
+	
+	fn has_property(&self, env: &JsEnv, property: Name) -> bool {
+		delegate!(self, env, has_property(env, property))
+	}
+	
+	fn delete(&mut self, env: &JsEnv, property: Name, throw: bool) -> JsResult<bool> {
+		delegate!(self, env, delete(env, property, throw))
+	}
+	
+	fn default_value(&self, env: &mut JsEnv, hint: JsDefaultValueHint) -> JsResult<Local<JsValue>> {
+		delegate!(self, env, default_value(env, hint))
+	}
+	
+	fn define_own_property(&mut self, env: &JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
+		delegate!(self, env, define_own_property(env, property, descriptor, throw))
+	}
+	
+	fn is_callable(&self, env: &JsEnv) -> bool  {
+		delegate!(self, env, is_callable(env))
+	}
+	
+	fn call(&mut self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>>  {
+		delegate!(self, env, call(env, this, args))
+	}
+	
+	fn can_construct(&self, env: &JsEnv) -> bool  {
+		delegate!(self, env, can_construct(env))
+	}
+	
+	fn construct(&self, env: &mut JsEnv, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>>  {
+		delegate!(self, env, construct(env, args))
+	}
+	
+	fn has_prototype(&self, env: &JsEnv) -> bool  {
+		delegate!(self, env, has_prototype(env))
+	}
+	
+	fn prototype(&self, env: &JsEnv) -> Option<Local<JsValue>>  {
+		delegate!(self, env, prototype(env))
+	}
+	
+	fn set_prototype(&mut self, env: &JsEnv, prototype: Option<Local<JsValue>>)  {
+		delegate!(self, env, set_prototype(env, prototype))
+	}
+	
+	fn has_class(&self, env: &JsEnv) -> bool  {
+		delegate!(self, env, has_class(env))
+	}
+	
+	fn class(&self, env: &JsEnv) -> Option<Name>  {
+		delegate!(self, env, class(env))
+	}
+	
+	fn set_class(&mut self, env: &JsEnv, class: Option<Name>)  {
+		delegate!(self, env, set_class(env, class))
+	}
+	
+	fn is_extensible(&self, env: &JsEnv) -> bool  {
+		delegate!(self, env, is_extensible(env))
+	}
+	
+	fn has_instance(&self, env: &mut JsEnv, object: Local<JsValue>) -> JsResult<bool>  {
+		delegate!(self, env, has_instance(env, object))
+	}
+	
+	fn scope(&self, env: &JsEnv) -> Option<Local<JsScope>>  {
+		delegate!(self, env, scope(env))
+	}
+	
+	fn formal_parameters(&self, env: &JsEnv) -> Option<Vec<Name>>  {
+		delegate!(self, env, formal_parameters(env))
+	}
+	
+	fn code(&self, env: &JsEnv) -> Option<String>  {
+		delegate!(self, env, code(env))
+	}
+	
+	fn target_function(&self, env: &JsEnv) -> Option<Local<JsValue>>  {
+		delegate!(self, env, target_function(env))
+	}
+	
+	fn bound_this(&self, env: &JsEnv) -> Option<Local<JsValue>>  {
+		delegate!(self, env, bound_this(env))
+	}
+	
+	fn bound_arguments(&self, env: &JsEnv) -> Option<Local<JsValue>>  {
+		delegate!(self, env, bound_arguments(env))
 	}
 }
 
 impl Local<JsValue> {
 	pub fn as_object(&self, env: &JsEnv) -> Local<JsObject> {
 		Local::from_ptr(self.get_object(), &env.heap)
+	}
+
+	pub fn as_string(&self, env: &JsEnv) -> Local<JsString> {
+		Local::from_ptr(self.get_string(), &env.heap)
 	}
 }
 
