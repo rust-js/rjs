@@ -1,7 +1,7 @@
 extern crate libc;
 
 use super::{JsEnv, JsString, JsType, JsObject, JsItem, JsDescriptor, JsScope, JsDefaultValueHint};
-use super::{JsNull, JsUndefined, JsNumber, JsBoolean};
+use super::{JsNull, JsUndefined, JsNumber, JsBoolean, GC_VALUE};
 use ::JsResult;
 use syntax::Name;
 use gc::{Local, Ptr};
@@ -37,7 +37,7 @@ impl JsValue {
 	}
 	
 	pub fn as_local(&self, env: &JsEnv) -> Local<JsValue> {
-		let mut result = env.alloc_local_value();
+		let mut result = env.heap.alloc_local(GC_VALUE);
 		*result = *self;
 		result
 	}

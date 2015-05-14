@@ -1,44 +1,13 @@
 extern crate libc;
 
-use gc::*;
 use syntax::Name;
-use super::{JsEnv, JsValue, JsDescriptor};
-use std::mem::{transmute, size_of};
+use super::{JsEnv, JsValue, JsDescriptor, GC_OBJECT_ENTRY};
 
 const VALID        : u32 = 0b00001;
 const WRITABLE     : u32 = 0b00010;
 const ENUMERABLE   : u32 = 0b00100;
 const CONFIGURABLE : u32 = 0b01000;
 const ACCESSOR     : u32 = 0b10000;
-
-#[cfg(target_pointer_width = "64")]
-const ENTRY_VALUE1_OFFSET : u32 = 2;
-#[cfg(target_pointer_width = "32")]
-const ENTRY_VALUE1_OFFSET : u32 = 3;
-#[cfg(target_pointer_width = "64")]
-const ENTRY_VALUE2_OFFSET : u32 = 4;
-#[cfg(target_pointer_width = "32")]
-const ENTRY_VALUE2_OFFSET : u32 = 5;
-
-fn entry_walker(ptr: *const libc::c_void, index: u32) -> GcTypeWalk {
-	if index < ENTRY_VALUE1_OFFSET {
-		GcTypeWalk::Skip
-	} else if index == ENTRY_VALUE1_OFFSET {
-		let entry = unsafe { transmute::<_, &Entry>(ptr) };
-		if entry.value1.ty().is_ptr() { GcTypeWalk::Pointer } else { GcTypeWalk::Skip }
-	} else if index < ENTRY_VALUE2_OFFSET {
-		GcTypeWalk::Skip
-	} else if index == ENTRY_VALUE2_OFFSET {
-		let entry = unsafe { transmute::<_, &Entry>(ptr) };
-		if entry.value2.ty().is_ptr() { GcTypeWalk::Pointer } else { GcTypeWalk::Skip }
-	} else {
-		GcTypeWalk::End
-	}
-}
-
-pub fn build_entry_gc_type(heap: &mut GcHeap) -> GcTypeId {
-	heap.types().add(GcType::new(size_of::<Entry>(), GcTypeLayout::Callback(Box::new(entry_walker))))
-}
 
 #[derive(Copy, Clone)]
 pub struct Entry {
@@ -125,7 +94,7 @@ pub struct Hash {
 impl Hash {
 	pub fn new(env: &JsEnv, capacity: usize) -> Hash {
 		let entries = unsafe {
-			&mut *env.alloc_object_entry_array(primes::get_prime(capacity)) as *mut [Entry]
+			&mut *env.heap.alloc_array::<Entry>(GC_OBJECT_ENTRY, primes::get_prime(capacity)) as *mut [Entry]
 		};
 		
 		Hash {
@@ -281,7 +250,7 @@ impl Hash {
 		unsafe {
 			entries = &*self.entries;
 		
-			self.entries = &mut *env.alloc_object_entry_array(primes::get_prime(entries.len() * 2));
+			self.entries = &mut *env.heap.alloc_array(GC_OBJECT_ENTRY, primes::get_prime(entries.len() * 2));
 		}
 		
 		self.count = 0;

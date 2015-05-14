@@ -7,7 +7,6 @@ use ir::IrContext;
 use syntax::Name;
 use syntax::token::name;
 use syntax::ast::FunctionRef;
-use std::mem;
 use ::{JsResult, JsError};
 pub use self::value::JsValue;
 pub use self::object::JsObject;
@@ -31,30 +30,11 @@ mod boolean;
 mod undefined;
 mod null;
 
-struct Types {
-	object: GcTypeId,
-	object_entry: GcTypeId,
-	string: GcTypeId,
-	char: GcTypeId,
-	value: GcTypeId
-}
-
-const VALUE_VALUE_OFFSET : u32 = 1;
-
-fn value_walker(ptr: *const libc::c_void, index: u32) -> GcTypeWalk {
-	if index < VALUE_VALUE_OFFSET {
-		GcTypeWalk::Skip
-	} else if index == VALUE_VALUE_OFFSET {
-		let value = unsafe { mem::transmute::<_, &JsValue>(ptr) };
-		
-		match value.ty() {
-			JsType::String | JsType::Object => GcTypeWalk::Pointer,
-			_ => GcTypeWalk::End
-		}
-	} else {
-		GcTypeWalk::End
-	}
-}
+const GC_OBJECT : u32 = 1;
+const GC_OBJECT_ENTRY : u32 = 2;
+const GC_STRING : u32 = 3;
+const GC_CHAR : u32 = 4;
+const GC_VALUE : u32 = 5;
 
 impl UnsafeRoot<JsObject> {
 	pub fn as_local(&self, env: &JsEnv) -> Local<JsObject> {
@@ -78,7 +58,6 @@ impl<'a> Root<'a, JsObject> {
 
 pub struct JsEnv {
 	heap: GcHeap,
-	types: Types,
 	global: UnsafeRoot<JsObject>,
 	object_prototype: UnsafeRoot<JsObject>,
 	function_prototype: UnsafeRoot<JsObject>,
@@ -91,26 +70,17 @@ pub struct JsEnv {
 
 impl JsEnv {
 	pub fn new() -> JsResult<JsEnv> {
-		let mut heap = GcHeap::new(GcOpts::default());
+		let heap = GcHeap::new(Box::new(Walker::new()), GcOpts::default());
 		
-		let types = Types { 
-			object: heap.types().add(GcType::new(mem::size_of::<JsObject>(), GcTypeLayout::None)),
-			object_entry: hash::build_entry_gc_type(&mut heap),
-			string: heap.types().add(GcType::new(mem::size_of::<JsString>(), GcTypeLayout::None)),
-			char: heap.types().add(GcType::new(mem::size_of::<u16>(), GcTypeLayout::None)),
-			value: heap.types().add(GcType::new(mem::size_of::<JsValue>(), GcTypeLayout::Callback(Box::new(value_walker)))),
-		};
-		
-		let global = heap.alloc_root::<JsObject>(types.object).into_unsafe();
-		let object_prototype = heap.alloc_root::<JsObject>(types.object).into_unsafe();
-		let function_prototype = heap.alloc_root::<JsObject>(types.object).into_unsafe();
-		let string_prototype = heap.alloc_root::<JsObject>(types.object).into_unsafe();
-		let number_prototype = heap.alloc_root::<JsObject>(types.object).into_unsafe();
-		let boolean_prototype = heap.alloc_root::<JsObject>(types.object).into_unsafe();
+		let global = heap.alloc_root::<JsObject>(GC_OBJECT).into_unsafe();
+		let object_prototype = heap.alloc_root::<JsObject>(GC_OBJECT).into_unsafe();
+		let function_prototype = heap.alloc_root::<JsObject>(GC_OBJECT).into_unsafe();
+		let string_prototype = heap.alloc_root::<JsObject>(GC_OBJECT).into_unsafe();
+		let number_prototype = heap.alloc_root::<JsObject>(GC_OBJECT).into_unsafe();
+		let boolean_prototype = heap.alloc_root::<JsObject>(GC_OBJECT).into_unsafe();
 		
 		let mut env = JsEnv {
 			heap: heap,
-			types: types,
 			global: global,
 			object_prototype: object_prototype,
 			function_prototype: function_prototype,
@@ -153,7 +123,7 @@ impl JsEnv {
 		
 		let block = try!(self.ir.get_function_ir(function_ref));
 		
-		let mut result = self.alloc_root_value().into_unsafe();
+		let mut result = self.heap.alloc_root::<JsValue>(GC_VALUE).into_unsafe();
 		*result = try!(self.call_block(block, None, Vec::new()));
 		
 		println!("EXIT {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
@@ -166,32 +136,22 @@ impl JsEnv {
 		Root::from_unsafe(&self.heap, self.global.clone())
 	}
 	
-	fn alloc_root_value(&self) -> Root<JsValue> {
-		self.heap.alloc_root::<JsValue>(self.types.value)
-	}
-	
-	fn alloc_local_value(&self) -> Local<JsValue> {
-		self.heap.alloc_local::<JsValue>(self.types.value)
-	}
-	
-	fn alloc_local_object(&self) -> Local<JsObject> {
-		self.heap.alloc_local::<JsObject>(self.types.object)
-	}
-	
-	fn alloc_local_string(&self) -> Local<JsString> {
-		self.heap.alloc_local::<JsString>(self.types.string)
-	}
-	
-	unsafe fn alloc_char_array(&self, size: usize) -> Array<u16> {
-		self.heap.alloc_array::<u16>(self.types.char, size)
-	}
-	
-	unsafe fn alloc_object_entry_array(&self, size: usize) -> Array<hash::Entry> {
-		self.heap.alloc_array::<hash::Entry>(self.types.object_entry, size)
-	}
-	
 	pub fn intern(&self, name: &str) -> Name {
 		self.ir.interner().intern(name)
+	}
+}
+
+struct Walker;
+
+impl Walker {
+	fn new() -> Walker {
+		Walker
+	}
+}
+
+impl GcWalker for Walker {
+	fn walk(&self, _ty: u32, _ptr: *const libc::c_void, _index: u32) -> GcWalk {
+		panic!();
 	}
 }
 

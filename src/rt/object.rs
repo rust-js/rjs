@@ -2,7 +2,7 @@ const INITIAL_OBJECT : usize = 20;
 
 use syntax::Name;
 use syntax::token::name;
-use super::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType};
+use super::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, GC_OBJECT};
 use gc::{Local, Ptr};
 use super::hash::Hash;
 use ::{JsResult, JsError};
@@ -29,7 +29,7 @@ impl JsObject {
 	}
 	
 	pub fn new_local(env: &JsEnv) -> Local<JsObject> {
-		let mut result = env.alloc_local_object();
+		let mut result = env.heap.alloc_local(GC_OBJECT);
 		*result = Self::new(env);
 		result
 	}

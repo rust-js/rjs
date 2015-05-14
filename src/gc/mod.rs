@@ -91,7 +91,7 @@ impl<T> Deref for UnsafeRoot<T> {
 	fn deref(&self) -> &T {
 		unsafe {
 			let ptr = self.handles.get_target(self.handle);
-			transmute(ptr.offset(size_of::<GcMemHeader>() as isize))
+			transmute(ptr)
 		}
 	}
 }
@@ -100,7 +100,7 @@ impl<T> DerefMut for UnsafeRoot<T> {
 	fn deref_mut(&mut self) -> &mut T {
 		unsafe { 
 			let ptr = self.handles.get_target(self.handle);
-			transmute(ptr.offset(size_of::<GcMemHeader>() as isize))
+			transmute(ptr)
 		}
 	}
 }
@@ -175,7 +175,7 @@ impl<'a, T> Deref for ArrayRoot<'a, T> {
 	
 	fn deref(&self) -> &[T] {
 		unsafe {
-			let ptr = self.handles.get_target(self.handle).offset(size_of::<GcMemHeader>() as isize);
+			let ptr = self.handles.get_target(self.handle);
 			let size = *transmute::<_, *const usize>(ptr);
 			let ptr = ptr.offset(size_of::<usize>() as isize);
 			
@@ -190,7 +190,7 @@ impl<'a, T> Deref for ArrayRoot<'a, T> {
 impl<'a, T> DerefMut for ArrayRoot<'a, T> {
 	fn deref_mut(&mut self) -> &mut [T] {
 		unsafe {
-			let ptr = self.handles.get_target(self.handle).offset(size_of::<GcMemHeader>() as isize);
+			let ptr = self.handles.get_target(self.handle);
 			let size = *transmute::<_, *const usize>(ptr);
 			let ptr = ptr.offset(size_of::<usize>() as isize);
 			
@@ -386,13 +386,13 @@ impl<T> Deref for Ptr<T> {
 	type Target = T;
 	
 	fn deref(&self) -> &T {
-		unsafe { transmute(self.ptr.offset(size_of::<GcMemHeader>() as isize)) }
+		unsafe { transmute(self.ptr) }
 	}
 }
 
 impl<T> DerefMut for Ptr<T> {
 	fn deref_mut(&mut self) -> &mut T {
-		unsafe { transmute(self.ptr.offset(size_of::<GcMemHeader>() as isize)) }
+		unsafe { transmute(self.ptr) }
 	}
 }
 
@@ -441,9 +441,8 @@ impl<T> Deref for Array<T> {
 	
 	fn deref(&self) -> &[T] {
 		unsafe {
-			let ptr = self.ptr.offset(size_of::<GcMemHeader>() as isize);
-			let size = *transmute::<_, *const usize>(ptr);
-			let ptr = ptr.offset(size_of::<usize>() as isize);
+			let size = *transmute::<_, *const usize>(self.ptr);
+			let ptr = self.ptr.offset(size_of::<usize>() as isize);
 			
 			slice::from_raw_parts(
 				transmute(ptr),
@@ -456,9 +455,8 @@ impl<T> Deref for Array<T> {
 impl<T> DerefMut for Array<T> {
 	fn deref_mut(&mut self) -> &mut [T] {
 		unsafe {
-			let ptr = self.ptr.offset(size_of::<GcMemHeader>() as isize);
-			let size = *transmute::<_, *const usize>(ptr);
-			let ptr = ptr.offset(size_of::<usize>() as isize);
+			let size = *transmute::<_, *const usize>(self.ptr);
+			let ptr = self.ptr.offset(size_of::<usize>() as isize);
 			
 			slice::from_raw_parts_mut(
 				transmute(ptr),
@@ -482,90 +480,6 @@ impl GcOpts {
 			fast_growth_factor: 3f64
 		}
 	}
-}
-
-#[derive(Copy, Clone)]
-pub struct GcTypeId(u32);
-
-impl GcTypeId {
-	fn usize(&self) -> usize {
-		self.0 as usize
-	}
-}
-
-pub struct GcTypes {
-	types: Vec<GcType>
-}
-
-impl GcTypes {
-	fn new() -> GcTypes {
-		GcTypes {
-			types: Vec::new()
-		}
-	}
-}
-
-impl GcTypes {
-	pub fn add(&mut self, type_: GcType) -> GcTypeId {
-		let index = self.types.len() as u32;
-		self.types.push(type_);
-		GcTypeId(index)
-	}
-	
-	pub fn get(&self, type_id: GcTypeId) -> &GcType {
-		&self.types[type_id.usize()]
-	}
-}
-
-pub struct GcType {
-	size: usize,
-	layout: GcTypeLayout
-}
-
-impl GcType {
-	pub fn new(size: usize, layout: GcTypeLayout) -> GcType {
-		GcType {
-			size: size,
-			layout: layout
-		}
-	}
-}
-
-pub enum GcTypeLayout {
-	None,
-	Bitmap(u64),
-	Callback(Box<Fn(*const c_void, u32) -> GcTypeWalk>)
-}
-
-impl GcTypeLayout {
-	pub fn new_bitmap(size: usize, ptrs: Vec<usize>) -> GcTypeLayout {
-		// The bitmap is stored in an u64. This means we have 64 bits available.
-		// The bitmap is a bitmap of pointers, so this maps to size / sizeof(ptr).
-		// Assert that the size of the struct does not go over this.
-		
-		assert!(size / size_of::<usize>() <= size_of::<u64>() * 8);
-		
-		let mut bitmap = 0u64;
-		
-		for ptr in ptrs {
-			// ptr is a byte offset of the field into the structure. The bitmap is
-			// based on pointer size offsets, so we need to divide ptr by the pointer
-			// size. The bitmap itself is a n u64 so we have 64 bits available,
-			// which means we have room for 64 pointers per index.
-			
-			assert!((ptr % size_of::<usize>()) == 0);
-			
-			bitmap |= 1u64 << (ptr / size_of::<usize>());
-		}
-		
-		GcTypeLayout::Bitmap(bitmap)
-	}
-}
-
-pub enum GcTypeWalk {
-	Pointer,
-	Skip,
-	End
 }
 
 struct RootHandles {
@@ -629,36 +543,47 @@ struct GcMemHeader {
 }
 
 impl GcMemHeader {
-	fn new(type_id: GcTypeId, is_array: bool) -> GcMemHeader {
-		let mut header = type_id.usize() << 1;
+	fn new(ty: u32, size: usize, is_array: bool) -> GcMemHeader {
+		let mut header =
+			(ty & 0x7f) << 1 |
+			(size as u32 & 0xffffff) << 8;
+		
 		if is_array {
 			header |= 1;
 		}
 		
 		GcMemHeader {
-			header: header
+			header: header as usize
 		}
 	}
 	
 	#[inline(always)]
-	fn get_type_id(&self) -> GcTypeId {
-		GcTypeId((self.header >> 1) as u32)
+	fn get_type_id(&self) -> u32 {
+		(self.header >> 1) as u32 & 0x7f
+	}
+	
+	fn get_size(&self) -> usize {
+		self.header >> 8 & 0xffffff
 	}
 	
 	fn is_array(&self) -> bool {
 		self.header & 1 != 0
 	}
+	
+	unsafe fn from_ptr<'a>(ptr: *const c_void) -> &'a mut GcMemHeader {
+		transmute(ptr.offset(-(size_of::<GcMemHeader>() as isize)))
+	}
 }
 
 pub struct GcHeap {
-	types: GcTypes,
 	handles: Rc<RootHandles>,
 	heap: RefCell<Copying>,
-	scopes: RefCell<Vec<LocalScopeData>>
+	scopes: RefCell<Vec<LocalScopeData>>,
+	walker: Box<GcWalker>
 }
 
 impl GcHeap {
-	pub fn new(opts: GcOpts) -> GcHeap {
+	pub fn new(walker: Box<GcWalker>, opts: GcOpts) -> GcHeap {
 		if opts.fast_growth_factor <= 1f64 {
 			panic!("fast_growth_factor must be more than 1");
 		}
@@ -667,15 +592,11 @@ impl GcHeap {
 		}
 		
 		GcHeap {
-			types: GcTypes::new(),
 			handles: Rc::new(RootHandles::new()),
 			heap: RefCell::new(Copying::new(opts)),
-			scopes: RefCell::new(Vec::new())
+			scopes: RefCell::new(Vec::new()),
+			walker: walker
 		}
-	}
-	
-	pub fn types(&mut self) -> &mut GcTypes {
-		&mut self.types
 	}
 	
 	unsafe fn alloc_raw(&self, size: usize) -> *const c_void {
@@ -689,26 +610,32 @@ impl GcHeap {
 			}
 		}
 		
-		ptr
+		if ptr.is_null() {
+			ptr
+		} else {
+			ptr.offset(size_of::<GcMemHeader>() as isize)
+		}
 	}
 	
-	pub unsafe fn alloc<T>(&self, type_id: GcTypeId) -> Ptr<T> {
+	pub unsafe fn alloc<T>(&self, ty: u32) -> Ptr<T> {
+		let size = (size_of::<T>() + size_of::<usize>() - 1) / size_of::<usize>() * size_of::<usize>();
+		
 		let ptr = self.alloc_raw(
-			self.types.get(type_id).size +
+			size +
 			size_of::<GcMemHeader>()
 		);
 		
-		*transmute::<_, *mut GcMemHeader>(ptr) = GcMemHeader::new(type_id, false);
+		*GcMemHeader::from_ptr(ptr) = GcMemHeader::new(ty, size, false);
 		
 		Ptr::from_ptr(ptr)
 	}
 	
-	pub fn alloc_root<T>(&self, type_id: GcTypeId) -> Root<T> {
-		Root::from_raw_parts(self, unsafe { self.alloc::<T>(type_id).ptr })
+	pub fn alloc_root<T>(&self, ty: u32) -> Root<T> {
+		Root::from_raw_parts(self, unsafe { self.alloc::<T>(ty).ptr })
 	}
 	
-	pub fn alloc_local<T>(&self, type_id: GcTypeId) -> Local<T> {
-		self.alloc_local_from_ptr(unsafe { self.alloc::<T>(type_id) })
+	pub fn alloc_local<T>(&self, ty: u32) -> Local<T> {
+		self.alloc_local_from_ptr(unsafe { self.alloc::<T>(ty) })
 	}
 	
 	fn alloc_local_from_ptr<T>(&self, ptr: Ptr<T>) -> Local<T> {
@@ -723,12 +650,12 @@ impl GcHeap {
 		}
 	}
 	
-	pub fn alloc_array_root<T>(&self, type_id: GcTypeId, size: usize) -> ArrayRoot<T> {
-		ArrayRoot::from_raw_parts(self, unsafe { self.alloc_array::<T>(type_id, size).ptr })
+	pub fn alloc_array_root<T>(&self, ty: u32, size: usize) -> ArrayRoot<T> {
+		ArrayRoot::from_raw_parts(self, unsafe { self.alloc_array::<T>(ty, size).ptr })
 	}
 	
-	pub fn alloc_array_local<T>(&self, type_id: GcTypeId, size: usize) -> ArrayLocal<T> {
-		self.alloc_array_local_from_ptr(unsafe { self.alloc_array::<T>(type_id, size) })
+	pub fn alloc_array_local<T>(&self, ty: u32, size: usize) -> ArrayLocal<T> {
+		self.alloc_array_local_from_ptr(unsafe { self.alloc_array::<T>(ty, size) })
 	}
 	
 	fn alloc_array_local_from_ptr<T>(&self, ptr: Array<T>) -> ArrayLocal<T> {
@@ -743,15 +670,17 @@ impl GcHeap {
 		}
 	}
 	
-	pub unsafe fn alloc_array<T>(&self, type_id: GcTypeId, size: usize) -> Array<T> {
+	pub unsafe fn alloc_array<T>(&self, ty: u32, size: usize) -> Array<T> {
+		let item_size = (size_of::<T>() + size_of::<usize>() - 1) / size_of::<usize>() * size_of::<usize>();
+		
 		let ptr = self.alloc_raw(
 			size_of::<usize>() +
-			(self.types.get(type_id).size * size) +
+			(item_size * size) +
 			size_of::<GcMemHeader>()
 		);
 		
-		*transmute::<_, *mut GcMemHeader>(ptr) = GcMemHeader::new(type_id, true);
-		*transmute::<_, *mut usize>(ptr.offset(size_of::<GcMemHeader>() as isize)) = size;
+		*GcMemHeader::from_ptr(ptr) = GcMemHeader::new(ty, item_size, true);
+		*transmute::<_, *mut usize>(ptr) = size;
 		
 		Array::from_ptr(ptr)
 	}
@@ -785,7 +714,7 @@ impl GcHeap {
 			}));
 		}
 		
-		self.heap.borrow_mut().gc(&self.types, &mut walkers);
+		self.heap.borrow_mut().gc(&mut walkers, &*self.walker);
 	}
 	
 	pub fn mem_allocated(&self) -> usize {
@@ -879,4 +808,15 @@ impl<'a> RootWalker for LocalScopesWalker<'a> {
 		
 		ptr
 	}
+}
+
+pub trait GcWalker {
+	fn walk(&self, ty: u32, ptr: *const c_void, index: u32) -> GcWalk;
+}
+
+#[derive(Debug)]
+pub enum GcWalk {
+	Pointer,
+	Skip,
+	End
 }

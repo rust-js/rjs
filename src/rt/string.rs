@@ -1,5 +1,5 @@
 use gc::{Array, Local};
-use super::{JsEnv, JsValue, JsItem};
+use super::{JsEnv, JsValue, JsItem, GC_STRING, GC_CHAR};
 use super::utf;
 use gc::Ptr;
 
@@ -10,9 +10,9 @@ pub struct JsString {
 
 impl JsString {
 	pub fn new_local(env: &JsEnv, size: usize) -> Local<JsString> {
-		let mut result = env.alloc_local_string();
+		let mut result = env.heap.alloc_local::<JsString>(GC_STRING);
 		unsafe {
-			result.chars = env.alloc_char_array(size);
+			result.chars = env.heap.alloc_array(GC_CHAR, size);
 		}
 		result
 	}
