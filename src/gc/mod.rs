@@ -1,4 +1,4 @@
-// TODO: The handles field of UnsafeRoot currently is a Rc. This is not preferable
+// TODO: The handles field of Root currently is a Rc. This is not preferable
 // because of performance. However there is a problem. If the field is changed to
 // a *const and the Rc is changed to a Box, a segmentation fault will occur.
 
@@ -7,7 +7,7 @@ const INITIAL_LOCAL_SCOPE_CAPACITY : usize = 8;
 extern crate libc;
 extern crate time;
 
-use std::ops::{Deref, DerefMut, Index};
+use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::marker::PhantomData;
 use std::ptr;
 use std::mem::{size_of, transmute, swap};
@@ -32,60 +32,31 @@ macro_rules! field_offset {
 	}
 }
 
-pub struct Root<'a, T: 'a> {
-	root: UnsafeRoot<T>,
-	_type: PhantomData<&'a T>
-}
-
-impl<'a, T: 'a> Root<'a, T> {
-	pub fn as_ptr(&self) -> Ptr<T> {
-		self.root.as_ptr()
-	}
-	
-	fn from_raw_parts(heap: &'a GcHeap, ptr: *const c_void) -> Root<'a, T> {
-		Root {
-			root: UnsafeRoot::from_raw_parts(heap, ptr),
-			_type: PhantomData
-		}
-	}
-	
-	pub fn from_local(heap: &'a GcHeap, local: Local<T>) -> Root<'a, T> {
-		Root::from_raw_parts(heap, unsafe { (*local.handle).ptr })
-	}
-	
-	pub fn into_unsafe(self) -> UnsafeRoot<T> {
-		self.root
-	}
-	
-	pub fn from_unsafe(_heap: &'a GcHeap, root: UnsafeRoot<T>) -> Root<'a, T> {
-		Root {
-			root: root,
-			_type: PhantomData
-		}
-	}
-}
-
-pub struct UnsafeRoot<T> {
+pub struct Root<T> {
 	handles: Rc<RootHandles>,
 	handle: u32,
 	_type: PhantomData<T>
 }
 
-impl<T> UnsafeRoot<T> {
+impl<T> Root<T> {
 	pub fn as_ptr(&self) -> Ptr<T> {
 		unsafe { Ptr::from_ptr(self.handles.get_target(self.handle)) }
 	}
 	
-	fn from_raw_parts(heap: &GcHeap, ptr: *const c_void) -> UnsafeRoot<T> {
-		UnsafeRoot {
+	fn from_raw_parts(heap: &GcHeap, ptr: *const c_void) -> Root<T> {
+		Root {
 			handles: heap.handles.clone(),
 			handle: heap.handles.add(ptr),
 			_type: PhantomData
 		}
 	}
+	
+	pub fn from_local(heap: &GcHeap, local: Local<T>) -> Root<T> {
+		Root::from_raw_parts(heap, unsafe { (*local.handle).ptr })
+	}
 }
 
-impl<T> Deref for UnsafeRoot<T> {
+impl<T> Deref for Root<T> {
 	type Target = T;
 	
 	fn deref(&self) -> &T {
@@ -96,7 +67,7 @@ impl<T> Deref for UnsafeRoot<T> {
 	}
 }
 
-impl<T> DerefMut for UnsafeRoot<T> {
+impl<T> DerefMut for Root<T> {
 	fn deref_mut(&mut self) -> &mut T {
 		unsafe { 
 			let ptr = self.handles.get_target(self.handle);
@@ -105,9 +76,9 @@ impl<T> DerefMut for UnsafeRoot<T> {
 	}
 }
 
-impl<T> Clone for UnsafeRoot<T> {
-	fn clone(&self) -> UnsafeRoot<T> {
-		UnsafeRoot {
+impl<T> Clone for Root<T> {
+	fn clone(&self) -> Root<T> {
+		Root {
 			handles: self.handles.clone(),
 			handle: self.handles.clone_root(self.handle),
 			_type: PhantomData
@@ -115,62 +86,37 @@ impl<T> Clone for UnsafeRoot<T> {
 	}
 }
 
-impl<T> Drop for UnsafeRoot<T> {
+impl<T> Drop for Root<T> {
 	fn drop(&mut self) {
 		self.handles.remove(self.handle);
 	}
 }
 
-impl<'a, T> Deref for Root<'a, T> {
-	type Target = T;
-	
-	fn deref(&self) -> &T {
-		&*self.root
-	}
-}
-
-impl<'a, T> DerefMut for Root<'a, T> {
-	fn deref_mut(&mut self) -> &mut T {
-		&mut *self.root
-	}
-}
-
-impl<'a, T> Clone for Root<'a, T> {
-	fn clone(&self) -> Root<'a, T> {
-		Root {
-			root: self.root.clone(),
-			_type: PhantomData
-		}
-	}
-}
-
-pub struct ArrayRoot<'a, T> {
-	handles: &'a RootHandles,
+pub struct ArrayRoot<T> {
+	handles: Rc<RootHandles>,
 	handle: u32,
 	_type: PhantomData<T>
 }
 
-impl<'a, T> ArrayRoot<'a, T> {
+impl<'a, T> ArrayRoot<T> {
 	pub fn as_ptr(&self) -> Array<T> {
-		unsafe {
-			Array::from_ptr(self.handles.get_target(self.handle))
-		}
+		unsafe { Array::from_ptr(self.handles.get_target(self.handle)) }
 	}
 	
-	fn from_raw_parts(heap: &'a GcHeap, ptr: *const c_void) -> ArrayRoot<'a, T> {
+	fn from_raw_parts(heap: &'a GcHeap, ptr: *const c_void) -> ArrayRoot<T> {
 		ArrayRoot {
-			handles: &heap.handles,
+			handles: heap.handles.clone(),
 			handle: heap.handles.add(ptr),
 			_type: PhantomData
 		}
 	}
 	
-	pub fn from_local(heap: &'a GcHeap, local: ArrayLocal<T>) -> ArrayRoot<'a, T> {
+	pub fn from_local(heap: &GcHeap, local: ArrayLocal<T>) -> ArrayRoot<T> {
 		ArrayRoot::from_raw_parts(heap, unsafe { (*local.handle).ptr })
 	}
 }
 
-impl<'a, T> Deref for ArrayRoot<'a, T> {
+impl<T> Deref for ArrayRoot<T> {
 	type Target = [T];
 	
 	fn deref(&self) -> &[T] {
@@ -187,7 +133,7 @@ impl<'a, T> Deref for ArrayRoot<'a, T> {
 	}
 }
 
-impl<'a, T> DerefMut for ArrayRoot<'a, T> {
+impl<T> DerefMut for ArrayRoot<T> {
 	fn deref_mut(&mut self) -> &mut [T] {
 		unsafe {
 			let ptr = self.handles.get_target(self.handle);
@@ -202,17 +148,17 @@ impl<'a, T> DerefMut for ArrayRoot<'a, T> {
 	}
 }
 
-impl<'a, T> Clone for ArrayRoot<'a, T> {
-	fn clone(&self) -> ArrayRoot<'a, T> {
+impl<T> Clone for ArrayRoot<T> {
+	fn clone(&self) -> ArrayRoot<T> {
 		ArrayRoot {
-			handles: self.handles,
+			handles: self.handles.clone(),
 			handle: self.handles.clone_root(self.handle),
 			_type: PhantomData
 		}
 	}
 }
 
-impl<'a, T> Drop for ArrayRoot<'a, T> {
+impl<T> Drop for ArrayRoot<T> {
 	fn drop(&mut self) {
 		self.handles.remove(self.handle);
 	}
@@ -434,6 +380,24 @@ impl<T> Array<T> {
 	pub fn is_null(&self) -> bool {
 		self.ptr.is_null()
 	}
+	
+	pub fn len(&self) -> usize {
+		unsafe { *transmute::<_, *const usize>(self.ptr) }
+	}
+}
+
+impl<T: Copy> Array<T> {
+	pub fn copy<'a>(from: &'a Array<T>, to: &'a mut Array<T>, count: usize) {
+		unsafe {
+			assert!(count < from.len() && count < to.len());
+			
+			ptr::copy(
+				from.ptr.offset(size_of::<usize>() as isize),
+				to.ptr.offset(size_of::<usize>() as isize) as *mut c_void,
+				count * size_of::<T>()
+			);
+		}
+	}
 }
 
 impl<T> Deref for Array<T> {
@@ -462,6 +426,36 @@ impl<T> DerefMut for Array<T> {
 				transmute(ptr),
 				size
 			)
+		}
+	}
+}
+
+impl<T> Index<usize> for Array<T> {
+	type Output = T;
+	
+	fn index(&self, index: usize) -> &<Self as Index<usize>>::Output {
+		assert!(index < self.len());
+		
+		unsafe {
+			let ptr = self.ptr.offset(size_of::<usize>() as isize);
+			let ptr = transmute::<_, *const T>(ptr);
+			let ptr = ptr.offset(index as isize);
+			
+			transmute::<_, &T>(ptr)
+		}
+	}
+}
+
+impl<T> IndexMut<usize> for Array<T> {
+	fn index_mut(&mut self, index: usize) -> &mut <Self as Index<usize>>::Output {
+		assert!(index < self.len());
+		
+		unsafe {
+			let ptr = self.ptr.offset(size_of::<usize>() as isize);
+			let ptr = transmute::<_, *const T>(ptr);
+			let ptr = ptr.offset(index as isize);
+			
+			transmute::<_, &mut T>(ptr)
 		}
 	}
 }
@@ -534,7 +528,13 @@ impl RootHandles {
 	}
 	
 	unsafe fn get_target(&self, handle: u32) -> *const c_void {
-		self.data.borrow().ptrs[handle as usize]
+		let data = &*self.data.borrow();
+		
+		if data.ptrs.len() <= handle as usize {
+			panic!("Root is not valid anymore");
+		}
+		
+		data.ptrs[handle as usize]
 	}
 }
 

@@ -56,12 +56,12 @@ fn setup_global(env: &mut JsEnv) {
 	let mut global = env.global().as_value(env);
 	
 	let mut object_prototype = JsObject::new_local(&env);
-	env.object_prototype = Root::from_local(&env.heap, object_prototype).into_unsafe();
+	env.object_prototype = Root::from_local(&env.heap, object_prototype);
 	
 	// Build Function
 	
 	let mut function_prototype = new_function(env, None, 0, Box::new(Function_baseConstructor), &object_prototype).as_object(env);
-	env.function_prototype = Root::from_local(&env.heap, function_prototype).into_unsafe();
+	env.function_prototype = Root::from_local(&env.heap, function_prototype);
 	
 	let function_class = new_function(env, Some(name::FUNCTION_CLASS), 0, Box::new(Function_constructor), &function_prototype);
 	let mut function_class_object = function_class.as_object(env);
@@ -126,7 +126,7 @@ fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 
 	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
 	
-	env.string_prototype = Root::from_local(&env.heap, prototype).into_unsafe();
+	env.string_prototype = Root::from_local(&env.heap, prototype);
 	
 	class.set_class(env, Some(name::STRING_CLASS));
 	

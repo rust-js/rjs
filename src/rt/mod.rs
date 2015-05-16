@@ -36,17 +36,7 @@ const GC_STRING : u32 = 3;
 const GC_CHAR : u32 = 4;
 const GC_VALUE : u32 = 5;
 
-impl UnsafeRoot<JsObject> {
-	pub fn as_local(&self, env: &JsEnv) -> Local<JsObject> {
-		Local::from_ptr(self.as_ptr(), &env.heap)
-	}
-	
-	pub fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-		JsValue::new_object(self.as_ptr()).as_local(env)
-	}
-}
-
-impl<'a> Root<'a, JsObject> {
+impl Root<JsObject> {
 	pub fn as_local(&self, env: &JsEnv) -> Local<JsObject> {
 		Local::from_ptr(self.as_ptr(), &env.heap)
 	}
@@ -58,12 +48,12 @@ impl<'a> Root<'a, JsObject> {
 
 pub struct JsEnv {
 	heap: GcHeap,
-	global: UnsafeRoot<JsObject>,
-	object_prototype: UnsafeRoot<JsObject>,
-	function_prototype: UnsafeRoot<JsObject>,
-	string_prototype: UnsafeRoot<JsObject>,
-	number_prototype: UnsafeRoot<JsObject>,
-	boolean_prototype: UnsafeRoot<JsObject>,
+	global: Root<JsObject>,
+	object_prototype: Root<JsObject>,
+	function_prototype: Root<JsObject>,
+	string_prototype: Root<JsObject>,
+	number_prototype: Root<JsObject>,
+	boolean_prototype: Root<JsObject>,
 	ir: IrContext,
 	stack: stack::Stack
 }
@@ -72,12 +62,12 @@ impl JsEnv {
 	pub fn new() -> JsResult<JsEnv> {
 		let heap = GcHeap::new(Box::new(Walker::new()), GcOpts::default());
 		
-		let global = heap.alloc_root::<JsObject>(GC_OBJECT).into_unsafe();
-		let object_prototype = heap.alloc_root::<JsObject>(GC_OBJECT).into_unsafe();
-		let function_prototype = heap.alloc_root::<JsObject>(GC_OBJECT).into_unsafe();
-		let string_prototype = heap.alloc_root::<JsObject>(GC_OBJECT).into_unsafe();
-		let number_prototype = heap.alloc_root::<JsObject>(GC_OBJECT).into_unsafe();
-		let boolean_prototype = heap.alloc_root::<JsObject>(GC_OBJECT).into_unsafe();
+		let global = heap.alloc_root::<JsObject>(GC_OBJECT);
+		let object_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
+		let function_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
+		let string_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
+		let number_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
+		let boolean_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
 		
 		let mut env = JsEnv {
 			heap: heap,
@@ -123,17 +113,17 @@ impl JsEnv {
 		
 		let block = try!(self.ir.get_function_ir(function_ref));
 		
-		let mut result = self.heap.alloc_root::<JsValue>(GC_VALUE).into_unsafe();
+		let mut result = self.heap.alloc_root::<JsValue>(GC_VALUE);
 		*result = try!(self.call_block(block, None, Vec::new()));
 		
 		println!("EXIT {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
 		
-		Ok(Root::from_unsafe(&self.heap, result))
+		Ok(result)
 	}
 	
 	/// Returns a new GC handle to the global object.
-	pub fn global(&self) -> Root<JsObject> {
-		Root::from_unsafe(&self.heap, self.global.clone())
+	pub fn global(&self) -> &Root<JsObject> {
+		&self.global
 	}
 	
 	pub fn intern(&self, name: &str) -> Name {
