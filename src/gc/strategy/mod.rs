@@ -12,5 +12,5 @@ pub trait Strategy {
 	
 	fn mem_used(&self) -> usize;
 	
-	fn gc(&mut self, walkers: &mut [Box<RootWalker>], walker: &GcWalker);
+	fn gc(&mut self, walkers: Vec<Box<RootWalker>>, walker: &GcWalker);
 }

@@ -686,13 +686,11 @@ impl GcHeap {
 	}
 	
 	pub fn gc(&self) {
-		let mut handles = self.handles.data.borrow_mut();
-		let scopes = self.scopes.borrow_mut();
-		
 		let mut walkers : Vec<Box<RootWalker>> = Vec::new();
 		
 		// Add the root handles walker if there are root handles.
 		
+		let mut handles = self.handles.data.borrow_mut();
 		if handles.ptrs.len() != handles.free.len() {
 			let ptr = (*handles.ptrs).as_mut_ptr();
 			let end = unsafe { ptr.offset(handles.ptrs.len() as isize) };
@@ -705,16 +703,17 @@ impl GcHeap {
 		
 		// Add the local scopes walker if there are any.
 		
+		let scopes = self.scopes.borrow();
 		if scopes.len() > 0 {
 			walkers.push(Box::new(LocalScopesWalker {
-				scopes: &scopes,
+				scopes: unsafe { transmute::<&[LocalScopeData], *const [LocalScopeData]>(&**scopes) },
 				scope: 0,
 				vec: 0,
 				index: 0
 			}));
 		}
 		
-		self.heap.borrow_mut().gc(&mut walkers, &*self.walker);
+		self.heap.borrow_mut().gc(walkers, &*self.walker);
 	}
 	
 	pub fn mem_allocated(&self) -> usize {
@@ -771,20 +770,25 @@ impl RootWalker for RootHandlesWalker {
 	}
 }
 
-struct LocalScopesWalker<'a> {
-	scopes: &'a [LocalScopeData],
+struct LocalScopesWalker {
+	// TODO: This does not have to be a pointer. The only reason it is
+	// is to remove the lifetime parameter because I cannot figure
+	// out how to get it working with a lifetime.
+	scopes: *const [LocalScopeData],
 	scope: usize,
 	vec: usize,
 	index: usize
 }
 
-impl<'a> RootWalker for LocalScopesWalker<'a> {
+impl RootWalker for LocalScopesWalker {
 	unsafe fn next(&mut self) -> *mut *const c_void {
-		if self.scope == self.scopes.len() {
+		let scopes = transmute::<_, &[LocalScopeData]>(self.scopes);
+		
+		if self.scope == scopes.len() {
 			return ptr::null_mut();
 		}
 		
-		let scope = &self.scopes[self.scope];
+		let scope = &scopes[self.scope];
 		
 		let vec = if self.vec == 0 {
 			&scope.current

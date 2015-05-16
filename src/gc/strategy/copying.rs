@@ -86,7 +86,7 @@ impl Copying {
 		}
 	}
 	
-	unsafe fn copy(&mut self, walkers: &mut [Box<RootWalker>], walker: &GcWalker) {
+	unsafe fn copy(&mut self, mut walkers: Vec<Box<RootWalker>>, walker: &GcWalker) {
 		let allocated = self.from.offset;
 		
 		// Calculate the new size of the heap. We use the fill factor of the previous
@@ -137,7 +137,7 @@ impl Copying {
 		
 		// Walk all GC roots.
 		
-		for walker in walkers {
+		for walker in &mut walkers {
 			loop {
 				let ptr = walker.next();
 				if ptr.is_null() {
@@ -257,7 +257,7 @@ impl Strategy for Copying {
 		self.from.offset
 	}
 	
-	fn gc(&mut self, walkers: &mut [Box<RootWalker>], walker: &GcWalker) {
+	fn gc(&mut self, walkers: Vec<Box<RootWalker>>, walker: &GcWalker) {
 		let start = time::precise_time_ns();
 		
 		unsafe {

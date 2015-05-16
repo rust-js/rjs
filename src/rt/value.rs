@@ -332,7 +332,7 @@ impl JsRawValue {
 	}
 	
 	fn set_number(&mut self, value: f64) {
-		unsafe { *transmute::<_, &mut f64>(&self.data) = value; }
+		unsafe { self.data = *transmute::<_, &u64>(&value); }
 	}
 	
 	fn get_bool(&self) -> bool {
