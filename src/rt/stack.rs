@@ -48,7 +48,7 @@ impl Stack {
 	}
 }
 
-struct StackFrame {
+pub struct StackFrame {
 	sp: *mut c_void
 }
 

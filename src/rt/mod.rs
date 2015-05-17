@@ -93,7 +93,7 @@ impl JsEnv {
 		
 		let mut ir = String::new();
 		try!(self.ir.print_ir(&mut ir));
-		println!("{}", ir);
+		debugln!("{}", ir);
 		
 		self.call(function_ref)
 	}
@@ -103,20 +103,20 @@ impl JsEnv {
 		
 		let mut ir = String::new();
 		try!(self.ir.print_ir(&mut ir));
-		println!("{}", ir);
+		debugln!("{}", ir);
 		
 		self.call(function_ref)
 	}
 	
 	fn call(&mut self, function_ref: FunctionRef) -> JsResult<Root<JsValue>> {
-		println!("ENTER {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
+		debugln!("ENTER {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
 		
 		let block = try!(self.ir.get_function_ir(function_ref));
 		
 		let mut result = self.heap.alloc_root::<JsValue>(GC_VALUE);
 		*result = try!(self.call_block(block, None, Vec::new()));
 		
-		println!("EXIT {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
+		debugln!("EXIT {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
 		
 		Ok(result)
 	}
@@ -243,8 +243,11 @@ pub trait JsItem {
 		
 		if let Some(own_desc) = self.get_own_property(env, property) {
 			if own_desc.is_data() {
-				let value = own_desc.value(env);
-				try!(self.define_own_property(env, property, JsDescriptor::new_simple_value(value), throw));
+				let value_desc = JsDescriptor {
+					value: Some(value),
+					..JsDescriptor::default()
+				};
+				try!(self.define_own_property(env, property, value_desc, throw));
 				
 				return Ok(());
 			}
@@ -355,11 +358,17 @@ pub trait JsItem {
 		false
 	}
 	
+	// 13.2.2 [[Construct]]
 	fn construct(&self, env: &mut JsEnv, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>> {
 		let mut obj = JsObject::new_local(env);
 		obj.set_class(env, Some(name::OBJECT_CLASS));
 		let proto = try!(self.get(env, name::PROTOTYPE));
-		obj.set_prototype(env, Some(proto));
+		if proto.ty() == JsType::Object {
+			obj.set_prototype(env, Some(proto));
+		} else {
+			let proto = Local::from_root(env.object_prototype.clone(), &env.heap).as_value(env);
+			obj.set_prototype(env, Some(proto));
+		}
 		
 		let obj = obj.as_value(env);
 
@@ -370,7 +379,13 @@ pub trait JsItem {
 			mode: JsFnMode::New
 		};
 		
-		env.call_function(args)
+		let result = try!(env.call_function(args));
+		
+		Ok(if result.ty() == JsType::Object {
+			result
+		} else {
+			obj
+		})
 	}
 	
 	fn has_prototype(&self, env: &JsEnv) -> bool {
@@ -449,6 +464,17 @@ pub struct JsDescriptor {
 }
 
 impl JsDescriptor {
+	pub fn default() -> JsDescriptor {
+		JsDescriptor {
+			value: None,
+			get: None,
+			set: None,
+			writable: None,
+			enumerable: None,
+			configurable: None
+		}
+	}
+	
 	pub fn new_value(value: Local<JsValue>, writable: bool, enumerable: bool, configurable: bool) -> JsDescriptor {
 		JsDescriptor {
 			value: Some(value),

@@ -1,13 +1,38 @@
 #![allow(dead_code)]
 
+#[macro_use]
 extern crate rjs;
 
 use rjs::rt::*;
 use std::io::prelude::*;
 use std::fs::File;
 use std::collections::HashMap;
+use std::thread;
+use rjs::debug;
 
-fn run(file: &str) {
+fn run(file: &'static str) {
+	debug::reset();
+	
+	println!("RUNNING {}", file);
+	
+	let result = thread::spawn(move || run_safe(file)).join();
+	
+	match result {
+		Ok(..) => {},
+		Err(error) => {
+			print!("{}", debug::reset());
+			if let Some(string) = error.downcast_ref::<String>() {
+				panic!("{}", string);
+			} else if let Some(string) = error.downcast_ref::<&str>() {
+				panic!("{}", string);
+			} else {
+				panic!("(unknown error)");
+			}
+		}
+	}
+}
+
+fn run_safe(file: &'static str) {
 	let file = "tests/tc39/test/".to_string() + file;
 	let mut js = String::new();
 	File::open(&file).ok().unwrap().read_to_string(&mut js).ok();
@@ -48,18 +73,24 @@ fn run(file: &str) {
 		}
 	}
 	
-	println!("\nRUNNING {}\n", file);
-	
 	let mut env = JsEnv::new().ok().unwrap();
 	
 	for include in &includes {
-		println!("INCLUDING {}", include);
+		debugln!("INCLUDING {}", include);
 		env.run(&("tests/tc39/harness/".to_string() + include)).ok().unwrap();
 	}
 	
 	match env.run(&file) {
 		Ok(_) => {},
-		Err(error) => panic!("{}: Failed with error {:?}", file, error)
+		Err(error) => {
+			let _scope = env.heap().new_local_scope();
+			
+			let error = error.as_runtime(&mut env);
+			let error = error.as_local(&mut env);
+			let error = env.to_string(error).to_string();
+			
+			panic!("{}: Uncaught {}", file, error)
+		}
 	}
 }
 
@@ -221,6 +252,7 @@ fn parse(js: &str) {
 
 
 fn main() {
+	/*
 	run("annexB/B.2.1.js");
 	run("annexB/B.2.1.propertyCheck.js");
 	run("annexB/B.2.2.js");
@@ -11891,24 +11923,26 @@ fn main() {
 	run("language/statements/throw/S12.13_A3_T4.js");
 	run("language/statements/throw/S12.13_A3_T5.js");
 	run("language/statements/throw/S12.13_A3_T6.js");
-	run("language/statements/try/12.14.1-1gs.js");
-	run("language/statements/try/12.14.1-1-s.js");
-	run("language/statements/try/12.14.1-2-s.js");
-	run("language/statements/try/12.14.1-3-s.js");
-	run("language/statements/try/12.14.1-4-s.js");
-	run("language/statements/try/12.14.1-5-s.js");
-	run("language/statements/try/12.14.1-6-s.js");
-	run("language/statements/try/12.14-1.js");
-	run("language/statements/try/12.14-10.js");
-	run("language/statements/try/12.14-11.js");
-	run("language/statements/try/12.14-12.js");
-	run("language/statements/try/12.14-13.js");
-	run("language/statements/try/12.14-14.js");
-	run("language/statements/try/12.14-15.js");
-	run("language/statements/try/12.14-16.js");
-	run("language/statements/try/12.14-2.js");
-	run("language/statements/try/12.14-3.js");
+	*/
+//	run("language/statements/try/12.14.1-1gs.js");
+//	run("language/statements/try/12.14.1-1-s.js");
+//	run("language/statements/try/12.14.1-2-s.js");
+//	run("language/statements/try/12.14.1-3-s.js");
+//	run("language/statements/try/12.14.1-4-s.js");
+//	run("language/statements/try/12.14.1-5-s.js");
+//	run("language/statements/try/12.14.1-6-s.js");
+//	run("language/statements/try/12.14-1.js");
+//	run("language/statements/try/12.14-10.js");
+//	run("language/statements/try/12.14-11.js");
+//	run("language/statements/try/12.14-12.js");
+//	run("language/statements/try/12.14-13.js");
+//	run("language/statements/try/12.14-14.js");
+//	run("language/statements/try/12.14-15.js");
+//	run("language/statements/try/12.14-16.js");
+//	run("language/statements/try/12.14-2.js");
+//	run("language/statements/try/12.14-3.js");
 	run("language/statements/try/12.14-4.js");
+	return;
 	run("language/statements/try/12.14-6.js");
 	run("language/statements/try/12.14-7.js");
 	run("language/statements/try/12.14-8.js");
@@ -11971,6 +12005,7 @@ fn main() {
 	run("language/statements/try/S12.14_A9_T3.js");
 	run("language/statements/try/S12.14_A9_T4.js");
 	run("language/statements/try/S12.14_A9_T5.js");
+	/*
 	run("language/statements/variable/12.2.1-10-s.js");
 	run("language/statements/variable/12.2.1-11.js");
 	run("language/statements/variable/12.2.1-12.js");
@@ -12355,4 +12390,5 @@ fn main() {
 	run("language/white-space/S7.2_A5_T3.js");
 	run("language/white-space/S7.2_A5_T4.js");
 	run("language/white-space/S7.2_A5_T5.js");
+	*/
 }

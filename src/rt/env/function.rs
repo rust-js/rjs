@@ -1,4 +1,4 @@
-use ::JsResult;
+use ::{JsResult, JsError};
 use super::super::{JsEnv, JsString, JsFnMode, JsArgs, JsValue, JsItem};
 use syntax::ast::FunctionRef;
 use gc::*;
@@ -45,8 +45,22 @@ pub fn Function_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 	env.new_function(function_ref)
 }
 
+// 15.3.4.4 Function.prototype.call (thisArg [ , arg1 [ , arg2, … ] ] )
 pub fn Function_call(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	unimplemented!();
+	let mut func = args.this;
+	if !func.is_callable(env) {
+		Err(JsError::new_type(env))
+	} else {
+		let this_arg = if args.args.len() > 0 {
+			args.args[0]
+		} else {
+			JsValue::new_undefined().as_local(env)
+		};
+		
+		let call_args = args.args.into_iter().skip(1).collect::<Vec<_>>();
+		
+		func.call(env, this_arg, call_args)
+	}
 }
 
 pub fn Function_apply(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {

@@ -678,12 +678,16 @@ impl<'a> IrGenerator<'a> {
 			try!(self.emit_block(&catch.block, false));
 			
 			self.pop_local_scope();
+			
+			self.ir.emit(Ir::Leave(after_label));
 		}
 		
 		if let &Some(ref finally) = finally {
 			self.ir.start_finally();
 			
 			try!(self.emit_block(finally, false));
+			
+			self.ir.emit(Ir::EndFinally);
 		}
 		
 		self.ir.end_exception_block();
@@ -830,7 +834,6 @@ impl<'a> IrGenerator<'a> {
 			Op::BitNot => self.ir.emit(Ir::BitNot),
 			Op::BitOr => self.ir.emit(Ir::BitOr),
 			Op::BitXOr => self.ir.emit(Ir::BitXOr),
-			Op::Delete => self.ir.emit(Ir::Delete),
 			Op::Divide => self.ir.emit(Ir::Divide),
 			Op::Equals => self.ir.emit(Ir::Eq),
 			Op::GreaterThan => self.ir.emit(Ir::Gt),
@@ -1205,6 +1208,25 @@ impl<'a> IrGenerator<'a> {
 	
 	fn emit_expr_unary(&mut self, op: Op, expr: &'a Expr, leave: bool) -> JsResult<()> {
 		match op {
+			Op::Delete => {
+				match expr {
+					&Expr::MemberDot(ref expr, ident) => {
+						try!(self.emit_expr(expr, true));
+						self.ir.emit(Ir::DeleteName(ident));
+					}
+					&Expr::MemberIndex(ref expr, ref index) => {
+						try!(self.emit_expr(expr, true));
+						try!(self.emit_exprs(index, true));
+						self.ir.emit(Ir::DeleteIndex);
+					}
+					expr @ _ => {
+						try!(self.emit_expr(expr, false));
+						self.ir.emit(Ir::LoadTrue);
+					}
+				}
+				
+				return Ok(());
+			}
 			Op::PostDecr => {
 				let lhs_ref = try!(self.emit_lhs_load(expr));
 				
@@ -1292,7 +1314,6 @@ impl<'a> IrGenerator<'a> {
 		
 		match op {
 			Op::BitNot => self.ir.emit(Ir::BitNot),
-			Op::Delete => self.ir.emit(Ir::Delete),
 			Op::Negative => self.ir.emit(Ir::Negative),
 			Op::Not => self.ir.emit(Ir::Not),
 			Op::Positive => self.ir.emit(Ir::Positive),
@@ -1380,12 +1401,25 @@ mod test {
 	#[test]
 	fn test() {
 		println!("{}", parse(r#"s
-"#));		
+function testcase() {
+  foo = "prior to throw";
+  try {
+    throw new Error();
+  }
+  catch (foo) {
+    var foo = "initializer in catch";
+  }
+ return foo === "prior to throw";
+  
+ }
+runTestCase(testcase);
+"#));
+		panic!();
 	}
 	
 	fn parse(js: &str) -> String {
 		let mut ctx = IrContext::new();
-		ctx.eval(js).ok();
+		ctx.parse_string(js).ok();
 		
 		let mut ir = String::new();
 		ctx.print_ir(&mut ir).ok();

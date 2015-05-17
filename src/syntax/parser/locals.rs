@@ -42,15 +42,6 @@ impl<'a> LocalResolver<'a> {
 		self.scopes.pop();
 	}
 
-	fn visit_outer_block(&mut self, block: &'a Block) {
-		let len = self.scopes.len();
-		self.scopes[len - 1].blocks.push(block);
-		
-		self.visit_block(block);
-		
-		self.scopes[len - 1].blocks.pop();
-	}
-
 	fn resolve_ident(&mut self, ident: &'a Ident) {
 		// TODO: This is wrong. If we capture a catch local, it won't get registered
 		// correctly. A way to fix this is to have all locals register with the outer
@@ -171,8 +162,13 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 	}
 	
 	fn visit_catch(&mut self, catch: &'a Catch) {
+		let len = self.scopes.len();
+		self.scopes[len - 1].blocks.push(&catch.block);
+		
 		self.resolve_set_ident(&catch.ident);
-		self.visit_outer_block(&catch.block);
+		self.visit_block(&catch.block);
+		
+		self.scopes[len - 1].blocks.pop();
 	}
 	
 	fn visit_root_block(&mut self, block: &'a RootBlock) {

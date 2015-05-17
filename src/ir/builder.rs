@@ -5,7 +5,8 @@ use std::fmt::Write;
 
 pub struct Block {
 	pub ir: Vec<Ir>,
-	pub locals: Vec<Option<Name>>
+	pub locals: Vec<Option<Name>>,
+	pub try_catches: Vec<TryCatch>
 }
 
 impl Block {
@@ -58,6 +59,24 @@ impl Block {
 			string.push('\n');
 		}
 		
+		for i in 0..self.try_catches.len() {
+			if indent {
+				string.push_str("    ");
+			}
+			
+			let try_catch = &self.try_catches[i];
+			
+			write!(string, ".try [{}] L{:04}..L{:04}", i, try_catch.try.start().offset(), try_catch.try.end().offset()).ok();
+			if let Some(catch) = try_catch.catch {
+				write!(string, " .catch L{:04}..L{:04}", catch.start().offset(), catch.end().offset()).ok();
+			}
+			if let Some(finally) = try_catch.finally {
+				write!(string, " .finally L{:04}..L{:04}", finally.start().offset(), finally.end().offset()).ok();
+			}
+			
+			string.push('\n');
+		}
+		
 		for i in 0..self.ir.len() {
 			if indent {
 				string.push_str("    ");
@@ -77,9 +96,14 @@ impl Block {
 					self.print_local(string, local, interner);
 				},
 				&Ir::Debugger => string.push_str("debug"),
-				&Ir::Delete => string.push_str("delete"),
+				&Ir::DeleteName(name) => {
+					string.push_str("delete.name ");
+					self.print_name(string, name, interner);
+				},
+				&Ir::DeleteIndex => string.push_str("delete.index"),
 				&Ir::Divide => string.push_str("div"),
 				&Ir::Dup => string.push_str("dup"),
+				&Ir::EndFinally => string.push_str("finally.end"),
 				&Ir::EndIter(local) => {
 					string.push_str("iter.end ");
 					self.print_local(string, local, interner);
@@ -247,6 +271,10 @@ impl IrRange {
 	pub fn end(&self) -> IrOffset {
 		self.1
 	}
+	
+	pub fn contains(&self, offset: usize) -> bool {
+		offset >= (self.0).0 && offset < (self.1).0
+	}
 }
 
 #[derive(Copy, Clone)]
@@ -268,14 +296,14 @@ impl Label {
 }
 
 pub struct TryCatch {
-	try: IrRange,
-	catch: Option<IrRange>,
-	finally: Option<IrRange>
+	pub try: IrRange,
+	pub catch: Option<IrRange>,
+	pub finally: Option<IrRange>
 }
 
 impl TryCatch {
 	fn finalize_try(&mut self, offset: usize) {
-		self.try = IrRange(self.try.1, IrOffset(offset));
+		self.try = IrRange(self.try.0, IrOffset(offset));
 	}
 	
 	fn finalize_catch(&mut self, offset: usize) {
@@ -284,6 +312,22 @@ impl TryCatch {
 	
 	fn finalize_finally(&mut self, offset: usize) {
 		self.finally = Some(IrRange(self.finally.unwrap().0, IrOffset(offset)));
+	}
+	
+	pub fn contains(&self, offset: usize) -> bool {
+		if offset < (self.try.0).0 {
+			false
+		} else {
+			let end = if let Some(finally) = self.finally {
+				(finally.0).0
+			} else if let Some(catch) = self.catch {
+				(catch.0).0
+			} else {
+				panic!("Expected at least a catch or finally");
+			};
+			
+			offset < end
+		}
 	}
 }
 
@@ -335,9 +379,17 @@ impl IrBuilder {
 			ir.fixup_label(&self.labels);
 		}
 		
+		if self.try_catch_stack.len() > 0 {
+			panic!("There are unclosed try/catch blocks");
+		}
+		
+		// Try cach blocks are stored in reverse because that's the order
+		// in which they need to be matched.
+		
 		Block {
 			ir: self.ir,
-			locals: self.locals
+			locals: self.locals,
+			try_catches: self.try_catches
 		}
 	}
 	
@@ -405,9 +457,11 @@ pub enum Ir {
 	Call(u32),
 	CurrentIter(Local),
 	Debugger,
-	Delete,
+	DeleteName(Name),
+	DeleteIndex,
 	Divide,
 	Dup,
+	EndFinally,
 	EndIter(Local),
 	EnterWith,
 	Eq,

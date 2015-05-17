@@ -1,3 +1,4 @@
+/*
 extern crate rjs;
 
 use rjs::interpreter::IrContext;
@@ -12160,3 +12161,4 @@ fn parse(file: &str) {
 	
 	ctx.print_ir(&mut String::new()).ok();
 }
+*/

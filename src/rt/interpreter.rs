@@ -2,9 +2,27 @@
 
 use super::{JsEnv, JsValue, JsString, JsItem};
 use gc::*;
-use ::JsResult;
+use ::{JsResult, JsError};
 use ir::builder::{Block, Ir};
 use std::rc::Rc;
+use super::stack::StackFrame;
+
+enum Next {
+	Next,
+	Return(JsValue),
+	Throw(JsError),
+	Leave(usize),
+	EndFinally
+}
+
+macro_rules! local_try {
+	( $expr:expr ) => {
+		match $expr {
+			Ok(result) => result,
+			Err(error) => return Next::Throw(error)
+		}
+	}
+}
 
 impl JsEnv {
 	pub fn call_block(&mut self, block: Rc<Block>, this: Option<Local<JsValue>>, args: Vec<Local<JsValue>>) -> JsResult<JsValue> {
@@ -16,339 +34,592 @@ impl JsEnv {
 		
 		let ir = &block.ir[..];
 		let mut ip = 0;
+		let mut thrown = None;
+		let mut leave = None;
 		
 		loop {
-			println!("IP: {}", ip);
+			debugln!("IP: {}", ip);
 			
-			match &ir[ip] {
-				&Ir::Add => {
-					let _scope = self.heap.new_local_scope();
+			let ir = &ir[ip];
+			
+			match self.call_stmt(&mut ip, ir, &locals, &this, &args, &mut thrown) {
+				Next::Next => {},
+				Next::Return(result) => return Ok(result),
+				Next::Throw(error) => {
+					thrown = Some(error.as_runtime(self));
 					
-					let frame = self.stack.create_frame(2);
-					let arg1 = frame.get(0).as_local(self);
-					let arg2 = frame.get(1).as_local(self);
-					let result = self.add(arg1, arg2);
-					self.stack.drop_frame(frame);
-					self.stack.push(*result);
-				}
-				&Ir::BitAnd => { panic!(); },
-				&Ir::BitNot => { panic!(); },
-				&Ir::BitOr => { panic!(); },
-				&Ir::BitXOr => { panic!(); },
-				&Ir::Call(count) => {
-					let _scope = self.heap.new_local_scope();
+					// Find the try/catch block that belongs to the current instruction.
 					
-					let frame = self.stack.create_frame(count as usize + 2);
-					let mut args = Vec::new();
-					for i in 0..count as usize {
-						args.push(frame.get(i + 2).as_local(self));
+					let mut found = false;
+					
+					for frame in &block.try_catches {
+						// If the ip is in the try range, jump to the catch or
+						// finally block.
+						
+						if frame.try.contains(ip) {
+							ip = if let Some(catch) = frame.catch {
+								catch.start().offset()
+							} else if let Some(finally) = frame.finally {
+								finally.start().offset()
+							} else {
+								panic!("Expected either a catch or finally block");
+							};
+							
+							found = true;
+							break;
+						}
+						
+						// If the ip is in the catch block, jump to the finally
+						// block if there is one.
+						
+						if let Some(catch) = frame.catch {
+							if catch.contains(ip) {
+								if let Some(finally) = frame.finally {
+									ip = finally.start().offset();
+									
+									found = true;
+									break;
+								}
+							}
+						}
 					}
 					
-					let this = frame.get(0).as_local(self);
-					let function = frame.get(1).as_local(self);
-					let mut function = self.get_value(function);
-					
-					let result = try!(function.call(self, this, args));
-					
-					self.stack.drop_frame(frame);
-					self.stack.push(*result);
-				}
-				&Ir::CurrentIter(local) => { panic!(); },
-				&Ir::Debugger => { panic!(); },
-				&Ir::Delete => { panic!(); },
-				&Ir::Divide => { panic!(); },
-				&Ir::Dup => {
-					let frame = self.stack.create_frame(1);
-					self.stack.push(frame.get(0));
-				}
-				&Ir::EndIter(local) => { panic!(); },
-				&Ir::EnterWith => { panic!(); },
-				&Ir::Eq => { panic!(); },
-				&Ir::Ge => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(2);
-					let arg1 = frame.get(0).as_local(self);
-					let arg2 = frame.get(1).as_local(self);
-					let result = self.compare_ge(arg1, arg2);
-					self.stack.drop_frame(frame);
-					self.stack.push(JsValue::new_bool(result));
-				}
-				&Ir::Gt => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(2);
-					let arg1 = frame.get(0).as_local(self);
-					let arg2 = frame.get(1).as_local(self);
-					let result = self.compare_gt(arg1, arg2);
-					self.stack.drop_frame(frame);
-					self.stack.push(JsValue::new_bool(result));
-				},
-				&Ir::In => { panic!(); },
-				&Ir::InstanceOf => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(2);
-					let arg1 = frame.get(0).as_local(self);
-					let arg2 = frame.get(1).as_local(self);
-					let result = try!(self.instanceof(arg1, arg2));
-					self.stack.drop_frame(frame);
-					self.stack.push(*result);
-				},
-				&Ir::IntoIter(local) => { panic!(); },
-				&Ir::Jump(label) => { panic!(); },
-				&Ir::JumpEq(label) => { panic!(); },
-				&Ir::JumpFalse(label) => {
-					let frame = self.stack.create_frame(1);
-					let jump = !frame.get(0).get_bool();
-					self.stack.drop_frame(frame);
-					if jump {
-						ip  = label.offset();
-						continue;
+					if !found {
+						return Err(error);
 					}
 				}
-				&Ir::JumpTrue(label) => {
-					let frame = self.stack.create_frame(1);
-					let jump = frame.get(0).get_bool();
-					self.stack.drop_frame(frame);
-					if jump {
-						ip  = label.offset();
-						continue;
-					}
-				}
-				&Ir::Le => {
-					let _scope = self.heap.new_local_scope();
+				Next::Leave(leave_) => {
+					// Leave occurs in a try or catch block and is always the last
+					// statement of it. The purpose of the leave is to process
+					// finally blocks. If the frame the leave belongs to contains
+					// a finally block, queue the leave and jump into the finally
+					// block. Otherwise jump to the leave instruction.
+					// The end finally instruction takes the leave in flight and
+					// jumps to it.
 					
-					let frame = self.stack.create_frame(2);
-					let arg1 = frame.get(0).as_local(self);
-					let arg2 = frame.get(1).as_local(self);
-					let result = self.compare_le(arg1, arg2);
-					self.stack.drop_frame(frame);
-					self.stack.push(JsValue::new_bool(result));
-				}
-				&Ir::Leave(label) => { panic!(); },
-				&Ir::LeaveWith => { panic!(); },
-				&Ir::LoadArguments => { panic!(); },
-				&Ir::LoadException => { panic!(); },
-				&Ir::LoadF64(value) => self.stack.push(JsValue::new_number(value)),
-				&Ir::LoadFalse => self.stack.push(JsValue::new_false()),
-				&Ir::LoadFunction(function) => {
-					let _scope = self.heap.new_local_scope();
-					
-					let function = *try!(self.new_function(function));
-					self.stack.push(function);
-				}
-				&Ir::LoadGlobal(name) => {
-					let _scope = self.heap.new_local_scope();
-					
-					let value = try!(self.global.as_local(self).get(self, name));
-					self.stack.push(*value);
-				}
-				&Ir::LoadGlobalThis => {
-					self.stack.push(JsValue::new_object(self.global.as_ptr()));
-				}
-				&Ir::LoadI32(value) => self.stack.push(JsValue::new_number(value as f64)),
-				&Ir::LoadI64(value) => self.stack.push(JsValue::new_number(value as f64)),
-				&Ir::LoadIndex => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(2);
-					
-					let index = frame.get(1).as_local(self);
-					let index = self.to_string(index);
-					let index = self.intern(&index.to_string());
-					
-					let result = try!(frame.get(0).as_local(self).get(self, index));
-					
-					self.stack.drop_frame(frame);
-					
-					self.stack.push(*result);
-				}
-				&Ir::LoadLifted(name, depth) => { panic!(); },
-				&Ir::LoadLocal(local) => self.stack.push(locals.get(local.offset())),
-				&Ir::LoadMissing => { panic!(); },
-				&Ir::LoadName(name) => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(1);
-					let result = try!(frame.get(0).as_local(self).get(self, name));
-					self.stack.drop_frame(frame);
-					self.stack.push(*result);
-				}
-				&Ir::LoadNameLit => { panic!(); },
-				&Ir::LoadNull => self.stack.push(JsValue::new_null()),
-				&Ir::LoadParam(index) => {
-					if index < args.len() as u32 {
-						self.stack.push(*args[index as usize]);
+					if let Some(frame) = block.try_catches.iter().find(|frame| {
+						frame.try.contains(ip) || match frame.catch {
+							Some(catch) => catch.contains(ip),
+							None => false
+						}
+					}) {
+						ip = if let Some(finally) = frame.finally {
+							leave = Some(leave_);
+							finally.start().offset()
+						} else {
+							leave = None;
+							leave_
+						}
 					} else {
-						self.stack.push(JsValue::new_undefined());
+						panic!("Cannot find try/catch frame of leave");
 					}
 				}
-				&Ir::LoadRegex(ref pattern, ref modifiers) => { panic!(); },
-				&Ir::LoadString(ref string) => {
-					let _scope = self.heap.new_local_scope();
+				Next::EndFinally => {
+					// The end finally statement marks the end of a finally block.
+					//
+					// If we have an error in flight, we need to find the next catch
+					// or finally block. If we find a catch, the catch handles the
+					// exception. If we find a finally we leave the error in flight
+					// and we'll get back here.
+					//
+					// If we don't have an error in flight, we process the pending
+					// leave.
 					
-					let result = JsString::from_str(self, &string).as_value(self);
-					self.stack.push(*result);
-				}
-				&Ir::LoadThis => {
-					if let Some(this) = this {
-						self.stack.push(*this);
+					if let Some(ref error) = thrown {
+						// We have an error in flight and are exiting the finally
+						// block. We need to find the next frame that can process
+						// the error.
+						//
+						// If there is another frame present, and it contains a catch
+						// block, let the catch block process the error. Otherwise,
+						// it has a finally and we jump into that. We'll get back
+						// here after that.
+						
+						let mut next = false;
+						let mut found = false;
+						
+						for frame in &block.try_catches {
+							if next {
+								// If the frame has a catch block, let the catch
+								// block handle the error. Otherwise it must have
+								// a finally block and we enter that.
+								
+								if let Some(catch) = frame.catch {
+									ip = catch.start().offset();
+									
+									found = true;
+									break;
+								} else if let Some(finally) = frame.finally {
+									ip = finally.start().offset();
+									
+									found = true;
+									break;
+								} else {
+									panic!("Expected at least a catch or finally block");
+								}
+							} else if let Some(finally) = frame.finally {
+								// If the end finally is part of this frame, start processing
+								// frames to find the next finally.
+								
+								if finally.contains(ip) {
+									next = true;
+								}
+							}
+						}
+						
+						// If we didn't find another frame to process the error, move
+						// up the stack.
+						
+						if !found {
+							return Err(JsError::Runtime(error.clone()));
+						}
+					} else if let Some(leave_) = leave {
+						// There are two cases for a pending leave. In the simple case,
+						// the finally is being executed because we're leaving a try or
+						// catch and the leave is the first instruction after the finally
+						// block.
+						
+						if leave_ == ip + 1 {
+							ip = leave_;
+							continue;
+						}
+						
+						// Otherwise, we're processing e.g. a break or continue which may
+						// skip a few frames. If this is the case, we need to find the
+						// block the end finally is in and check the next block for
+						// a finally. If there is a finally that starts before the leave,
+						// we start with that block and let the leave in place. We'll
+						// get back here. Otherwise we jump to the pending leave.
+						
+						let mut next = false;
+						let mut found = false;
+						
+						for frame in &block.try_catches {
+							if next {
+								// If the leave instruction falls inside this frame, we
+								// stop processing frames because we can actually jump to it.
+								// Otherwise we check to see whether we need to process
+								// this finally block.
+								
+								if frame.contains(leave_) {
+									if let Some(finally) = frame.finally {
+										// We have another finally block to process. Jump into
+										// it.
+										
+										ip = finally.start().offset();
+										
+										found = true;
+										break;
+									}
+								} else {
+									// There are no matching frames left.
+									break;
+								}
+							} else if let Some(finally) = frame.finally {
+								// If the end finally is part of this frame, start processing
+								// frames to find the next finally.
+								
+								if finally.contains(ip) {
+									next = true;
+								}
+							}
+						}
+						
+						// If we didn't find a frame, jump to the leave.
+						
+						if !found {
+							ip = leave_;
+						}
 					} else {
-						self.stack.push(JsValue::new_object(self.global.as_ptr()));
+						panic!("End finaly without pending error or leave");
 					}
-				},
-				&Ir::LoadTrue => self.stack.push(JsValue::new_true()),
-				&Ir::LoadUndefined => self.stack.push(JsValue::new_undefined()),
-				&Ir::Lsh => { panic!(); },
-				&Ir::Lt => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(2);
-					let arg1 = frame.get(0).as_local(self);
-					let arg2 = frame.get(1).as_local(self);
-					let result = self.compare_gt(arg1, arg2);
-					self.stack.drop_frame(frame);
-					self.stack.push(JsValue::new_bool(result));
-				},
-				&Ir::Modulus => { panic!(); },
-				&Ir::Multiply => { panic!(); },
-				&Ir::Ne => { panic!(); },
-				&Ir::Negative => { panic!(); },
-				&Ir::New(count) => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(count as usize + 1);
-					let mut args = Vec::new();
-					for i in 0..count as usize {
-						args.push(frame.get(i + 1).as_local(self));
-					}
-					
-					let constructor = frame.get(0).as_local(self);
-					
-					let result = try!(constructor.construct(self, args));
-					
-					self.stack.drop_frame(frame);
-					self.stack.push(*result);
-				},
-				&Ir::NewArray => { panic!(); },
-				&Ir::NewObject => { panic!(); },
-				&Ir::NextIter(local, label) => { panic!(); },
-				&Ir::Not => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(1);
-					let arg = frame.get(0).as_local(self);
-					let result = self.logical_not(arg);
-					self.stack.drop_frame(frame);
-					self.stack.push(*result);
-				},
-				&Ir::Pick(depth) => { panic!(); },
-				&Ir::Pop => {
-					let frame = self.stack.create_frame(1);
-					self.stack.drop_frame(frame);
-				},
-				&Ir::Positive => { panic!(); },
-				&Ir::PushArray => { panic!(); },
-				&Ir::Return => {
-					let frame = self.stack.create_frame(1);
-					let result = frame.get(0);
-					self.stack.drop_frame(frame);
-					return Ok(result);
-				}
-				&Ir::Rsh => { panic!(); },
-				&Ir::RshZeroFill => { panic!(); },
-				&Ir::StoreArguments => { panic!(); },
-				&Ir::StoreGlobal(name) => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(1);
-					let value = frame.get(0).as_local(self);
-					try!(self.global.as_local(self).put(self, name, value, true));
-					self.stack.drop_frame(frame);
-				}
-				&Ir::StoreIndex => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(3);
-					
-					let index = frame.get(1).as_local(self);
-					let index = self.to_string(index);
-					let index = self.intern(&index.to_string());
-					
-					let value = frame.get(2).as_local(self);
-					try!(frame.get(0).as_local(self).put(self, index, value, true));
-					
-					self.stack.drop_frame(frame);
-				}
-				&Ir::StoreLifted(name, depth) => { panic!(); },
-				&Ir::StoreLocal(local) => {
-					let frame = self.stack.create_frame(1);
-					locals.set(local.offset(), frame.get(0));
-					self.stack.drop_frame(frame);
-				}
-				&Ir::StoreName(name) => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(2);
-					let value = frame.get(1).as_local(self);
-					try!(frame.get(0).as_local(self).put(self, name, value, true));
-					self.stack.drop_frame(frame);
-				}
-				&Ir::StoreNameLit => { panic!(); },
-				&Ir::StoreGetter(function) => { panic!(); },
-				&Ir::StoreNameGetter(name, function) => { panic!(); },
-				&Ir::StoreSetter(function) => { panic!(); },
-				&Ir::StoreNameSetter(name, function) => { panic!(); },
-				&Ir::StoreParam(u32) => { panic!(); },
-				&Ir::StrictEq => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(2);
-					let arg1 = frame.get(0).as_local(self);
-					let arg2 = frame.get(1).as_local(self);
-					let result = self.strict_eq(arg1, arg2);
-					self.stack.drop_frame(frame);
-					
-					self.stack.push(JsValue::new_bool(result));
-				},
-				&Ir::StrictNe => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(2);
-					let arg1 = frame.get(0).as_local(self);
-					let arg2 = frame.get(1).as_local(self);
-					let result = self.strict_eq(arg1, arg2);
-					self.stack.drop_frame(frame);
-					
-					self.stack.push(JsValue::new_bool(!result));
-				},
-				&Ir::Subtract => { panic!(); },
-				&Ir::Swap => { panic!(); },
-				&Ir::Throw => { panic!(); },
-				&Ir::ToBoolean => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(1);
-					let arg = frame.get(0).as_local(self);
-					let result = self.to_boolean(arg);
-					self.stack.drop_frame(frame);
-					
-					self.stack.push(JsValue::new_bool(result));
-				}
-				&Ir::Typeof => {
-					let _scope = self.heap.new_local_scope();
-					
-					let frame = self.stack.create_frame(1);
-					let arg = frame.get(0).as_local(self);
-					let result = self.type_of(arg);
-					self.stack.drop_frame(frame);
-					
-					self.stack.push(JsValue::new_string(result.as_ptr()));
 				}
 			}
-			
-			ip += 1;
 		}
+	}
+	
+	#[inline(always)]
+	fn call_stmt(&mut self, ip: &mut usize, ir: &Ir, locals: &StackFrame, this: &Option<Local<JsValue>>, args: &Vec<Local<JsValue>>, thrown: &mut Option<Root<JsValue>>) -> Next {
+		match ir {
+			&Ir::Add => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self);
+				let arg2 = frame.get(1).as_local(self);
+				let result = self.add(arg1, arg2);
+				self.stack.drop_frame(frame);
+				self.stack.push(*result);
+			}
+			&Ir::BitAnd => { unimplemented!(); },
+			&Ir::BitNot => { unimplemented!(); },
+			&Ir::BitOr => { unimplemented!(); },
+			&Ir::BitXOr => { unimplemented!(); },
+			&Ir::Call(count) => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(count as usize + 2);
+				let mut args = Vec::new();
+				for i in 0..count as usize {
+					args.push(frame.get(i + 2).as_local(self));
+				}
+				
+				let this = frame.get(0).as_local(self);
+				let function = frame.get(1).as_local(self);
+				let mut function = self.get_value(function);
+				
+				let result = local_try!(function.call(self, this, args));
+				
+				self.stack.drop_frame(frame);
+				self.stack.push(*result);
+			}
+			&Ir::CurrentIter(local) => { unimplemented!(); },
+			&Ir::Debugger => { unimplemented!(); },
+			&Ir::DeleteIndex => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				
+				let index = frame.get(1).as_local(self);
+				let index = self.to_string(index);
+				let index = self.intern(&index.to_string());
+				
+				let result = local_try!(frame.get(0).as_local(self).delete(self, index, true));
+				
+				self.stack.drop_frame(frame);
+				self.stack.push(JsValue::new_bool(result));
+			}
+			&Ir::DeleteName(name) => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(1);
+				
+				let result = local_try!(frame.get(0).as_local(self).delete(self, name, true));
+				
+				self.stack.drop_frame(frame);
+				self.stack.push(JsValue::new_bool(result));
+			}
+			&Ir::Divide => { unimplemented!(); },
+			&Ir::Dup => {
+				let frame = self.stack.create_frame(1);
+				self.stack.push(frame.get(0));
+			}
+			&Ir::EndFinally => return Next::EndFinally,
+			&Ir::EndIter(local) => { unimplemented!(); },
+			&Ir::EnterWith => { unimplemented!(); },
+			&Ir::Eq => { unimplemented!(); },
+			&Ir::Ge => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self);
+				let arg2 = frame.get(1).as_local(self);
+				let result = self.compare_ge(arg1, arg2);
+				self.stack.drop_frame(frame);
+				self.stack.push(JsValue::new_bool(result));
+			}
+			&Ir::Gt => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self);
+				let arg2 = frame.get(1).as_local(self);
+				let result = self.compare_gt(arg1, arg2);
+				self.stack.drop_frame(frame);
+				self.stack.push(JsValue::new_bool(result));
+			},
+			&Ir::In => { unimplemented!(); },
+			&Ir::InstanceOf => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self);
+				let arg2 = frame.get(1).as_local(self);
+				let result = local_try!(self.instanceof(arg1, arg2));
+				self.stack.drop_frame(frame);
+				self.stack.push(*result);
+			},
+			&Ir::IntoIter(local) => { unimplemented!(); },
+			&Ir::Jump(label) => { unimplemented!(); },
+			&Ir::JumpEq(label) => { unimplemented!(); },
+			&Ir::JumpFalse(label) => {
+				let frame = self.stack.create_frame(1);
+				let jump = !frame.get(0).get_bool();
+				self.stack.drop_frame(frame);
+				if jump {
+					*ip  = label.offset();
+					return Next::Next;
+				}
+			}
+			&Ir::JumpTrue(label) => {
+				let frame = self.stack.create_frame(1);
+				let jump = frame.get(0).get_bool();
+				self.stack.drop_frame(frame);
+				if jump {
+					*ip  = label.offset();
+					return Next::Next;
+				}
+			}
+			&Ir::Le => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self);
+				let arg2 = frame.get(1).as_local(self);
+				let result = self.compare_le(arg1, arg2);
+				self.stack.drop_frame(frame);
+				self.stack.push(JsValue::new_bool(result));
+			}
+			&Ir::Leave(label) => return Next::Leave(label.offset()),
+			&Ir::LeaveWith => { unimplemented!(); },
+			&Ir::LoadArguments => { unimplemented!(); },
+			&Ir::LoadException => {
+				if let Some(ref exception) = *thrown {
+					self.stack.push(**exception)
+				} else {
+					panic!("Load exception statement without exception in flight");
+				}
+
+				// We clear the exception in flight here. Every catch
+				// block begins with a load exception statement so
+				// we're guarenteed to correctly clear the exception
+				// in flight when we enter one.
+				
+				*thrown = None;
+			}
+			&Ir::LoadF64(value) => self.stack.push(JsValue::new_number(value)),
+			&Ir::LoadFalse => self.stack.push(JsValue::new_false()),
+			&Ir::LoadFunction(function) => {
+				let _scope = self.heap.new_local_scope();
+				
+				let function = *local_try!(self.new_function(function));
+				self.stack.push(function);
+			}
+			&Ir::LoadGlobal(name) => {
+				let _scope = self.heap.new_local_scope();
+				
+				let value = local_try!(self.global.as_local(self).get(self, name));
+				self.stack.push(*value);
+			}
+			&Ir::LoadGlobalThis => {
+				self.stack.push(JsValue::new_object(self.global.as_ptr()));
+			}
+			&Ir::LoadI32(value) => self.stack.push(JsValue::new_number(value as f64)),
+			&Ir::LoadI64(value) => self.stack.push(JsValue::new_number(value as f64)),
+			&Ir::LoadIndex => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				
+				let index = frame.get(1).as_local(self);
+				let index = self.to_string(index);
+				let index = self.intern(&index.to_string());
+				
+				let result = local_try!(frame.get(0).as_local(self).get(self, index));
+				
+				self.stack.drop_frame(frame);
+				
+				self.stack.push(*result);
+			}
+			&Ir::LoadLifted(name, depth) => { unimplemented!(); },
+			&Ir::LoadLocal(local) => self.stack.push(locals.get(local.offset())),
+			&Ir::LoadMissing => { unimplemented!(); },
+			&Ir::LoadName(name) => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(1);
+				let result = local_try!(frame.get(0).as_local(self).get(self, name));
+				self.stack.drop_frame(frame);
+				self.stack.push(*result);
+			}
+			&Ir::LoadNameLit => { unimplemented!(); },
+			&Ir::LoadNull => self.stack.push(JsValue::new_null()),
+			&Ir::LoadParam(index) => {
+				if index < args.len() as u32 {
+					self.stack.push(*args[index as usize]);
+				} else {
+					self.stack.push(JsValue::new_undefined());
+				}
+			}
+			&Ir::LoadRegex(ref pattern, ref modifiers) => { unimplemented!(); },
+			&Ir::LoadString(ref string) => {
+				let _scope = self.heap.new_local_scope();
+				
+				let result = JsString::from_str(self, &string).as_value(self);
+				self.stack.push(*result);
+			}
+			&Ir::LoadThis => {
+				if let Some(ref this) = *this {
+					self.stack.push(**this);
+				} else {
+					self.stack.push(JsValue::new_object(self.global.as_ptr()));
+				}
+			},
+			&Ir::LoadTrue => self.stack.push(JsValue::new_true()),
+			&Ir::LoadUndefined => self.stack.push(JsValue::new_undefined()),
+			&Ir::Lsh => { unimplemented!(); },
+			&Ir::Lt => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self);
+				let arg2 = frame.get(1).as_local(self);
+				let result = self.compare_gt(arg1, arg2);
+				self.stack.drop_frame(frame);
+				self.stack.push(JsValue::new_bool(result));
+			},
+			&Ir::Modulus => { unimplemented!(); },
+			&Ir::Multiply => { unimplemented!(); },
+			&Ir::Ne => { unimplemented!(); },
+			&Ir::Negative => { unimplemented!(); },
+			&Ir::New(count) => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(count as usize + 1);
+				let mut args = Vec::new();
+				for i in 0..count as usize {
+					args.push(frame.get(i + 1).as_local(self));
+				}
+				
+				let constructor = frame.get(0).as_local(self);
+				
+				let result = local_try!(constructor.construct(self, args));
+				
+				self.stack.drop_frame(frame);
+				self.stack.push(*result);
+			},
+			&Ir::NewArray => { unimplemented!(); },
+			&Ir::NewObject => {
+				let _scope = self.heap.new_local_scope();
+				
+				let result = self.new_object().as_value(self);
+				self.stack.push(*result);
+			},
+			&Ir::NextIter(local, label) => { unimplemented!(); },
+			&Ir::Not => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(1);
+				let arg = frame.get(0).as_local(self);
+				let result = self.logical_not(arg);
+				self.stack.drop_frame(frame);
+				self.stack.push(*result);
+			},
+			&Ir::Pick(depth) => { unimplemented!(); },
+			&Ir::Pop => {
+				let frame = self.stack.create_frame(1);
+				self.stack.drop_frame(frame);
+			},
+			&Ir::Positive => { unimplemented!(); },
+			&Ir::PushArray => { unimplemented!(); },
+			&Ir::Return => {
+				let frame = self.stack.create_frame(1);
+				let result = frame.get(0);
+				self.stack.drop_frame(frame);
+				return Next::Return(result);
+			}
+			&Ir::Rsh => { unimplemented!(); },
+			&Ir::RshZeroFill => { unimplemented!(); },
+			&Ir::StoreArguments => { unimplemented!(); },
+			&Ir::StoreGlobal(name) => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(1);
+				let value = frame.get(0).as_local(self);
+				local_try!(self.global.as_local(self).put(self, name, value, true));
+				self.stack.drop_frame(frame);
+			}
+			&Ir::StoreIndex => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(3);
+				
+				let index = frame.get(1).as_local(self);
+				let index = self.to_string(index);
+				let index = self.intern(&index.to_string());
+				
+				let value = frame.get(2).as_local(self);
+				local_try!(frame.get(0).as_local(self).put(self, index, value, true));
+				
+				self.stack.drop_frame(frame);
+			}
+			&Ir::StoreLifted(name, depth) => { unimplemented!(); },
+			&Ir::StoreLocal(local) => {
+				let frame = self.stack.create_frame(1);
+				locals.set(local.offset(), frame.get(0));
+				self.stack.drop_frame(frame);
+			}
+			&Ir::StoreName(name) => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				let value = frame.get(1).as_local(self);
+				local_try!(frame.get(0).as_local(self).put(self, name, value, true));
+				self.stack.drop_frame(frame);
+			}
+			&Ir::StoreNameLit => { unimplemented!(); },
+			&Ir::StoreGetter(function) => { unimplemented!(); },
+			&Ir::StoreNameGetter(name, function) => { unimplemented!(); },
+			&Ir::StoreSetter(function) => { unimplemented!(); },
+			&Ir::StoreNameSetter(name, function) => { unimplemented!(); },
+			&Ir::StoreParam(u32) => { unimplemented!(); },
+			&Ir::StrictEq => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self);
+				let arg2 = frame.get(1).as_local(self);
+				let result = self.strict_eq(arg1, arg2);
+				self.stack.drop_frame(frame);
+				
+				self.stack.push(JsValue::new_bool(result));
+			},
+			&Ir::StrictNe => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self);
+				let arg2 = frame.get(1).as_local(self);
+				let result = self.strict_eq(arg1, arg2);
+				self.stack.drop_frame(frame);
+				
+				self.stack.push(JsValue::new_bool(!result));
+			},
+			&Ir::Subtract => { unimplemented!(); },
+			&Ir::Swap => { unimplemented!(); },
+			&Ir::Throw => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(1);
+				let error = Root::from_local(&self.heap, frame.get(0).as_local(self));
+				self.stack.drop_frame(frame);
+				
+				return Next::Throw(JsError::Runtime(error));
+			}
+			&Ir::ToBoolean => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(1);
+				let arg = frame.get(0).as_local(self);
+				let result = self.to_boolean(arg);
+				self.stack.drop_frame(frame);
+				
+				self.stack.push(JsValue::new_bool(result));
+			}
+			&Ir::Typeof => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(1);
+				let arg = frame.get(0).as_local(self);
+				let result = self.type_of(arg);
+				self.stack.drop_frame(frame);
+				
+				self.stack.push(JsValue::new_string(result.as_ptr()));
+			}
+		}
+		
+		*ip += 1;
+		
+		Next::Next
 	}
 }

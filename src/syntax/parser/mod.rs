@@ -73,8 +73,10 @@ impl<'a> Parser<'a> {
 		} else if !throwarg {
 			// Has this local already been declared?
 			
-			if scope.blocks[0].locals.contains_key(&name) {
-				return;
+			for block in &scope.blocks {
+				if block.locals.contains_key(&name) {
+					return;
+				}
 			}
 			
 			&mut scope.blocks[0]
@@ -245,7 +247,7 @@ impl<'a> Parser<'a> {
 			let mut items = Vec::new();
 			
 			while !parser.is_eof() {
-				items.push(try!(parser.parse_item()));
+				items.push(try!(parser.parse_stmt(None)));
 			}
 			
 			let locals = parser.pop_block_scope();
@@ -271,30 +273,6 @@ impl<'a> Parser<'a> {
 		locals::LocalResolver::resolve(context, program_ref);
 		
 		Ok(program_ref)
-	}
-	
-	fn parse_item(&mut self) -> JsResult<Item> {
-		if let Some(&Token::Function) = self.peek() {
-			if let Some(&Token::Identifier(..)) = self.peek_at(1) {
-				self.bump();
-				
-				let function_ref = try!(self.parse_function());
-				let name = self.context.functions[function_ref.usize()].name.unwrap();
-				
-				if self.scopes.len() > 1 {
-					self.register_local(name, false);
-				}
-				
-				let ident = Ident {
-					name: name,
-					state: Cell::new(IdentState::None)
-				};
-				
-				return Ok(Item::Function(ident, function_ref));
-			}
-		}
-		
-		self.parse_stmt(None)
 	}
 	
 	fn parse_function(&mut self) -> JsResult<FunctionRef> {
@@ -330,7 +308,7 @@ impl<'a> Parser<'a> {
 		}
 		
 		while !self.consume(&Token::CloseBrace) {
-			stmts.push(try!(self.parse_item()));
+			stmts.push(try!(self.parse_stmt(None)));
 		}
 		
 		let locals = self.pop_block_scope();
@@ -504,6 +482,26 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_stmt(&mut self, label: Option<Label>) -> JsResult<Item> {
+		if let Some(&Token::Function) = self.peek() {
+			if let Some(&Token::Identifier(..)) = self.peek_at(1) {
+				self.bump();
+				
+				let function_ref = try!(self.parse_function());
+				let name = self.context.functions[function_ref.usize()].name.unwrap();
+				
+				if self.scopes.len() > 1 {
+					self.register_local(name, false);
+				}
+				
+				let ident = Ident {
+					name: name,
+					state: Cell::new(IdentState::None)
+				};
+				
+				return Ok(Item::Function(ident, function_ref));
+			}
+		}
+		
 		match self.peek() {
 			Some(&Token::OpenBrace) => Ok(Item::Block(label, try!(self.parse_block()))),
 			Some(&Token::Var) => self.parse_var_stmt(),

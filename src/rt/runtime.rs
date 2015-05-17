@@ -56,11 +56,11 @@ impl JsEnv {
 			&JsFunction::Ir(function_ref) => {
 				let function = try!(self.ir.get_function_ir(function_ref));
 				
-				println!("ENTER {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
+				debugln!("ENTER {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
 				
 				let result = try!(self.call_block(function, Some(args.this), args.args)).as_local(self);
 				
-				println!("EXIT {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
+				debugln!("EXIT {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
 				
 				result
 			}

@@ -18,3 +18,4 @@ path = "src/lib.rs"
 
 libc = "0.1"
 time = "0.1"
+lazy_static = "0.1.10"

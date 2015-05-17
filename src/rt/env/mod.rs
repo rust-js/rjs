@@ -89,6 +89,7 @@ fn setup_global(env: &mut JsEnv) {
 	
 	function!(global, name::ESCAPE, Global_escape, 1, &function_prototype, env);
 	function!(global, name::UNESCAPE, Global_unescape, 1, &function_prototype, env);
+	function!(global, name::EVAL, Global_eval, 1, &function_prototype, env);
 }
 
 fn setup_function(env: &mut JsEnv, prototype: &mut Local<JsObject>, class: &Local<JsObject>) {

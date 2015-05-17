@@ -1,9 +1,14 @@
+#[macro_use]
+extern crate lazy_static;
+
 use gc::Root;
 use rt::{JsEnv, JsValue, JsString, JsItem};
 use std::fmt;
 use syntax::Name;
 use syntax::token::name;
 
+#[macro_use]
+pub mod debug;
 pub mod syntax;
 pub mod ir;
 pub mod util;
@@ -88,7 +93,7 @@ impl fmt::Debug for JsError {
 			JsError::Parse(ref message) => try!(write!(formatter, "Parse {{ {} }}", message)),
 			JsError::Runtime(..) => try!(write!(formatter, "Runtime {{ .. }}"))
 		}
-		write!(formatter, "}}")
+		write!(formatter, " }}")
 	}
 }
 

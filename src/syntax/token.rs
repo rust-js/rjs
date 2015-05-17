@@ -249,4 +249,5 @@ declare_idents! {
 	( "TypeError", TYPE_ERROR_CLASS, 77 );
 	( "RangeError", RANGE_ERROR_CLASS, 78 );
 	( "SyntaxError", SYNTAX_ERROR_CLASS, 79 );
+	( "eval", EVAL, 80 );
 }
