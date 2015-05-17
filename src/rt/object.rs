@@ -60,13 +60,13 @@ impl JsItem for Local<JsObject> {
 	}
 	
 	// 8.12.7 [[Delete]] (P, Throw)
-	fn delete(&mut self, env: &JsEnv, property: Name, throw: bool) -> JsResult<bool> {
+	fn delete(&mut self, env: &mut JsEnv, property: Name, throw: bool) -> JsResult<bool> {
 		if let Some(desc) = self.get_own_property(env, property) {
 			if desc.is_configurable() {
 				self.props.remove(property);
 				Ok(true)
 			} else if throw {
-				Err(JsError::Type)
+				Err(JsError::new_type(env))
 			} else {
 				Ok(false)
 			}
@@ -76,14 +76,14 @@ impl JsItem for Local<JsObject> {
 	}
 	
 	// 8.12.9 [[DefineOwnProperty]] (P, Desc, Throw)
-	fn define_own_property(&mut self, env: &JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
+	fn define_own_property(&mut self, env: &mut JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
 		let current = self.get_own_property(env, property);
 		let extensible = self.is_extensible(env);
 		
 		match current {
 			None => {
 				return if !extensible {
-					if throw { Err(JsError::Type) } else { Ok(false) }
+					if throw { Err(JsError::new_type(env)) } else { Ok(false) }
 				} else {
 					if descriptor.is_generic() || descriptor.is_data() {
 						JsDescriptor {
@@ -174,7 +174,7 @@ impl JsItem for Local<JsObject> {
 				}
 				
 				if !can_write(env, &current, &descriptor) {
-					if throw { Err(JsError::Type) } else { Ok(false) }
+					if throw { Err(JsError::new_type(env)) } else { Ok(false) }
 				} else {
 					self.props.replace(property, &descriptor);
 					Ok(true)
@@ -232,13 +232,13 @@ impl JsItem for Local<JsObject> {
 	// 15.3.5.3 [[HasInstance]] (V)
 	fn has_instance(&self, env: &mut JsEnv, object: Local<JsValue>) -> JsResult<bool> {
 		if self.function.is_none() {
-			Err(JsError::Type)
+			Err(JsError::new_type(env))
 		} else if object.ty() != JsType::Object {
 			Ok(false)
 		} else {
 			let prototype = try!(self.get(env, name::PROTOTYPE));
 			if prototype.ty() != JsType::Object {
-				Err(JsError::Type)
+				Err(JsError::new_type(env))
 			} else {
 				let mut object = object;
 				

@@ -246,4 +246,7 @@ declare_idents! {
 	( "Date", DATE_CLASS, 74 );
 	( "getYear", GET_YEAR, 75 );
 	( "setYear", SET_YEAR, 76 );
+	( "TypeError", TYPE_ERROR_CLASS, 77 );
+	( "RangeError", RANGE_ERROR_CLASS, 78 );
+	( "SyntaxError", SYNTAX_ERROR_CLASS, 79 );
 }

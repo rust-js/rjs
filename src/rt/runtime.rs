@@ -41,13 +41,13 @@ impl JsEnv {
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.2.3
 	pub fn call_function(&mut self, args: JsArgs) -> JsResult<Local<JsValue>> {
 		if args.function.ty() != JsType::Object {
-			return Err(JsError::Type);
+			return Err(JsError::new_type(self));
 		};
 		
 		let function = args.function.get_object();
 		let function = function.function();
 		if !function.is_some() {
-			return Err(JsError::Type);
+			return Err(JsError::new_type(self));
 		}
 		
 		let function = function.as_ref().unwrap();
@@ -220,7 +220,8 @@ impl JsEnv {
 		
 		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), self.function_prototype.as_local(self)).as_value(self);
 		
-		try!(result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(proto.as_value(self), true, false, true), false));
+		let value = proto.as_value(self);
+		try!(result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false));
 		try!(proto.define_own_property(self, name::CONSTRUCTOR, JsDescriptor::new_value(result, true, false, true), false));
 		
 		Ok(result)

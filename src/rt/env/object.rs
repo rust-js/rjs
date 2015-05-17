@@ -12,7 +12,7 @@ pub fn Object_create(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 	let mut result = JsObject::new_local(env);
 	
 	if args.args.len() < 1 {
-		return Err(JsError::Type);
+		return Err(JsError::new_type(env));
 	}
 
 	result.set_prototype(env, Some(args.args[0]));
@@ -55,7 +55,7 @@ pub fn Object_defineProperty(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<Js
 // http://ecma-international.org/ecma-262/5.1/#sec-15.2.3.3
 pub fn Object_getOwnPropertyDescriptor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	if args.args.len() < 1 || args.args[0].ty() != JsType::Object {
-		Err(JsError::Type)
+		Err(JsError::new_type(env))
 	} else {
 		let arg = if args.args.len() < 2 {
 			JsValue::new_undefined().as_local(env)

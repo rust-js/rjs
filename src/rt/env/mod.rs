@@ -91,8 +91,9 @@ fn setup_global(env: &mut JsEnv) {
 	function!(global, name::UNESCAPE, Global_unescape, 1, &function_prototype, env);
 }
 
-fn setup_function(env: &JsEnv, prototype: &mut Local<JsObject>, class: &Local<JsObject>) {
-	prototype.define_own_property(env, name::CONSTRUCTOR, JsDescriptor::new_value(class.as_value(env), true, false, true), false).ok();
+fn setup_function(env: &mut JsEnv, prototype: &mut Local<JsObject>, class: &Local<JsObject>) {
+	let value = class.as_value(env);
+	prototype.define_own_property(env, name::CONSTRUCTOR, JsDescriptor::new_value(value, true, false, true), false).ok();
 	
 	function!(prototype, name::CALL, Function_call, 1, prototype, env);
 	function!(prototype, name::APPLY, Function_apply, 2, prototype, env);
@@ -101,7 +102,7 @@ fn setup_function(env: &JsEnv, prototype: &mut Local<JsObject>, class: &Local<Js
 	accessor!(prototype, name::LENGTH, Function_length_get, Function_length_set, prototype, env);
 }
 
-fn setup_object<'a>(env: &JsEnv, prototype: &mut Local<JsObject>, function_prototype: &Local<JsObject>) -> Local<JsValue> {
+fn setup_object<'a>(env: &mut JsEnv, prototype: &mut Local<JsObject>, function_prototype: &Local<JsObject>) -> Local<JsValue> {
 	function!(prototype, name::TO_STRING, Object_toString, 0, function_prototype, env);
 	function!(prototype, name::TO_LOCALE_STRING, Object_valueOf, 0, function_prototype, env);
 	function!(prototype, name::VALUE_OF, Object_toString, 0, function_prototype, env);
@@ -153,7 +154,7 @@ fn new_naked_function<'a>(env: &JsEnv, name: Option<Name>, args: u32, function: 
 
 // http://ecma-international.org/ecma-262/5.1/#sec-13.2
 // TODO: INCOMPLETE
-fn new_function<'a>(env: &JsEnv, name: Option<Name>, args: u32, function: Box<JsFn>, prototype: &Local<JsObject>) -> Local<JsValue> {
+fn new_function<'a>(env: &mut JsEnv, name: Option<Name>, args: u32, function: Box<JsFn>, prototype: &Local<JsObject>) -> Local<JsValue> {
 	let mut proto = JsObject::new_local(env);
 	
 	proto.set_class(env, Some(name::FUNCTION_CLASS));
@@ -161,7 +162,8 @@ fn new_function<'a>(env: &JsEnv, name: Option<Name>, args: u32, function: Box<Js
 	let mut result = new_naked_function(env, name, args, function, &prototype);
 	let result_value = result.as_value(env);
 	
-	result.define_own_property(env, name::PROTOTYPE, JsDescriptor::new_value(proto.as_value(env), true, false, true), false).ok();
+	let value = proto.as_value(env);
+	result.define_own_property(env, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false).ok();
 	proto.define_own_property(env, name::CONSTRUCTOR, JsDescriptor::new_value(result_value, true, false, true), false).ok();
 	
 	result_value

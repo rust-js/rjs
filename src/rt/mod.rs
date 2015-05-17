@@ -121,6 +121,10 @@ impl JsEnv {
 		Ok(result)
 	}
 	
+	pub fn heap(&self) -> &GcHeap {
+		&self.heap
+	}
+	
 	/// Returns a new GC handle to the global object.
 	pub fn global(&self) -> &Root<JsObject> {
 		&self.global
@@ -231,7 +235,7 @@ pub trait JsItem {
 	fn put(&mut self, env: &mut JsEnv, property: Name, value: Local<JsValue>, throw: bool) -> JsResult<()> {
 		if !self.can_put(env, property) {
 			return if throw {
-				Err(JsError::Type)
+				Err(JsError::new_type(env))
 			} else {
 				Ok(())
 			};
@@ -239,7 +243,8 @@ pub trait JsItem {
 		
 		if let Some(own_desc) = self.get_own_property(env, property) {
 			if own_desc.is_data() {
-				try!(self.define_own_property(env, property, JsDescriptor::new_simple_value(own_desc.value(env)), throw));
+				let value = own_desc.value(env);
+				try!(self.define_own_property(env, property, JsDescriptor::new_simple_value(value), throw));
 				
 				return Ok(());
 			}
@@ -264,7 +269,7 @@ pub trait JsItem {
 	}
 	
 	// 8.12.7 [[Delete]] (P, Throw)
-	fn delete(&mut self, env: &JsEnv, property: Name, throw: bool) -> JsResult<bool> {
+	fn delete(&mut self, env: &mut JsEnv, property: Name, throw: bool) -> JsResult<bool> {
 		// If get_own_property returns None, delete returns true.
 		Ok(true)
 	}
@@ -309,7 +314,7 @@ pub trait JsItem {
 				return Ok(val);
 			}
 			
-			Err(JsError::Type)
+			Err(JsError::new_type(env))
 		} else {
 			let value_of = try!(this.get(env, name::VALUE_OF));
 			if let Some(val) = try!(try_call(env, this, value_of)) {
@@ -321,14 +326,14 @@ pub trait JsItem {
 				return Ok(str);
 			}
 			
-			Err(JsError::Type)
+			Err(JsError::new_type(env))
 		}
 	}
 	
 	// 8.12.9 [[DefineOwnProperty]] (P, Desc, Throw)
-	fn define_own_property(&mut self, env: &JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
+	fn define_own_property(&mut self, env: &mut JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
 		// If get_own_property returns None and self is not extensible, the below happens.
-		if throw { Err(JsError::Type) } else { Ok(false) }
+		if throw { Err(JsError::new_type(env)) } else { Ok(false) }
 	}
 	
 	fn is_callable(&self, env: &JsEnv) -> bool {
@@ -397,7 +402,7 @@ pub trait JsItem {
 	}
 	
 	fn has_instance(&self, env: &mut JsEnv, object: Local<JsValue>) -> JsResult<bool> {
-		Err(JsError::Type)
+		Err(JsError::new_type(env))
 	}
 	
 	fn scope(&self, env: &JsEnv) -> Option<Local<JsScope>> {
@@ -531,7 +536,7 @@ impl JsDescriptor {
 	}
 	
 	// 8.10.4 FromPropertyDescriptor ( Desc )
-	pub fn from_property_descriptor(&self, env: &JsEnv) -> JsResult<Local<JsValue>> {
+	pub fn from_property_descriptor(&self, env: &mut JsEnv) -> JsResult<Local<JsValue>> {
 		let mut obj = env.new_object();
 		
 		if self.is_data() {
@@ -560,7 +565,7 @@ impl JsDescriptor {
 	// 8.10.5 ToPropertyDescriptor ( Obj )
 	pub fn to_property_descriptor(env: &mut JsEnv, obj: Local<JsValue>) -> JsResult<JsDescriptor> {
 		if obj.ty() != JsType::Object {
-			Err(JsError::Type)
+			Err(JsError::new_type(env))
 		} else {
 			let enumerable = if obj.has_property(env, name::ENUMERABLE) {
 				let enumerable = try!(obj.get(env, name::ENUMERABLE));
@@ -588,7 +593,7 @@ impl JsDescriptor {
 			let getter = if obj.has_property(env, name::GET) {
 				let getter = try!(obj.get(env, name::GET));
 				if getter.ty() != JsType::Undefined && !getter.is_callable(env) {
-					return Err(JsError::Type);
+					return Err(JsError::new_type(env));
 				}
 				Some(getter)
 			} else {
@@ -597,14 +602,14 @@ impl JsDescriptor {
 			let setter = if obj.has_property(env, name::SET) {
 				let setter = try!(obj.get(env, name::SET));
 				if setter.ty() != JsType::Undefined && !setter.is_callable(env) {
-					return Err(JsError::Type);
+					return Err(JsError::new_type(env));
 				}
 				Some(setter)
 			} else {
 				None
 			};
 			if (getter.is_some() || setter.is_some()) && writable.is_some() {
-				return Err(JsError::Type);
+				return Err(JsError::new_type(env));
 			}
 			
 			Ok(JsDescriptor {

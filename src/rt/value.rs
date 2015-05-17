@@ -198,7 +198,7 @@ impl JsItem for Local<JsValue> {
 		delegate!(self, env, has_property(env, property))
 	}
 	
-	fn delete(&mut self, env: &JsEnv, property: Name, throw: bool) -> JsResult<bool> {
+	fn delete(&mut self, env: &mut JsEnv, property: Name, throw: bool) -> JsResult<bool> {
 		delegate!(self, env, delete(env, property, throw))
 	}
 	
@@ -206,7 +206,7 @@ impl JsItem for Local<JsValue> {
 		delegate!(self, env, default_value(env, hint))
 	}
 	
-	fn define_own_property(&mut self, env: &JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
+	fn define_own_property(&mut self, env: &mut JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
 		delegate!(self, env, define_own_property(env, property, descriptor, throw))
 	}
 	
