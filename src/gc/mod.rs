@@ -122,12 +122,11 @@ impl<T> Deref for ArrayRoot<T> {
 	fn deref(&self) -> &[T] {
 		unsafe {
 			let ptr = self.handles.get_target(self.handle);
-			let size = *transmute::<_, *const usize>(ptr);
 			let ptr = ptr.offset(size_of::<usize>() as isize);
 			
 			slice::from_raw_parts(
 				transmute(ptr),
-				size
+				self.len()
 			)
 		}
 	}
@@ -137,12 +136,11 @@ impl<T> DerefMut for ArrayRoot<T> {
 	fn deref_mut(&mut self) -> &mut [T] {
 		unsafe {
 			let ptr = self.handles.get_target(self.handle);
-			let size = *transmute::<_, *const usize>(ptr);
 			let ptr = ptr.offset(size_of::<usize>() as isize);
 			
 			slice::from_raw_parts_mut(
 				transmute(ptr),
-				size
+				self.len()
 			)
 		}
 	}
@@ -409,12 +407,11 @@ impl<T> Deref for Array<T> {
 	
 	fn deref(&self) -> &[T] {
 		unsafe {
-			let size = *transmute::<_, *const usize>(self.ptr);
 			let ptr = self.ptr.offset(size_of::<usize>() as isize);
 			
 			slice::from_raw_parts(
 				transmute(ptr),
-				size
+				self.len()
 			)
 		}
 	}
@@ -423,12 +420,11 @@ impl<T> Deref for Array<T> {
 impl<T> DerefMut for Array<T> {
 	fn deref_mut(&mut self) -> &mut [T] {
 		unsafe {
-			let size = *transmute::<_, *const usize>(self.ptr);
 			let ptr = self.ptr.offset(size_of::<usize>() as isize);
 			
 			slice::from_raw_parts_mut(
 				transmute(ptr),
-				size
+				self.len()
 			)
 		}
 	}

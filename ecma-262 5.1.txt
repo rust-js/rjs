@@ -2546,20 +2546,21 @@ be normalised), as long as they do not contain any Unicode escape sequences.
 8.5 The Number Type
 ===================
 
-The Number type has exactly 18437736874454810627 (that is, 264−253+3) values, representing the
+The Number type has exactly 18437736874454810627 (that is, 2^64−2^53+3) values, representing the
 double-precision 64-bit format IEEE 754 values as specified in the IEEE Standard for Binary
-Floating-Point Arithmetic, except that the 9007199254740990 (that is, 253−2) distinct “Not-a-Number”
-values of the IEEE Standard are represented in ECMAScript as a single special NaN value. (Note that
-the NaN value is produced by the program expression NaN.) In some implementations, external code
-might be able to detect a difference between various Not-a-Number values, but such behaviour is
-implementation-dependent; to ECMAScript code, all NaN values are indistinguishable from each other.
+Floating-Point Arithmetic, except that the 9007199254740990 (that is, 2^53−2) distinct
+“Not-a-Number” values of the IEEE Standard are represented in ECMAScript as a single special NaN
+value. (Note that the NaN value is produced by the program expression NaN.) In some implementations,
+external code might be able to detect a difference between various Not-a-Number values, but such
+behaviour is implementation-dependent; to ECMAScript code, all NaN values are indistinguishable from
+each other.
 
 There are two other special values, called positive Infinity and negative Infinity. For brevity,
 these values are also referred to for expository purposes by the symbols +∞ and −∞, respectively.
 (Note that these two infinite Number values are produced by the program expressions +Infinity (or
 simply Infinity) and -Infinity.)
 
-The other 18437736874454810624 (that is, 264−253) values are called the finite numbers. Half of
+The other 18437736874454810624 (that is, 2^64−2^53) values are called the finite numbers. Half of
 these are positive numbers and half are negative numbers; for every finite positive Number value
 there is a corresponding negative value having the same magnitude.
 
@@ -2567,22 +2568,22 @@ Note that there is both a positive zero and a negative zero. For brevity, these 
 referred to for expository purposes by the symbols +0 and −0, respectively. (Note that these two
 different zero Number values are produced by the program expressions +0 (or simply 0) and -0.)
 
-The 18437736874454810622 (that is, 264−253−2) finite nonzero values are of two kinds:
+The 18437736874454810622 (that is, 2^64−2^53−2) finite nonzero values are of two kinds:
 
-18428729675200069632 (that is, 264−254) of them are normalised, having the form
+18428729675200069632 (that is, 2^64−2^54) of them are normalised, having the form
 
 s × m × 2e
 
-where s is +1 or −1, m is a positive integer less than 253 but not less than 252, and e is an
+where s is +1 or −1, m is a positive integer less than 2^53 but not less than 2^52, and e is an
 integer ranging from −1074 to 971, inclusive.
 
-The remaining 9007199254740990 (that is, 253−2) values are denormalised, having the form
+The remaining 9007199254740990 (that is, 2^53−2) values are denormalised, having the form
 
 s × m × 2e
 
-where s is +1 or −1, m is a positive integer less than 252, and e is −1074.
+where s is +1 or −1, m is a positive integer less than 2^52, and e is −1074.
 
-Note that all the positive and negative integers whose magnitude is no greater than 253 are
+Note that all the positive and negative integers whose magnitude is no greater than 2^53 are
 representable in the Number type (indeed, the integer 0 has two representations, +0 and -0).
 
 A finite number has an odd significand if it is nonzero and the integer m used to express it (in one
@@ -2592,17 +2593,17 @@ In this specification, the phrase “the Number value for x” where x represent
 mathematical quantity (which might even be an irrational number such as π) means a Number value
 chosen in the following manner. Consider the set of all finite values of the Number type, with −0
 removed and with two additional values added to it that are not representable in the Number type,
-namely 21024 (which is +1 × 253 × 2971) and −21024 (which is −1 × 253 × 2971). Choose the member of
-this set that is closest in value to x. If two values of the set are equally close, then the one
-with an even significand is chosen; for this purpose, the two extra values 21024 and −21024 are
-considered to have even significands. Finally, if 21024 was chosen, replace it with +∞; if −21024
-was chosen, replace it with −∞; if +0 was chosen, replace it with −0 if and only if x is less than
-zero; any other chosen value is used unchanged. The result is the Number value for x. (This
-procedure corresponds exactly to the behaviour of the IEEE 754 “round to nearest” mode.)
+namely 2^1024 (which is +1 × 2^53 × 2^971) and −2^1024 (which is −1 × 2^53 × 2^971). Choose the
+member of this set that is closest in value to x. If two values of the set are equally close, then
+the one with an even significand is chosen; for this purpose, the two extra values 2^1024 and
+−2^1024 are considered to have even significands. Finally, if 2^1024 was chosen, replace it with +∞;
+if −2^1024 was chosen, replace it with −∞; if +0 was chosen, replace it with −0 if and only if x is
+less than zero; any other chosen value is used unchanged. The result is the Number value for x.
+(This procedure corresponds exactly to the behaviour of the IEEE 754 “round to nearest” mode.)
 
-Some ECMAScript operators deal only with integers in the range −231 through 231−1, inclusive, or in
-the range 0 through 232−1, inclusive. These operators accept any value of the Number type but first
-convert each such value to one of 232 integer values. See the descriptions of the ToInt32 and
+Some ECMAScript operators deal only with integers in the range −2^31 through 2^31−1, inclusive, or
+in the range 0 through 2^32−1, inclusive. These operators accept any value of the Number type but
+first convert each such value to one of 2^32 integer values. See the descriptions of the ToInt32 and
 ToUint32 operators in 9.5 and 9.6, respectively.
 
 8.6 The Object Type
@@ -3622,8 +3623,8 @@ literal; second, this mathematical value is rounded as described below.
     of this MV is also 0. The rounding rule described below handles the conversion of this signless
     mathematical zero to a floating-point +0 or −0 as appropriate.)
 
--   The MV of StrUnsignedDecimalLiteral ::: Infinity is 1010000 (a value so large that it will round
-    to +∞).
+-   The MV of StrUnsignedDecimalLiteral ::: Infinity is 10^10000 (a value so large that it will
+    round to +∞).
 
 -   The MV of StrUnsignedDecimalLiteral ::: DecimalDigits . is the MV of DecimalDigits.
 
@@ -3731,16 +3732,16 @@ operation functions as follows:
 9.5 ToInt32: (Signed 32 Bit Integer)
 ====================================
 
-The abstract operation ToInt32 converts its argument to one of 232 integer values in the range −231
-through 231−1, inclusive. This abstract operation functions as follows:
+The abstract operation ToInt32 converts its argument to one of 2^32 integer values in the range
+−2^31 through 2^31−1, inclusive. This abstract operation functions as follows:
 
 1.  Let number be the result of calling ToNumber on the input argument.
 2.  If number is NaN, +0, −0, +∞, or −∞, return +0.
 3.  Let posInt be sign(number) * floor(abs(number)).
-4.  Let int32bit be posInt modulo 232; that is, a finite integer value k of Number type with
-    positive sign and less than 232 in magnitude such that the mathematical difference of posInt and
-    k is mathematically an integer multiple of 232.
-5.  If int32bit is greater than or equal to 231, return int32bit − 232, otherwise return int32bit.
+4.  Let int32bit be posInt modulo 2^32; that is, a finite integer value k of Number type with
+    positive sign and less than 2^32 in magnitude such that the mathematical difference of posInt
+    and k is mathematically an integer multiple of 2^32.
+5.  If int32bit is greater than or equal to 2^31, return int32bit − 2^32, otherwise return int32bit.
 
 NOTE Given the above definition of ToInt32:
 
@@ -3755,15 +3756,15 @@ NOTE Given the above definition of ToInt32:
 9.6 ToUint32: (Unsigned 32 Bit Integer)
 =======================================
 
-The abstract operation ToUint32 converts its argument to one of 232 integer values in the range 0
-through 232−1, inclusive. This abstraction operation functions as follows:
+The abstract operation ToUint32 converts its argument to one of 2^32 integer values in the range 0
+through 2^32−1, inclusive. This abstraction operation functions as follows:
 
 1.  Let number be the result of calling ToNumber on the input argument.
 2.  If number is NaN, +0, −0, +∞, or −∞, return +0.
 3.  Let posInt be sign(number) × floor(abs(number)).
-4.  Let int32bit be posInt modulo 232; that is, a finite integer value k of Number type with
-    positive sign and less than 232 in magnitude such that the mathematical difference of posInt and
-    k is mathematically an integer multiple of 232.
+4.  Let int32bit be posInt modulo 2^32; that is, a finite integer value k of Number type with
+    positive sign and less than 2^32 in magnitude such that the mathematical difference of posInt
+    and k is mathematically an integer multiple of 2^32.
 5.  Return int32bit.
 
 NOTE Given the above definition of ToUInt32:
@@ -3781,20 +3782,21 @@ NOTE Given the above definition of ToUInt32:
 9.7 ToUint16: (Unsigned 16 Bit Integer)
 =======================================
 
-The abstract operation ToUint16 converts its argument to one of 216 integer values in the range 0
-through 216−1, inclusive. This abstract operation functions as follows:
+The abstract operation ToUint16 converts its argument to one of 2^16 integer values in the range 0
+through 2^16−1, inclusive. This abstract operation functions as follows:
 
 1.  Let number be the result of calling ToNumber on the input argument.
 2.  If number is NaN, +0, −0, +∞, or −∞, return +0.
 3.  Let posInt be sign(number) × floor(abs(number)).
-4.  Let int16bit be posInt modulo 216; that is, a finite integer value k of Number type with
-    positive sign and less than 216 in magnitude such that the mathematical difference of posInt and
-    k is mathematically an integer multiple of 216.
+4.  Let int16bit be posInt modulo 2^16; that is, a finite integer value k of Number type with
+    positive sign and less than 2^16 in magnitude such that the mathematical difference of posInt
+    and k is mathematically an integer multiple of 2^16.
 5.  Return int16bit.
 
 NOTE Given the above definition of ToUint16:
 
--   The substitution of 216 for 232 in step 4 is the only difference between ToUint32 and ToUint16.
+-   The substitution of 2^16 for 2^32 in step 4 is the only difference between ToUint32 and
+    ToUint16.
 -   ToUint16 maps −0 to +0.
 
 9.8 ToString
@@ -8882,9 +8884,9 @@ NOTE Function objects created using Function.prototype.bind use the default [[Ge
 
 Array objects give special treatment to a certain class of property names. A property name P (in the
 form of a String value) is an array index if and only if ToString(ToUint32(P)) is equal to P and
-ToUint32(P) is not equal to 232−1. A property whose property name is an array index is also called
+ToUint32(P) is not equal to 2^32−1. A property whose property name is an array index is also called
 an element. Every Array object has a length property whose value is always a nonnegative integer
-less than 232. The value of the length property is numerically greater than the name of every
+less than 2^32. The value of the length property is numerically greater than the name of every
 property whose name is an array index; whenever a property of an Array object is created or changed,
 other properties are adjusted as necessary to maintain this invariant. Specifically, whenever a
 property is added whose name is an array index, the length property is changed, if necessary, to be
@@ -10332,7 +10334,7 @@ String object. Therefore, it can be transferred to other kinds of objects for us
 15.5.4.5 String.prototype.charCodeAt (pos)
 ==========================================
 
-Returns a Number (a nonnegative integer less than 216) representing the code unit value of the
+Returns a Number (a nonnegative integer less than 2^16) representing the code unit value of the
 character at position pos in the String resulting from converting this object to a String. If there
 is no character at that position, the result is NaN.
 
@@ -10665,7 +10667,7 @@ When the split method is called, the following steps are taken:
 3.  Let A be a new array created as if by the expression new Array()where Array is the standard
     built-in constructor with that name.
 4.  Let lengthA be 0.
-5.  If limit is undefined, let lim = 232–1; else let lim = ToUint32(limit).
+5.  If limit is undefined, let lim = 2^32–1; else let lim = ToUint32(limit).
 6.  Let s be the number of characters in S.
 7.  Let p = 0.
 8.  If separator is a RegExp object (its [[Class]] is "RegExp"), let R = separator; otherwise let R
@@ -11050,7 +11052,7 @@ false }.
 =========================
 
 The value of Number.MAX_VALUE is the largest positive finite value of the Number type, which is
-approximately 1.7976931348623157 × 10308.
+approximately 1.7976931348623157 × 10^308.
 
 This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]:
 false }.
@@ -11168,10 +11170,10 @@ Specifically, perform the following steps:
     1.  Let s be "-".
     2.  Let x = –x.
 
-7.  If x ≥ 1021, then
+7.  If x ≥ 10^21, then
     1.  Let m = ToString(x).
 
-8.  Else, x < 1021
+8.  Else, x < 10^21
     1.  Let n be an integer for which the exact mathematical value of n ÷ 10f – x is as close to
         zero as possible. If there are two such n, pick the larger n.
     2.  If n = 0, let m be the String "0". Otherwise, let m be the String consisting of the digits
@@ -11997,7 +11999,7 @@ The operator TimeClip calculates a number of milliseconds from its argument, whi
 ECMAScript Number value. This operator functions as follows:
 
 1.  If time is not finite, return NaN.
-2.  If abs(time) > 8.64 x 1015, return NaN.
+2.  If abs(time) > 8.64 x 10^15, return NaN.
 3.  Return an implementation-dependent choice of either ToInteger(time) or ToInteger(time) + (+0).
     (Adding a positive zero converts −0 to +0.)
 
@@ -16696,7 +16698,7 @@ Semantics
     is (8 times the MV of the FourToSeven) plus the MV of the OctalDigit.
 
 -   The CV of OctalEscapeSequence :: ZeroToThree OctalDigit OctalDigit is the character whose code
-    unit value is (64 (that is, 82) times the MV of the ZeroToThree) plus (8 times the MV of the
+    unit value is (64 (that is, 8^2) times the MV of the ZeroToThree) plus (8 times the MV of the
     first OctalDigit) plus the MV of the second OctalDigit.
 
 -   The MV of ZeroToThree :: 0 is 0.

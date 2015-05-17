@@ -144,6 +144,17 @@ pub enum Lit {
 	Regex(String, String)
 }
 
+impl Lit {
+	pub fn to_number(&self) -> Option<f64> {
+		match *self {
+			Lit::Null | Lit::Boolean(..) | Lit::String(..) | Lit::Regex(..) => None,
+			Lit::Integer(value) => Some(value as f64),
+			Lit::Long(value) => Some(value as f64),
+			Lit::Double(value) => Some(value)
+		}
+	}
+}
+
 macro_rules! declare_idents {(
 	$( ($str:expr, $name:ident, $num:expr); )*
 ) => {
@@ -246,8 +257,31 @@ declare_idents! {
 	( "Date", DATE_CLASS, 74 );
 	( "getYear", GET_YEAR, 75 );
 	( "setYear", SET_YEAR, 76 );
-	( "TypeError", TYPE_ERROR_CLASS, 77 );
-	( "RangeError", RANGE_ERROR_CLASS, 78 );
-	( "SyntaxError", SYNTAX_ERROR_CLASS, 79 );
-	( "eval", EVAL, 80 );
+	( "Array", ARRAY_CLASS, 77 );
+	( "concat", CONCAT, 78 );
+	( "join", JOIN, 79 );
+	( "pop", POP, 80 );
+	( "push", PUSH, 81 );
+	( "reverse", REVERSE, 82 );
+	( "shift", SHIFT, 83 );
+	( "slice", SLICE, 84 );
+	( "sort", SORT, 85 );
+	( "splice", SPLICE, 86 );
+	( "unshift", UNSHIFT, 87 );
+	( "indexOf", INDEX_OF, 88 );
+	( "lastIndexOf", LAST_INDEX_OF, 89 );
+	( "every", EVERY, 90 );
+	( "some", SOME, 91 );
+	( "forEach", FOR_EACH, 92 );
+	( "map", MAP, 93 );
+	( "filter", FILTER, 94 );
+	( "reduce", REDUCE, 95 );
+	( "reduceRight", REDUCE_RIGHT, 96 );
+	( "isArray", IS_ARRAY, 97 );
+	( "Boolean", BOOLEAN_CLASS, 98 );
+	( "Number", NUMBER_CLASS, 99 );
+	( "TypeError", TYPE_ERROR_CLASS, 100 );
+	( "RangeError", RANGE_ERROR_CLASS, 101 );
+	( "SyntaxError", SYNTAX_ERROR_CLASS, 102 );
+	( "eval", EVAL, 103 );
 }

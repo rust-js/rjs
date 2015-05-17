@@ -1,116 +1,36 @@
-extern crate libc;
+const INITIAL_OBJECT : usize = 20;
 
+use super::Store;
+use super::super::{JsEnv, JsDescriptor, GC_HASH_STORE, GC_ENTRY};
 use syntax::Name;
-use super::{JsEnv, JsValue, JsDescriptor, GC_OBJECT_ENTRY};
+use gc::{Local, Array, ArrayLocal};
+use super::Entry;
 
-const VALID        : u32 = 0b00001;
-const WRITABLE     : u32 = 0b00010;
-const ENUMERABLE   : u32 = 0b00100;
-const CONFIGURABLE : u32 = 0b01000;
-const ACCESSOR     : u32 = 0b10000;
-
-#[derive(Copy, Clone)]
-pub struct Entry {
-	name: Name,
-	flags: u32,
-	next: i32,
-	value1: JsValue,
-	value2: JsValue
-}
-
-impl Entry {
-	fn is_valid(&self) -> bool {
-		(self.flags & VALID) != 0
-	}
-	
-	fn as_property(&self, env: &JsEnv) -> JsDescriptor {
-		if (self.flags & ACCESSOR) != 0 {
-			JsDescriptor {
-				value: None,
-				get: Some(self.value1.as_local(env)),
-				set: Some(self.value2.as_local(env)),
-				writable: None,
-				enumerable: Some((self.flags & ENUMERABLE) != 0),
-				configurable: Some((self.flags & CONFIGURABLE) != 0)
-			}
-		} else {
-			JsDescriptor {
-				value: Some(self.value1.as_local(env)),
-				get: None,
-				set: None,
-				writable: Some((self.flags & WRITABLE) != 0),
-				enumerable: Some((self.flags & ENUMERABLE) != 0),
-				configurable: Some((self.flags & CONFIGURABLE) != 0)
-			}
-		}
-	}
-	
-	
-	fn from_descriptor(descriptor: &JsDescriptor, name: Name, next: i32) -> Entry {
-		let flags = VALID |
-			if descriptor.writable.unwrap_or(true) { WRITABLE } else { 0 } |
-			if descriptor.configurable.unwrap_or(true) { CONFIGURABLE } else { 0 } |
-			if descriptor.enumerable.unwrap_or(true) { ENUMERABLE } else { 0 } |
-			if descriptor.is_accessor() { ACCESSOR } else { 0 };
-		
-		let value1;
-		let value2;
-		
-		if descriptor.is_accessor() {
-			value1 = if let Some(get) = descriptor.get {
-				*get
-			} else {
-				JsValue::new_undefined()
-			};
-			value2 = if let Some(set) = descriptor.set {
-				*set
-			} else {
-				JsValue::new_undefined()
-			};
-		} else {
-			value1 = if let Some(value) = descriptor.value {
-				*value
-			} else {
-				JsValue::new_undefined()
-			};
-			value2 = JsValue::new_undefined();
-		}
-		
-		Entry {
-			name: name,
-			flags: flags,
-			next: next,
-			value1: value1,
-			value2: value2
-		}
-	}
-}
-
-pub struct Hash {
-	entries: *mut [Entry],
+pub struct HashStore {
+	entries: Array<Entry>,
 	count: u32
 }
 
-impl Hash {
-	pub fn new(env: &JsEnv, capacity: usize) -> Hash {
-		let entries = unsafe {
-			&mut *env.heap.alloc_array::<Entry>(GC_OBJECT_ENTRY, primes::get_prime(capacity)) as *mut [Entry]
-		};
-		
-		Hash {
-			entries: entries,
+impl HashStore {
+	pub fn new_local(env: &JsEnv) -> Local<HashStore> {
+		let mut store = env.heap.alloc_local::<HashStore>(GC_HASH_STORE);
+		*store = Self::new(env);
+		store
+	}
+	
+	pub fn new(env: &JsEnv) -> HashStore {
+		HashStore {
+			entries: unsafe { env.heap.alloc_array::<Entry>(GC_ENTRY, primes::get_prime(INITIAL_OBJECT)) },
 			count: 0
 		}
 	}
 	
 	fn find_entry(&self, name: Name) -> Option<usize> {
-		let entries = unsafe { &*self.entries };
-		
 		let mut offset = self.hash(name) as usize;
 		
 		// If the first entry isn't valid, we don't have it in the list.
 		
-		if !entries[offset].is_valid() {
+		if !self.entries[offset].is_valid() {
 			return None;
 		}
 		
@@ -120,13 +40,13 @@ impl Hash {
 		loop {
 			// If the name is equal, we've found the correct entry.
 			
-			if entries[offset].name == name {
+			if self.entries[offset].name == name {
 				return Some(offset);
 			}
 			
 			// See whether this entry is changed to another entry.
 			
-			let next = entries[offset].next;
+			let next = self.entries[offset].next;
 			if next < 0 {
 				return None;
 			}
@@ -142,7 +62,7 @@ impl Hash {
 	}
 	
 	fn capacity(&self) -> usize {
-		unsafe { &*self.entries }.len()
+		self.entries.len()
 	}
 	
 	fn hash(&self, name: Name) -> u32 {
@@ -153,17 +73,32 @@ impl Hash {
 		(self.capacity() * 7 / 10) as u32
 	}
 	
-	pub fn add(&mut self, name: Name, value: &JsDescriptor, env: &JsEnv) {
-		let mut entries = unsafe { &mut *self.entries };
+	fn grow_entries(&mut self, env: &JsEnv) {
+		let entries = ArrayLocal::from_ptr(self.entries, &env.heap);
 		
+		unsafe {
+			self.entries = env.heap.alloc_array(GC_ENTRY, primes::get_prime(entries.len() * 2));
+		}
+		
+		self.count = 0;
+		
+		for i in 0..entries.len() {
+			let entry = entries[i];
+			if entry.is_valid() {
+				self.add(env, entry.name, &entry.as_property(env));
+			}
+		}
+	}
+}
+
+impl Store for HashStore {
+	fn add(&mut self, env: &JsEnv, name: Name, value: &JsDescriptor) {
 		assert!(!self.find_entry(name).is_some());
 		
 		// Grow the entries when we have to.
 		
 		if self.count > self.max_load_factor() {
 			self.grow_entries(env);
-			
-			entries = unsafe { &mut *self.entries };
 		}
 		
         // If the entry at the ideal location doesn't have the correct has,
@@ -172,18 +107,18 @@ impl Hash {
 		let hash = self.hash(name);
 		
 		if
-			entries[hash as usize].is_valid() &&
-			self.hash(entries[hash as usize].name) != hash
+			self.entries[hash as usize].is_valid() &&
+			self.hash(self.entries[hash as usize].name) != hash
 		{
 			// Create a copy of the current entry and remove it.
 			
-			let copy = entries[hash as usize];
+			let copy = self.entries[hash as usize];
 			
-			self.remove(copy.name);
+			self.remove(env, copy.name);
 			
 			// Put the new entry at the ideal location.
 			
-			entries[hash as usize] = Entry::from_descriptor(value, name, -1);
+			self.entries[hash as usize] = Entry::from_descriptor(value, name, -1);
 			
 			// Increment the count.
 			
@@ -191,33 +126,33 @@ impl Hash {
 			
 			// And now add the previous entry.
 			
-			self.add(copy.name, &copy.as_property(env), env);
+			self.add(env, copy.name, &copy.as_property(env));
 		} else {
 			// Find the end of the chain currently at the entry.
 			
 			let mut entry = self.hash(name) as i32;
 			let mut free;
 			
-			if entries[entry as usize].is_valid() {
+			if self.entries[entry as usize].is_valid() {
 				// Find the end of the chain.
 				
-				let mut next = entries[entry as usize].next;
+				let mut next = self.entries[entry as usize].next;
 				while next != -1 {
 					entry = next;
-					next = entries[entry as usize].next
+					next = self.entries[entry as usize].next
 				}
 				
 				// Find a free entry.
 				
 				free = entry as usize + 1;
-				let length = entries.len();
+				let length = self.entries.len();
 				
 				loop {
 					if free == length {
 						free = 0;
 					}
 					
-					if !entries[free].is_valid() {
+					if !self.entries[free].is_valid() {
 						break;
 					}
 					
@@ -230,12 +165,12 @@ impl Hash {
 			
 			// Put the new entry into the free location.
 			
-			entries[free] = Entry::from_descriptor(value, name, -1);
+			self.entries[free] = Entry::from_descriptor(value, name, -1);
 			
 			// Fixup the chain if we have one.
 			
 			if entry >= 0 {
-				entries[entry as usize].next = free as i32;
+				self.entries[entry as usize].next = free as i32;
 			}
 			
 			// Increment the count.
@@ -244,35 +179,15 @@ impl Hash {
 		}
 	}
 	
-	fn grow_entries(&mut self, env: &JsEnv) {
-		let entries;
-		
-		unsafe {
-			entries = &*self.entries;
-		
-			self.entries = &mut *env.heap.alloc_array(GC_OBJECT_ENTRY, primes::get_prime(entries.len() * 2));
-		}
-		
-		self.count = 0;
-		
-		for entry in entries {
-			if entry.is_valid() {
-				self.add(entry.name, &entry.as_property(env), env);
-			}
-		}
-	}
-	
-	pub fn remove(&mut self, name: Name) -> bool {
-		let entries = unsafe { &mut *self.entries };
-		
+	fn remove(&mut self, _: &JsEnv, name: Name) -> bool {
 		// Find the position of the element.
 		
 		let mut last = -1;
 		let mut index = self.hash(name) as i32;
 		
-		while index != -1 && entries[index as usize].name != name {
+		while index != -1 && self.entries[index as usize].name != name {
 			last = index;
-			index = entries[index as usize].next;
+			index = self.entries[index as usize].next;
 		}
 		
 		if index < 0 {
@@ -281,28 +196,28 @@ impl Hash {
         	// If this is not the tail of the chain, we need to fixup.
         	
         	let index = index as usize;
-        	let next = entries[index].next;
+        	let next = self.entries[index].next;
         	
         	if last != -1 {
                 // If this is not the head of the chain, the previous
                 // entry must point to the next entry and this entry
                 // becomes invalidated.
                 
-        		entries[last as usize].next = next;
+        		self.entries[last as usize].next = next;
         		
-        		entries[index].flags = 0;
+        		self.entries[index].flags = 0;
         	} else if next != -1 {
                 // Otherwise, we replace the head of the chain with the
                 // next entry and invalidate the next entry.
         		
-        		entries[index] = entries[next as usize];
+        		self.entries[index] = self.entries[next as usize];
         		
-        		entries[next as usize].flags = 0;
+        		self.entries[next as usize].flags = 0;
         	} else {
                 // If we're the head and there is no next entry, just
                 // invalidate this one.
         		
-        		entries[index].flags = 0;
+        		self.entries[index].flags = 0;
         	}
         	
         	// Decrement the count.
@@ -313,19 +228,18 @@ impl Hash {
         }
 	}
 	
-	pub fn get_value(&self, name: Name, env: &JsEnv) -> Option<JsDescriptor> {
+	fn get_value(&self, env: &JsEnv, name: Name) -> Option<JsDescriptor> {
 		if let Some(index) = self.find_entry(name) {
-			let entry = &unsafe { &*self.entries }[index];
-			Some(entry.as_property(env))
+			Some(self.entries[index].as_property(env))
 		} else {
 			None
 		}
 	}
 	
-	pub fn replace(&self, name: Name, value: &JsDescriptor) -> bool {
+	fn replace(&mut self, _: &JsEnv, name: Name, value: &JsDescriptor) -> bool {
 		if let Some(index) = self.find_entry(name) {
-			let entry = &mut unsafe { &mut *self.entries }[index];
-			*entry = Entry::from_descriptor(value, entry.name, entry.next);
+			let entry = self.entries[index];
+			self.entries[index] = Entry::from_descriptor(value, entry.name, entry.next);
 			
 			true
 		} else {
@@ -333,16 +247,16 @@ impl Hash {
 		}
 	}
 	
-	pub fn key_iter(&self) -> HashIter {
-		HashIter {
+	fn key_iter(&self, _: &JsEnv) -> Box<Iterator<Item=Name>> {
+		Box::new(HashIter {
 			entries: self.entries,
 			offset: 0
-		}
+		})
 	}
 }
 
 pub struct HashIter {
-	entries: *const [Entry],
+	entries: Array<Entry>,
 	offset: usize
 }
 
@@ -350,10 +264,8 @@ impl Iterator for HashIter {
 	type Item = Name;
 	
 	fn next(&mut self) -> Option<Self::Item> {
-		let entries = unsafe { &*self.entries };
-		
-		while self.offset < entries.len() {
-			let entry = &entries[self.offset];
+		while self.offset < self.entries.len() {
+			let entry = self.entries[self.offset];
 			self.offset += 1;
 			
 			if entry.is_valid() {

@@ -4,12 +4,7 @@ use ::{JsResult, JsError};
 use syntax::ast::FunctionRef;
 use syntax::token::name;
 use std::f64;
-
-pub enum ToPrimitiveHint {
-	None,
-	Number,
-	String
-}
+use std::cmp;
 
 pub enum ComparisonResult {
 	Undefined,
@@ -19,22 +14,22 @@ pub enum ComparisonResult {
 
 impl JsEnv {
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.6.1
-	pub fn add(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> Local<JsValue> {
+	pub fn add(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<Local<JsValue>> {
 		let lhs = self.get_value(lhs);
 		let rhs = self.get_value(rhs);
-		let lprim = self.to_primitive(lhs, ToPrimitiveHint::None);
-		let rprim = self.to_primitive(rhs, ToPrimitiveHint::None);
+		let lprim = try!(lhs.to_primitive(self, JsPreferredType::None));
+		let rprim = try!(rhs.to_primitive(self, JsPreferredType::None));
 		
 		if lprim.ty() == JsType::String || rprim.ty() == JsType::String {
-			let lhs = self.to_string(lprim);
-			let rhs = self.to_string(rprim);
+			let lhs = try!(lprim.to_string(self));
+			let rhs = try!(rprim.to_string(self));
 			let result = JsString::concat(self, lhs, rhs);
 			
-			JsValue::new_string(result.as_ptr()).as_local(self)
+			Ok(JsValue::new_string(result.as_ptr()).as_local(self))
 		} else {
-			JsValue::new_number(
-				self.to_number(lprim) + self.to_number(rprim)
-			).as_local(self)
+			Ok(JsValue::new_number(
+				try!(lprim.to_number(self)) + try!(rprim.to_number(self))
+			).as_local(self))
 		}
 	}
 	
@@ -75,33 +70,6 @@ impl JsEnv {
 		value
 	}
 	
-	// http://ecma-international.org/ecma-262/5.1/#sec-9.1
-	pub fn to_primitive(&mut self, value: Local<JsValue>, _hint: ToPrimitiveHint) -> Local<JsValue> {
-		if value.ty() == JsType::Object {
-			panic!();
-		} else {
-			value
-		}
-	}
-	
-	// http://ecma-international.org/ecma-262/5.1/#sec-9.8
-	pub fn to_string(&mut self, value: Local<JsValue>) -> Local<JsString> {
-		match value.ty() {
-			JsType::Undefined => JsString::from_str(self, "undefined"),
-			JsType::Null => JsString::from_str(self, "null"),
-			JsType::Boolean => JsString::from_str(self, if value.get_bool() { "true" } else { "false" }),
-			JsType::Number => {
-				// http://ecma-international.org/ecma-262/5.1/#sec-9.8.1
-				panic!();
-			}
-			JsType::String => Local::from_ptr(value.get_string(), &mut self.heap),
-			JsType::Object => {
-				let result = self.to_primitive(value, ToPrimitiveHint::String);
-				self.to_string(result)
-			}
-		}
-	}
-	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.4.3
 	pub fn type_of(&mut self, value: Local<JsValue>) -> Local<JsString> {
 		JsString::from_str(self, match value.ty() {
@@ -114,38 +82,24 @@ impl JsEnv {
 		})
 	}
 	
-	// http://ecma-international.org/ecma-262/5.1/#sec-9.3
-	pub fn to_number(&mut self, value: Local<JsValue>) -> f64 {
-		match value.ty() {
-			JsType::Undefined => f64::NAN,
-			JsType::Null => 0f64,
-			JsType::Boolean => if value.get_bool() { 1f64 } else { 0f64 },
-			JsType::Number => value.get_number(),
-			JsType::String => panic!(),
-			JsType::Object => {
-				let value = self.to_primitive(value, ToPrimitiveHint::Number);
-				self.to_number(value)
-			}
-		}
-	}
-	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.5
-	pub fn compare(&mut self, x: Local<JsValue>, y: Local<JsValue>, left_first: bool) -> ComparisonResult {
+	pub fn compare(&mut self, x: Local<JsValue>, y: Local<JsValue>, left_first: bool) -> JsResult<ComparisonResult> {
 		let px;
 		let py;
 		
 		if left_first {
-			px = self.to_primitive(x, ToPrimitiveHint::Number);
-			py = self.to_primitive(y, ToPrimitiveHint::Number);
+			px = try!(x.to_primitive(self, JsPreferredType::Number));
+			py = try!(y.to_primitive(self, JsPreferredType::Number));
 		} else {
-			py = self.to_primitive(y, ToPrimitiveHint::Number);
-			px = self.to_primitive(x, ToPrimitiveHint::Number);
+			py = try!(y.to_primitive(self, JsPreferredType::Number));
+			px = try!(x.to_primitive(self, JsPreferredType::Number));
 		}
 		
 		if !(px.ty() == JsType::String && py.ty() == JsType::String) {
-			let nx = self.to_number(px);
-			let ny = self.to_number(py);
-			if nx.is_nan() || ny.is_nan() {
+			let nx = try!(px.to_number(self));
+			let ny = try!(py.to_number(self));
+			
+			let result = if nx.is_nan() || ny.is_nan() {
 				ComparisonResult::Undefined
 			} else if nx == ny {
 				ComparisonResult::False
@@ -163,58 +117,89 @@ impl JsEnv {
 				ComparisonResult::True
 			} else {
 				if nx < ny { ComparisonResult::True } else { ComparisonResult::False }
-			}
+			};
+			
+			Ok(result)
 		} else {
-			panic!();
+			let px = try!(px.to_string(self)).to_string();
+			let py = try!(py.to_string(self)).to_string();
+			Ok(self.compare_string(&px, &py))
 		}
 	}
 	
-	fn compare_any(&mut self, x: Local<JsValue>, y: Local<JsValue>, left_first: bool) -> ComparisonResult {
+	// 11.8.5 The Abstract Relational Comparison Algorithm
+	pub fn compare_string(&mut self, x: &str, y: &str) -> ComparisonResult {
+		if x.starts_with(y) {
+			ComparisonResult::False
+		} else if y.starts_with(x) {
+			ComparisonResult::True
+		} else {
+			let x = x.chars().collect::<Vec<_>>();
+			let y = y.chars().collect::<Vec<_>>();
+			
+			let len = cmp::min(x.len(), y.len());
+			let mut same = 0usize;
+			
+			for i in 0..len {
+				if x[i] != y[i] {
+					break;
+				}
+				same = i;
+			}
+			
+			let x_char = x[same];
+			let y_char = y[same];
+			
+			if x_char < y_char { ComparisonResult::True } else { ComparisonResult::False }
+		}
+	}
+	
+	fn compare_any(&mut self, x: Local<JsValue>, y: Local<JsValue>, left_first: bool) -> JsResult<ComparisonResult> {
 		self.compare(x, y, left_first)
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.1
-	pub fn compare_lt(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> bool {
-		let result = self.compare_any(x, y, false);
+	pub fn compare_lt(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> JsResult<bool> {
+		let result = try!(self.compare_any(x, y, false));
 		
-		match result {
+		Ok(match result {
 			ComparisonResult::True => true,
 			_ => false
-		}
+		})
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.2
-	pub fn compare_gt(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> bool  {
-		let result = self.compare_any(x, y, true);
+	pub fn compare_gt(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> JsResult<bool>  {
+		let result = try!(self.compare_any(x, y, true));
 		
-		match result {
+		Ok(match result {
 			ComparisonResult::True => true,
 			_ => false
-		}
+		})
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.3
-	pub fn compare_le(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> bool  {
-		let result = self.compare_any(x, y, false);
+	pub fn compare_le(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> JsResult<bool>  {
+		let result = try!(self.compare_any(x, y, false));
 		
-		match result {
+		Ok(match result {
 			ComparisonResult::True | ComparisonResult::Undefined => false,
 			_ => true
-		}
+		})
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.4
-	pub fn compare_ge(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> bool  {
-		let result = self.compare_any(x, y, true);
+	pub fn compare_ge(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> JsResult<bool>  {
+		let result = try!(self.compare_any(x, y, true));
 		
-		match result {
+		Ok(match result {
 			ComparisonResult::True | ComparisonResult::Undefined => false,
 			_ => true
-		}
+		})
 	}
 	
 	pub fn new_function(&mut self, function_ref: FunctionRef) -> JsResult<Local<JsValue>> {
-		let mut proto = JsObject::new_local(self);
+		let mut proto = JsObject::new_local(self, JsStoreType::Hash);
 	
 		proto.set_class(self, Some(name::FUNCTION_CLASS));
 		
@@ -239,22 +224,8 @@ impl JsEnv {
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.4.9
 	pub fn logical_not(&mut self, arg: Local<JsValue>) -> Local<JsValue> {
 		let value = self.get_value(arg);
-		let value = self.to_boolean(value);
+		let value = value.to_boolean();
 		JsValue::new_bool(!value).as_local(self)
-	}
-	
-	// http://ecma-international.org/ecma-262/5.1/#sec-9.2
-	pub fn to_boolean(&self, value: Local<JsValue>) -> bool {
-		match value.ty() {
-			JsType::Undefined | JsType::Null => false,
-			JsType::Boolean => value.get_bool(),
-			JsType::Number => {
-				let value = value.get_number();
-				!(value == 0f64 || value.is_nan())
-			}
-			JsType::String => value.get_string().chars.len() > 0,
-			JsType::Object => true
-		}
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.9.4
@@ -304,10 +275,33 @@ impl JsEnv {
 	// http://ecma-international.org/ecma-262/5.1/#sec-15.2.2
 	// TODO: Wrapping value not yet implemented.
 	pub fn new_object(&self) -> Local<JsObject> {
-		let mut obj = JsObject::new_local(self);
+		let mut obj = JsObject::new_local(self, JsStoreType::Hash);
 		
 		obj.set_prototype(self, Some(self.object_prototype.as_value(self)));
 		obj.set_class(self, Some(name::OBJECT_CLASS));
+		
+		obj
+	}
+	
+	// 15.4.5.2 length
+	pub fn new_array(&mut self) -> Local<JsObject> {
+		let mut obj = JsObject::new_local(self, JsStoreType::Array);
+		
+		// This must be called before the class is set to get the
+		// define_own_property implementation of Object.
+		// We don't propagate the JsError because this define_own_property
+		// will not fail.
+		
+		let length = JsValue::new_number(0f64).as_local(self);
+		obj.define_own_property(
+			self,
+			name::LENGTH,
+			JsDescriptor::new_value(length, true, false, false),
+			false
+		).ok();
+		
+		obj.set_prototype(self, Some(self.array_prototype.as_value(self)));
+		obj.set_class(self, Some(name::ARRAY_CLASS));
 		
 		obj
 	}

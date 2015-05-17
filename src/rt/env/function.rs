@@ -22,13 +22,14 @@ pub fn Function_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 	if args.args.len() == 0 {
 		body = JsString::from_str(env, "");
 	} else {
-		body = env.to_string(args.args[args.args.len() - 1]);
+		body = try!(args.args[args.args.len() - 1].to_string(env));
 		
 		for i in 0..args.args.len() - 1 {
 			if i > 0 {
 				source.push_str(", ");
 			}
-			source.push_str(&env.to_string(args.args[i]).to_string());
+			let arg = try!(args.args[i].to_string(env));
+			source.push_str(&arg.to_string());
 		}
 	}
 	

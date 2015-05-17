@@ -39,8 +39,8 @@ impl Name {
 		Name(-(name as i32 + 1))
 	}
 	
-	pub fn from_index(index: u32) -> Name {
-		assert!(index <= i32::MAX as u32);
+	pub fn from_index(index: usize) -> Name {
+		assert!(index <= i32::MAX as usize);
 		
 		Name(index as i32)
 	}
@@ -56,9 +56,9 @@ impl Name {
 		self.0 >= 0
 	}
 	
-	pub fn index(&self) -> Option<u32> {
+	pub fn index(&self) -> Option<usize> {
 		if self.is_index() {
-			Some(self.0 as u32)
+			Some(self.0 as usize)
 		} else {
 			None
 		}

@@ -1,12 +1,17 @@
 extern crate libc;
 
-use super::{JsEnv, JsString, JsType, JsObject, JsItem, JsDescriptor, JsScope, JsDefaultValueHint};
+use super::{JsEnv, JsString, JsType, JsObject, JsItem, JsDescriptor, JsScope, JsPreferredType};
 use super::{JsNull, JsUndefined, JsNumber, JsBoolean, GC_VALUE};
-use ::JsResult;
+use ::{JsResult, JsError};
 use syntax::Name;
+use syntax::lexer::Lexer;
+use syntax::reader::StringReader;
+use syntax::token::Token;
+use syntax::token::name;
 use gc::{Local, Ptr};
 use std::fmt;
 use std::mem::transmute;
+use std::f64;
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct JsValue {
@@ -202,7 +207,7 @@ impl JsItem for Local<JsValue> {
 		delegate!(self, env, delete(env, property, throw))
 	}
 	
-	fn default_value(&self, env: &mut JsEnv, hint: JsDefaultValueHint) -> JsResult<Local<JsValue>> {
+	fn default_value(&self, env: &mut JsEnv, hint: JsPreferredType) -> JsResult<Local<JsValue>> {
 		delegate!(self, env, default_value(env, hint))
 	}
 	
@@ -214,7 +219,7 @@ impl JsItem for Local<JsValue> {
 		delegate!(self, env, is_callable(env))
 	}
 	
-	fn call(&mut self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>>  {
+	fn call(&self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>>  {
 		delegate!(self, env, call(env, this, args))
 	}
 	
@@ -284,6 +289,183 @@ impl JsItem for Local<JsValue> {
 }
 
 impl Local<JsValue> {
+	// 9.1 ToPrimitive
+	pub fn to_primitive(&self, env: &mut JsEnv, hint: JsPreferredType) -> JsResult<Local<JsValue>> {
+		match self.ty() {
+			JsType::Object => self.default_value(env, hint),
+			_ => Ok(*self)
+		}
+	}
+	
+	// 9.2 ToBoolean
+	pub fn to_boolean(&self) -> bool {
+		match self.ty() {
+			JsType::Undefined | JsType::Null => false,
+			JsType::Boolean => self.get_bool(),
+			JsType::Number => {
+				let value = self.get_number();
+				!(value == 0f64 || value.is_nan())
+			}
+			JsType::String => self.get_string().chars.len() > 0,
+			JsType::Object => true
+		}
+	}
+	
+	// 9.3 ToNumber
+	pub fn to_number(&self, env: &mut JsEnv) -> JsResult<f64> {
+		let result = match self.ty() {
+			JsType::Undefined => f64::NAN,
+			JsType::Null => 0f64,
+			JsType::Boolean => if self.get_bool() { 1f64 } else { 0f64 },
+			JsType::Number => self.get_number(),
+			JsType::String => {
+				let mut reader = StringReader::new("", &self.get_string().to_string());
+				if let Ok(lexer) = Lexer::new(&mut reader, env.ir.interner(), true) {
+					if let Some(token) = lexer.peek(0) {
+						if lexer.peek(1).is_none() {
+							if let Token::Literal(ref lit) = *token.token() {
+								if let Some(value) = lit.to_number() {
+									return Ok(value);
+								}
+							}
+						}
+					}
+				}
+				
+				f64::NAN
+			},
+			JsType::Object => {
+				let value = try!(self.to_primitive(env, JsPreferredType::Number));
+				try!(value.to_number(env))
+			}
+		};
+		
+		Ok(result)
+	}
+	
+	// 9.4 ToInteger
+	pub fn to_integer(&self, env: &mut JsEnv) -> JsResult<f64> {
+		let number = try!(self.to_number(env));
+		let result = if number.is_nan() {
+			0f64
+		} else if number == 0f64 || number.is_infinite() {
+			number
+		} else {
+			number.round()
+		};
+		
+		Ok(result)
+	}
+	
+	// 9.5 ToInt32: (Signed 32 Bit Integer)
+	// TODO: This does not adhere to the full specs.
+	pub fn to_int32(&self, env: &mut JsEnv) -> JsResult<i32> {
+		let number = try!(self.to_number(env));
+		let result = if number.is_nan() || number == 0f64 || number.is_infinite() {
+			0
+		} else {
+			number as i32
+		};
+		
+		Ok(result)
+	}
+	
+	// 9.6 ToUint32: (Unsigned 32 Bit Integer)
+	// TODO: This does not adhere to the full specs.
+	pub fn to_uint32(&self, env: &mut JsEnv) -> JsResult<u32> {
+		let number = try!(self.to_number(env));
+		let result = if number.is_nan() || number == 0f64 || number.is_infinite() {
+			0
+		} else {
+			number as u32
+		};
+		
+		Ok(result)
+	}
+	
+	// 9.6 ToUint32: (Unsigned 32 Bit Integer)
+	// TODO: This does not adhere to the full specs.
+	pub fn to_uint32_exact(&self, env: &mut JsEnv) -> JsResult<Option<u32>> {
+		let number = try!(self.to_number(env));
+		let result = if number.is_nan() || number == 0f64 || number.is_infinite() {
+			0
+		} else {
+			number as u32
+		};
+		
+		if result as f64 == number {
+			Ok(Some(result))
+		} else {
+			Ok(None)
+		}
+	}
+	
+	// 9.7 ToUint16: (Unsigned 16 Bit Integer)
+	// TODO: This does not adhere to the full specs.
+	pub fn to_uint16(&self, env: &mut JsEnv) -> JsResult<u16> {
+		let number = try!(self.to_number(env));
+		let result = if number.is_nan() || number == 0f64 || number.is_infinite() {
+			0
+		} else {
+			number as u16
+		};
+		
+		Ok(result)
+	}
+	
+	// 9.8 ToString
+	pub fn to_string(&self, env: &mut JsEnv) -> JsResult<Local<JsString>> {
+		let result = match self.ty {
+			JsType::Undefined => JsString::from_str(env, "undefined"),
+			JsType::Null => JsString::from_str(env, "null"),
+			JsType::Boolean => JsString::from_str(env, if self.get_bool() { "true" } else { "false" }),
+			JsType::Number => {
+				let number = self.get_number();
+				
+				if number.is_nan() {
+					JsString::from_str(env, "NaN")
+				} else if number == 0f64 {
+					JsString::from_str(env, "0")
+				} else if number.is_infinite() {
+					JsString::from_str(env, "Infinity")
+				} else {
+					// TODO: This is very wrong. See 9.8.1 ToString Applied to the Number Type
+					// for the full specifications. A C# implementation can be found at
+					// http://jurassic.codeplex.com/SourceControl/latest#Jurassic/Core/NumberFormatter.cs.
+					JsString::from_str(env, &number.to_string())
+				}
+			}
+			JsType::String => Local::from_ptr(self.get_string(), &mut env.heap),
+			JsType::Object => {
+				let result = try!(self.to_primitive(env, JsPreferredType::String));
+				try!(result.to_string(env))
+			}
+		};
+		
+		Ok(result)
+	}
+	
+	// 9.9 ToObject
+	pub fn to_object(&self, env: &mut JsEnv) -> JsResult<Local<JsValue>> {
+		match self.ty {
+			JsType::Null | JsType::Undefined => Err(JsError::Type),
+			JsType::Boolean | JsType::Number | JsType::String => {
+				let class = match self.ty {
+					JsType::Boolean => name::BOOLEAN_CLASS,
+					JsType::Number => name::NUMBER_CLASS,
+					JsType::String => name::STRING_CLASS,
+					_ => unreachable!()
+				};
+				
+				let constructor = try!(env.global().as_local(env).get(env, class));
+				let object = try!(constructor.construct(env, Vec::new()));
+				object.as_object(env).set_value(Some(*self));
+				Ok(object)
+			}
+			JsType::Object => Ok(*self)
+		}
+	}
+	
 	pub fn as_object(&self, env: &JsEnv) -> Local<JsObject> {
 		Local::from_ptr(self.get_object(), &env.heap)
 	}
@@ -328,11 +510,11 @@ impl JsRawValue {
 	}
 	
 	fn get_number(&self) -> f64 {
-		unsafe { *transmute::<_, &f64>(&self.data) }
+		unsafe { transmute(self.data) }
 	}
 	
 	fn set_number(&mut self, value: f64) {
-		unsafe { self.data = *transmute::<_, &u64>(&value); }
+		unsafe { self.data = transmute(value); }
 	}
 	
 	fn get_bool(&self) -> bool {

@@ -247,7 +247,7 @@ impl JsEnv {
 				let frame = self.stack.create_frame(2);
 				let arg1 = frame.get(0).as_local(self);
 				let arg2 = frame.get(1).as_local(self);
-				let result = self.add(arg1, arg2);
+				let result = local_try!(self.add(arg1, arg2));
 				self.stack.drop_frame(frame);
 				self.stack.push(*result);
 			}
@@ -314,7 +314,7 @@ impl JsEnv {
 				let frame = self.stack.create_frame(2);
 				let arg1 = frame.get(0).as_local(self);
 				let arg2 = frame.get(1).as_local(self);
-				let result = self.compare_ge(arg1, arg2);
+				let result = local_try!(self.compare_ge(arg1, arg2));
 				self.stack.drop_frame(frame);
 				self.stack.push(JsValue::new_bool(result));
 			}
@@ -324,7 +324,7 @@ impl JsEnv {
 				let frame = self.stack.create_frame(2);
 				let arg1 = frame.get(0).as_local(self);
 				let arg2 = frame.get(1).as_local(self);
-				let result = self.compare_gt(arg1, arg2);
+				let result = local_try!(self.compare_gt(arg1, arg2));
 				self.stack.drop_frame(frame);
 				self.stack.push(JsValue::new_bool(result));
 			},
@@ -366,7 +366,7 @@ impl JsEnv {
 				let frame = self.stack.create_frame(2);
 				let arg1 = frame.get(0).as_local(self);
 				let arg2 = frame.get(1).as_local(self);
-				let result = self.compare_le(arg1, arg2);
+				let result = local_try!(self.compare_le(arg1, arg2));
 				self.stack.drop_frame(frame);
 				self.stack.push(JsValue::new_bool(result));
 			}
@@ -412,7 +412,7 @@ impl JsEnv {
 				let frame = self.stack.create_frame(2);
 				
 				let index = frame.get(1).as_local(self);
-				let index = self.to_string(index);
+				let index = local_try!(index.to_string(self));
 				let index = self.intern(&index.to_string());
 				
 				let result = local_try!(frame.get(0).as_local(self).get(self, index));
@@ -464,7 +464,7 @@ impl JsEnv {
 				let frame = self.stack.create_frame(2);
 				let arg1 = frame.get(0).as_local(self);
 				let arg2 = frame.get(1).as_local(self);
-				let result = self.compare_gt(arg1, arg2);
+				let result = local_try!(self.compare_gt(arg1, arg2));
 				self.stack.drop_frame(frame);
 				self.stack.push(JsValue::new_bool(result));
 			},
@@ -488,13 +488,18 @@ impl JsEnv {
 				self.stack.drop_frame(frame);
 				self.stack.push(*result);
 			},
-			&Ir::NewArray => { unimplemented!(); },
+			&Ir::NewArray => {
+				let _scope = self.heap.new_local_scope();
+					
+				let result = self.new_array().as_value(self);
+				self.stack.push(*result);
+			}
 			&Ir::NewObject => {
 				let _scope = self.heap.new_local_scope();
-				
+					
 				let result = self.new_object().as_value(self);
 				self.stack.push(*result);
-			},
+			}
 			&Ir::NextIter(local, label) => { unimplemented!(); },
 			&Ir::Not => {
 				let _scope = self.heap.new_local_scope();
@@ -535,7 +540,7 @@ impl JsEnv {
 				let frame = self.stack.create_frame(3);
 				
 				let index = frame.get(1).as_local(self);
-				let index = self.to_string(index);
+				let index = local_try!(index.to_string(self));
 				let index = self.intern(&index.to_string());
 				
 				let value = frame.get(2).as_local(self);
@@ -601,7 +606,7 @@ impl JsEnv {
 				
 				let frame = self.stack.create_frame(1);
 				let arg = frame.get(0).as_local(self);
-				let result = self.to_boolean(arg);
+				let result = arg.to_boolean();
 				self.stack.drop_frame(frame);
 				
 				self.stack.push(JsValue::new_bool(result));

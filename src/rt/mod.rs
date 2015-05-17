@@ -9,14 +9,13 @@ use syntax::token::name;
 use syntax::ast::FunctionRef;
 use ::{JsResult, JsError};
 pub use self::value::JsValue;
-pub use self::object::JsObject;
+pub use self::object::{JsObject, JsStoreType};
 pub use self::string::JsString;
 pub use self::null::JsNull;
 pub use self::undefined::JsUndefined;
 pub use self::number::JsNumber;
 pub use self::boolean::JsBoolean;
 
-mod hash;
 mod interpreter;
 mod utf;
 mod env;
@@ -31,7 +30,7 @@ mod undefined;
 mod null;
 
 const GC_OBJECT : u32 = 1;
-const GC_OBJECT_ENTRY : u32 = 2;
+const GC_ENTRY : u32 = 2;
 const GC_STRING : u32 = 3;
 const GC_CHAR : u32 = 4;
 const GC_VALUE : u32 = 5;
@@ -50,6 +49,7 @@ pub struct JsEnv {
 	heap: GcHeap,
 	global: Root<JsObject>,
 	object_prototype: Root<JsObject>,
+	array_prototype: Root<JsObject>,
 	function_prototype: Root<JsObject>,
 	string_prototype: Root<JsObject>,
 	number_prototype: Root<JsObject>,
@@ -64,6 +64,7 @@ impl JsEnv {
 		
 		let global = heap.alloc_root::<JsObject>(GC_OBJECT);
 		let object_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
+		let array_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
 		let function_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
 		let string_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
 		let number_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
@@ -73,6 +74,7 @@ impl JsEnv {
 			heap: heap,
 			global: global,
 			object_prototype: object_prototype,
+			array_prototype: array_prototype,
 			function_prototype: function_prototype,
 			string_prototype: string_prototype,
 			number_prototype: number_prototype,
@@ -80,8 +82,6 @@ impl JsEnv {
 			ir: IrContext::new(),
 			stack: stack::Stack::new()
 		};
-		
-		*env.global = JsObject::new(&env);
 		
 		try!(env::setup(&mut env));
 		
@@ -150,7 +150,7 @@ impl GcWalker for Walker {
 }
 
 #[derive(Copy, Clone, PartialEq)]
-pub enum JsDefaultValueHint {
+pub enum JsPreferredType {
 	None,
 	String,
 	Number
@@ -183,7 +183,7 @@ pub trait JsItem {
 			return if desc.is_data() {
 				Ok(desc.value(env))
 			} else {
-				let mut get = desc.get(env);
+				let get = desc.get(env);
 				if get.is_undefined() {
 					Ok(JsValue::new_undefined().as_local(env))
 				} else {
@@ -278,21 +278,21 @@ pub trait JsItem {
 	}
 	
 	// 8.12.8 [[DefaultValue]] (hint)
-	fn default_value(&self, env: &mut JsEnv, hint: JsDefaultValueHint) -> JsResult<Local<JsValue>> {
-		let hint = if hint == JsDefaultValueHint::None {
+	fn default_value(&self, env: &mut JsEnv, hint: JsPreferredType) -> JsResult<Local<JsValue>> {
+		let hint = if hint == JsPreferredType::None {
 			let date_class = try!(env.global.as_value(env).get(env, name::DATE_CLASS));
 			
 			let object = self.as_value(env);
 			if try!(date_class.has_instance(env, object)) {
-				JsDefaultValueHint::String
+				JsPreferredType::String
 			} else {
-				JsDefaultValueHint::Number
+				JsPreferredType::Number
 			}
 		} else {
 			hint
 		};
 		
-		fn try_call(env: &mut JsEnv, this: Local<JsValue>, mut method: Local<JsValue>) -> JsResult<Option<Local<JsValue>>> {
+		fn try_call(env: &mut JsEnv, this: Local<JsValue>, method: Local<JsValue>) -> JsResult<Option<Local<JsValue>>> {
 			if method.is_callable(env) {
 				let this = this.as_value(env);
 				let val = try!(method.call(env, this, Vec::new()));
@@ -306,7 +306,7 @@ pub trait JsItem {
 		
 		let this = self.as_value(env);
 		
-		if hint == JsDefaultValueHint::String {
+		if hint == JsPreferredType::String {
 			let to_string = try!(this.get(env, name::TO_STRING));
 			if let Some(str) = try!(try_call(env, this, to_string)) {
 				return Ok(str);
@@ -343,7 +343,7 @@ pub trait JsItem {
 		false
 	}
 	
-	fn call(&mut self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>> {
+	fn call(&self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>> {
 		let args = JsArgs {
 			function: self.as_value(env),
 			this: this,
@@ -360,7 +360,7 @@ pub trait JsItem {
 	
 	// 13.2.2 [[Construct]]
 	fn construct(&self, env: &mut JsEnv, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>> {
-		let mut obj = JsObject::new_local(env);
+		let mut obj = JsObject::new_local(env, JsStoreType::Hash);
 		obj.set_class(env, Some(name::OBJECT_CLASS));
 		let proto = try!(self.get(env, name::PROTOTYPE));
 		if proto.ty() == JsType::Object {
@@ -454,6 +454,7 @@ pub trait JsItem {
 // TODO
 pub struct JsScope;
 
+#[derive(Copy, Clone)]
 pub struct JsDescriptor {
 	pub value: Option<Local<JsValue>>,
 	pub get: Option<Local<JsValue>>,
@@ -595,13 +596,13 @@ impl JsDescriptor {
 		} else {
 			let enumerable = if obj.has_property(env, name::ENUMERABLE) {
 				let enumerable = try!(obj.get(env, name::ENUMERABLE));
-				Some(env.to_boolean(enumerable))
+				Some(enumerable.to_boolean())
 			} else {
 				None
 			};
 			let configurable = if obj.has_property(env, name::CONFIGURABLE) {
 				let configurable = try!(obj.get(env, name::CONFIGURABLE));
-				Some(env.to_boolean(configurable))
+				Some(configurable.to_boolean())
 			} else {
 				None
 			};
@@ -612,7 +613,7 @@ impl JsDescriptor {
 			};
 			let writable = if obj.has_property(env, name::WRITABLE) {
 				let writable = try!(obj.get(env, name::WRITABLE));
-				Some(env.to_boolean(writable))
+				Some(writable.to_boolean())
 			} else {
 				None
 			};

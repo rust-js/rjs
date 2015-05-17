@@ -278,6 +278,7 @@ fn main() {
 	run("annexB/B.2.6.js");
 	run("annexB/B.2.6.propertyCheck.js");
 	run("annexB/B.RegExp.prototype.compile.js");
+	*/
 	run("built-ins/Array/15.4.5.1-3.d-1.js");
 	run("built-ins/Array/15.4.5.1-3.d-2.js");
 	run("built-ins/Array/15.4.5.1-3.d-3.js");

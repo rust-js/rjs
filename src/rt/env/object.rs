@@ -1,5 +1,5 @@
 use ::{JsResult, JsError};
-use super::super::{JsEnv, JsObject, JsArgs, JsValue, JsType, JsItem};
+use super::super::{JsEnv, JsObject, JsArgs, JsValue, JsType, JsItem, JsStoreType};
 use gc::*;
 
 pub fn Object_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
@@ -9,7 +9,7 @@ pub fn Object_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVal
 pub fn Object_create(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	assert!(args.args.len() <= 1);
 	
-	let mut result = JsObject::new_local(env);
+	let mut result = JsObject::new_local(env, JsStoreType::Hash);
 	
 	if args.args.len() < 1 {
 		return Err(JsError::new_type(env));
@@ -63,7 +63,7 @@ pub fn Object_getOwnPropertyDescriptor(env: &mut JsEnv, args: JsArgs) -> JsResul
 			args.args[1]
 		};
 		
-		let property = env.to_string(arg).to_string();
+		let property = try!(arg.to_string(env)).to_string();
 		let property = env.intern(&property);
 		
 		let property = args.args[0].get_own_property(env, property);

@@ -94,10 +94,10 @@ impl StrInterner {
         rv
     }
     
-    fn parse_index(&self, val: &str) -> Option<u32> {
-    	if let Ok(index) = FromStr::from_str(val) {
+    fn parse_index(&self, val: &str) -> Option<usize> {
+    	if let Ok(index) = u32::from_str(val) {
     		if index <= i32::MAX as u32 {
-	    		return Some(index);
+	    		return Some(index as usize);
     		}
     	}
     	
