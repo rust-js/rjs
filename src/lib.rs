@@ -66,6 +66,10 @@ impl JsError {
 		Self::new_runtime(env, name::RANGE_ERROR_CLASS, None, None, None)
 	}
 	
+	pub fn new_reference(env: &mut JsEnv) -> JsError {
+		Self::new_runtime(env, name::REFERENCE_ERROR_CLASS, None, None, None)
+	}
+	
 	pub fn as_runtime(&self, env: &mut JsEnv) -> Root<JsValue> {
 		match *self {
 			JsError::Lex(ref message) | JsError::Parse(ref message) => {

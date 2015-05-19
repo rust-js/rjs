@@ -237,7 +237,9 @@ impl Block {
 				&Ir::Swap => string.push_str("swap"),
 				&Ir::Throw => string.push_str("throw"),
 				&Ir::ToBoolean => string.push_str("cast.bool"),
-				&Ir::Typeof => string.push_str("typeof")
+				&Ir::Typeof => string.push_str("typeof"),
+				&Ir::TypeofIndex => string.push_str("typeof.index"),
+				&Ir::TypeofName(name) => { write!(string, "typeof.name {}", name.value()).ok(); }
 			}
 			
 			string.push('\n');
@@ -406,10 +408,10 @@ impl IrBuilder {
 	pub fn end_exception_block(&mut self) {
 		let mut try_catch = self.try_catch_stack.pop().unwrap();
 		
-		if try_catch.catch.is_some() {
-			try_catch.finalize_catch(self.ir.len());
-		} else if try_catch.finally.is_some() {
+		if try_catch.finally.is_some() {
 			try_catch.finalize_finally(self.ir.len());
+		} else if try_catch.catch.is_some() {
+			try_catch.finalize_catch(self.ir.len());
 		} else {
 			panic!("Try block requires at least a catch or finally");
 		}
@@ -535,7 +537,9 @@ pub enum Ir {
 	Swap,
 	Throw,
 	ToBoolean,
-	Typeof
+	Typeof,
+	TypeofIndex,
+	TypeofName(Name)
 }
 
 impl Ir {

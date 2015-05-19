@@ -85,7 +85,7 @@ impl Local<JsObject> {
 		match current {
 			None => {
 				return if !extensible {
-					if throw { Err(JsError::Type) } else { Ok(false) }
+					if throw { Err(JsError::new_type(env)) } else { Ok(false) }
 				} else {
 					if descriptor.is_generic() || descriptor.is_data() {
 						JsDescriptor {
@@ -176,7 +176,7 @@ impl Local<JsObject> {
 				}
 				
 				if !can_write(env, &current, &descriptor) {
-					if throw { Err(JsError::Type) } else { Ok(false) }
+					if throw { Err(JsError::new_type(env)) } else { Ok(false) }
 				} else {
 					self.store.replace(env, property, &descriptor);
 					Ok(true)
@@ -280,7 +280,7 @@ impl Local<JsObject> {
 					let new_len = try!(desc_value.to_uint32(env)) as usize;
 					
 					if new_len as f64 != try!(desc_value.to_number(env)) {
-						Err(JsError::Range)
+						Err(JsError::new_range(env))
 					} else {
 						new_len_desc.value = Some(JsValue::new_number(new_len as f64).as_local(env));
 						
@@ -292,7 +292,7 @@ impl Local<JsObject> {
 								throw
 							)
 						} else if !old_len_desc.is_writable() {
-							if throw { Err(JsError::Type) } else { Ok(false) }
+							if throw { Err(JsError::new_type(env)) } else { Ok(false) }
 						} else {
 							let new_writable = if new_len_desc.is_writable() {
 								true
@@ -308,7 +308,7 @@ impl Local<JsObject> {
 								throw
 							));
 							if !succeeded {
-								return if throw { Err(JsError::Type) } else { Ok(false) };
+								return if throw { Err(JsError::new_type(env)) } else { Ok(false) };
 							}
 							
 							while new_len < old_len {
@@ -332,7 +332,7 @@ impl Local<JsObject> {
 										false
 									));
 									
-									return if throw { Err(JsError::Type) } else { Ok(false) };
+									return if throw { Err(JsError::new_type(env)) } else { Ok(false) };
 								}
 							}
 							
@@ -357,7 +357,7 @@ impl Local<JsObject> {
 			match Self::parse_array_index(env, property) {
 				Some(index) => {
 					if index >= old_len && !old_len_desc.is_writable() {
-						if throw { Err(JsError::Type) } else { Ok(false) }
+						if throw { Err(JsError::new_type(env)) } else { Ok(false) }
 					} else {
 						let succeeded = try!(self.define_own_object_property(
 							env,
@@ -367,7 +367,7 @@ impl Local<JsObject> {
 						));
 						
 						if !succeeded {
-							if throw { Err(JsError::Type) } else { Ok(false) }
+							if throw { Err(JsError::new_type(env)) } else { Ok(false) }
 						} else if index >= old_len {
 							old_len_desc.value = Some(JsValue::new_number((index + 1) as f64).as_local(env));
 							try!(self.define_own_object_property(
@@ -430,13 +430,13 @@ impl JsItem for Local<JsObject> {
 	}
 	
 	// 8.12.7 [[Delete]] (P, Throw)
-	fn delete(&mut self, env: &JsEnv, property: Name, throw: bool) -> JsResult<bool> {
+	fn delete(&mut self, env: &mut JsEnv, property: Name, throw: bool) -> JsResult<bool> {
 		if let Some(desc) = self.get_own_property(env, property) {
 			if desc.is_configurable() {
 				self.store.remove(env, property);
 				Ok(true)
 			} else if throw {
-				Err(JsError::Type)
+				Err(JsError::new_type(env))
 			} else {
 				Ok(false)
 			}
@@ -504,13 +504,13 @@ impl JsItem for Local<JsObject> {
 	// 15.3.5.3 [[HasInstance]] (V)
 	fn has_instance(&self, env: &mut JsEnv, object: Local<JsValue>) -> JsResult<bool> {
 		if self.function.is_none() {
-			Err(JsError::Type)
+			Err(JsError::new_type(env))
 		} else if object.ty() != JsType::Object {
 			Ok(false)
 		} else {
 			let prototype = try!(self.get(env, name::PROTOTYPE));
 			if prototype.ty() != JsType::Object {
-				Err(JsError::Type)
+				Err(JsError::new_type(env))
 			} else {
 				let mut object = object;
 				

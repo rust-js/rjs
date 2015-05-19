@@ -98,6 +98,9 @@ fn setup_global(env: &mut JsEnv) {
 	function!(global, name::ESCAPE, Global_escape, 1, &function_prototype, env);
 	function!(global, name::UNESCAPE, Global_unescape, 1, &function_prototype, env);
 	function!(global, name::EVAL, Global_eval, 1, &function_prototype, env);
+	
+	let value = JsDescriptor::new_value(JsValue::new_undefined().as_local(env), true, false, true);
+	global.define_own_property(env, name::UNDEFINED, value, false).ok();
 }
 
 fn setup_function(env: &mut JsEnv, prototype: &mut Local<JsObject>, class: &Local<JsObject>) {
@@ -158,7 +161,7 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototy
 	function!(prototype, name::REDUCE, Array_reduce, 1, function_prototype, env);
 	function!(prototype, name::REDUCE_RIGHT, Array_reduceRight, 1, function_prototype, env);
 	
-	env.array_prototype = Root::from_local(&env.heap, prototype).into_unsafe();
+	env.array_prototype = Root::from_local(&env.heap, prototype);
 	
 	function!(class, name::IS_ARRAY, Array_isArray, 1, function_prototype, env);
 }

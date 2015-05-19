@@ -33,6 +33,16 @@ impl JsEnv {
 		}
 	}
 	
+	// 11.6.2 The Subtraction Operator ( - )
+	pub fn subtract(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<Local<JsValue>> {
+		let lhs = self.get_value(lhs);
+		let rhs = self.get_value(rhs);
+		let lnum = try!(lhs.to_number(self));
+		let rnum = try!(rhs.to_number(self));
+		
+		Ok(JsValue::new_number(lnum - rnum).as_local(self))
+	}
+	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.2.3
 	pub fn call_function(&mut self, args: JsArgs) -> JsResult<Local<JsValue>> {
 		if args.function.ty() != JsType::Object {
@@ -228,6 +238,49 @@ impl JsEnv {
 		JsValue::new_bool(!value).as_local(self)
 	}
 	
+	// 11.9.1 The Equals Operator ( == )
+	// 11.9.3 The Abstract Equality Comparison Algorithm
+	pub fn eq(&mut self, lref: Local<JsValue>, rref: Local<JsValue>) -> JsResult<bool> {
+		let lval = self.get_value(lref);
+		let rval = self.get_value(rref);
+		
+		let lty = lval.ty();
+		let rty = rval.ty();
+		
+		if lty == rty {
+			Ok(self.strict_eq(lref, rref))
+		} else if
+			(lty == JsType::Null && rty == JsType::Undefined) ||
+			(lty == JsType::Undefined && rty == JsType::Null)
+		{
+			Ok(true)
+		} else if lty == JsType::Number && rty == JsType::String {
+			let rval = try!(rval.to_number(self));
+			let rval = JsValue::new_number(rval).as_local(self);
+			self.eq(lval, rval)
+		} else if lty == JsType::String && rty == JsType::Number {
+			let rval = try!(lval.to_number(self));
+			let rval = JsValue::new_number(rval).as_local(self);
+			self.eq(lval, rval)
+		} else if lty == JsType::Boolean {
+			let lval = try!(lval.to_number(self));
+			let lval = JsValue::new_number(lval).as_local(self);
+			self.eq(lval, rval)
+		} else if rty == JsType::Boolean {
+			let rval = try!(rval.to_number(self));
+			let rval = JsValue::new_number(rval).as_local(self);
+			self.eq(lval, rval)
+		} else if (lty == JsType::String || lty == JsType::Number) && rty == JsType::Object {
+			let rval = try!(rval.to_primitive(self, JsPreferredType::None));
+			self.eq(lval, rval)
+		} else if lty == JsType::Object && (rty == JsType::String || rty == JsType::Number) {
+			let lval = try!(lval.to_primitive(self, JsPreferredType::None));
+			self.eq(lval, rval)
+		} else {
+			Ok(false)
+		}
+	}
+	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.9.4
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.9.5
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.9.6
@@ -239,7 +292,7 @@ impl JsEnv {
 			false
 		} else {
 			match lval.ty() {
-				JsType::Undefined | JsType::Null => false,
+				JsType::Undefined | JsType::Null => true,
 				JsType::Number => {
 					let x = lval.get_number();
 					let y = rval.get_number();

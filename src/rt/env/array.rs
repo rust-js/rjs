@@ -34,7 +34,7 @@ pub fn Array_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 				let len = JsValue::new_number(len as f64).as_local(env);
 				try!(array.put(env, name::LENGTH, len, false));
 			} else {
-				return Err(JsError::Range);
+				return Err(JsError::new_range(env));
 			}
 		} else {
 			try!(array.define_own_property(env, Name::from_index(0), JsDescriptor::new_simple_value(arg), false));
@@ -76,7 +76,7 @@ pub fn Array_toLocaleString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 					let element_obj = try!(value.to_object(env));
 					let func = try!(element_obj.get(env, name::TO_LOCALE_STRING));
 					if !func.is_callable(env) {
-						return Err(JsError::Type);
+						return Err(JsError::new_type(env));
 					}
 					let result = try!(try!(func.call(env, element_obj, Vec::new())).to_string(env)).to_string();
 					string.push_str(&result)
@@ -404,7 +404,7 @@ pub fn Array_sort(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 				Ordering::Less
 			} else if let Some(compare_fn) = compare_fn {
 				if !compare_fn.is_callable(env) {
-					error = Some(JsError::Type);
+					error = Some(JsError::new_type(env));
 					Ordering::Equal
 				} else {
 					let result = local_try!(compare_fn.call(env, this, vec![x, y]), error);
@@ -677,11 +677,11 @@ fn Array_everyOrSome(env: &mut JsEnv, args: JsArgs, test: bool) -> JsResult<Loca
 	let callback_fn = if args.args.len() > 0 {
 		let callback_fn = args.args[0];
 		if !callback_fn.is_callable(env) {
-			return Err(JsError::Type);
+			return Err(JsError::new_type(env));
 		}
 		callback_fn
 	} else {
-		return Err(JsError::Type);
+		return Err(JsError::new_type(env));
 	};
 	
 	let this_arg = if args.args.len() > 1 {
@@ -731,11 +731,11 @@ pub fn Array_forEach(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 	let callback_fn = if args.args.len() > 0 {
 		let callback_fn = args.args[0];
 		if !callback_fn.is_callable(env) {
-			return Err(JsError::Type);
+			return Err(JsError::new_type(env));
 		}
 		callback_fn
 	} else {
-		return Err(JsError::Type);
+		return Err(JsError::new_type(env));
 	};
 	
 	let this_arg = if args.args.len() > 1 {
@@ -771,11 +771,11 @@ pub fn Array_map(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let callback_fn = if args.args.len() > 0 {
 		let callback_fn = args.args[0];
 		if !callback_fn.is_callable(env) {
-			return Err(JsError::Type);
+			return Err(JsError::new_type(env));
 		}
 		callback_fn
 	} else {
-		return Err(JsError::Type);
+		return Err(JsError::new_type(env));
 	};
 	
 	let this_arg = if args.args.len() > 1 {
@@ -815,11 +815,11 @@ pub fn Array_filter(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let callback_fn = if args.args.len() > 0 {
 		let callback_fn = args.args[0];
 		if !callback_fn.is_callable(env) {
-			return Err(JsError::Type);
+			return Err(JsError::new_type(env));
 		}
 		callback_fn
 	} else {
-		return Err(JsError::Type);
+		return Err(JsError::new_type(env));
 	};
 	
 	let this_arg = if args.args.len() > 1 {
@@ -870,15 +870,15 @@ pub fn Array_reduce(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let callback_fn = if args.args.len() > 0 {
 		let callback_fn = args.args[0];
 		if !callback_fn.is_callable(env) {
-			return Err(JsError::Type);
+			return Err(JsError::new_type(env));
 		}
 		callback_fn
 	} else {
-		return Err(JsError::Type);
+		return Err(JsError::new_type(env));
 	};
 	
 	if len == 0 && args.args.len() < 2 {
-		return Err(JsError::Type);
+		return Err(JsError::new_type(env));
 	}
 	
 	let mut k = 0usize;
@@ -900,7 +900,7 @@ pub fn Array_reduce(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 		
 		match accumulator {
 			Some(accumulator) => accumulator,
-			None => return Err(JsError::Type)
+			None => return Err(JsError::new_type(env))
 		}
 	};
 	
@@ -934,15 +934,15 @@ pub fn Array_reduceRight(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 	let callback_fn = if args.args.len() > 0 {
 		let callback_fn = args.args[0];
 		if !callback_fn.is_callable(env) {
-			return Err(JsError::Type);
+			return Err(JsError::new_type(env));
 		}
 		callback_fn
 	} else {
-		return Err(JsError::Type);
+		return Err(JsError::new_type(env));
 	};
 	
 	if len == 0 && args.args.len() < 2 {
-		return Err(JsError::Type);
+		return Err(JsError::new_type(env));
 	}
 	
 	let mut k = len - 1;
@@ -964,7 +964,7 @@ pub fn Array_reduceRight(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 		
 		match accumulator {
 			Some(accumulator) => accumulator,
-			None => return Err(JsError::Type)
+			None => return Err(JsError::new_type(env))
 		}
 	};
 	

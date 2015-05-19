@@ -97,21 +97,65 @@ impl JsEnv {
 					// The end finally instruction takes the leave in flight and
 					// jumps to it.
 					
-					if let Some(frame) = block.try_catches.iter().find(|frame| {
-						frame.try.contains(ip) || match frame.catch {
-							Some(catch) => catch.contains(ip),
-							None => false
+					let mut found = false;
+					let mut next = false;
+					
+					for frame in &block.try_catches {
+						if next {
+							// If the leave instruction falls inside this frame, we
+							// stop processing frames because we can actually jump to it.
+							// Otherwise we check to see whether we need to process
+							// this finally block.
+							
+							if frame.contains(leave_) {
+								if let Some(finally) = frame.finally {
+									// We have another finally block to process. Jump into
+									// it.
+									
+									ip = finally.start().offset();
+									
+									found = true;
+									break;
+								}
+							} else {
+								// There are no matching frames left. We can just jump to
+								// the leave.
+								break;
+							}
 						}
-					}) {
-						ip = if let Some(finally) = frame.finally {
+						if frame.try.contains(ip) || frame.catch.map_or(false, |catch| catch.contains(ip)) {
+							// If the leave is in a try or catch block, jump to the finally block.
+							
+							ip = if let Some(finally) = frame.finally {
+								leave = Some(leave_);
+								finally.start().offset()
+							} else {
+								leave = None;
+								leave_
+							};
+							found = true;
+							break;
+						}
+						if frame.finally.map_or(false, |finally| finally.contains(ip)) {
+							// If the leave is in a finally block, treat it as an end finally
+							// but with a specific leave.
+							
 							leave = Some(leave_);
-							finally.start().offset()
-						} else {
-							leave = None;
-							leave_
+							next = true;
 						}
-					} else {
-						panic!("Cannot find try/catch frame of leave");
+					}
+					
+					if !found {
+						if next {
+							// If the leave was in a finally block and we're treating this as
+							// an end finally, and we couldn't find another finally block,
+							// just jump to the leave.
+							
+							ip = leave_;
+							leave = None;
+						} else {
+							panic!("Cannot find try/catch frame of leave");
+						}
 					}
 				}
 				Next::EndFinally => {
@@ -157,13 +201,11 @@ impl JsEnv {
 								} else {
 									panic!("Expected at least a catch or finally block");
 								}
-							} else if let Some(finally) = frame.finally {
+							} else if frame.finally.map_or(false, |finally| finally.contains(ip)) {
 								// If the end finally is part of this frame, start processing
 								// frames to find the next finally.
 								
-								if finally.contains(ip) {
-									next = true;
-								}
+								next = true;
 							}
 						}
 						
@@ -215,13 +257,11 @@ impl JsEnv {
 									// There are no matching frames left.
 									break;
 								}
-							} else if let Some(finally) = frame.finally {
+							} else if frame.finally.map_or(false, |finally| finally.contains(ip)) {
 								// If the end finally is part of this frame, start processing
 								// frames to find the next finally.
 								
-								if finally.contains(ip) {
-									next = true;
-								}
+								next = true;
 							}
 						}
 						
@@ -266,7 +306,7 @@ impl JsEnv {
 				
 				let this = frame.get(0).as_local(self);
 				let function = frame.get(1).as_local(self);
-				let mut function = self.get_value(function);
+				let function = self.get_value(function);
 				
 				let result = local_try!(function.call(self, this, args));
 				
@@ -281,7 +321,7 @@ impl JsEnv {
 				let frame = self.stack.create_frame(2);
 				
 				let index = frame.get(1).as_local(self);
-				let index = self.to_string(index);
+				let index = local_try!(index.to_string(self));
 				let index = self.intern(&index.to_string());
 				
 				let result = local_try!(frame.get(0).as_local(self).delete(self, index, true));
@@ -307,7 +347,17 @@ impl JsEnv {
 			&Ir::EndFinally => return Next::EndFinally,
 			&Ir::EndIter(local) => { unimplemented!(); },
 			&Ir::EnterWith => { unimplemented!(); },
-			&Ir::Eq => { unimplemented!(); },
+			&Ir::Eq => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self);
+				let arg2 = frame.get(1).as_local(self);
+				let result = local_try!(self.eq(arg1, arg2));
+				self.stack.drop_frame(frame);
+				
+				self.stack.push(JsValue::new_bool(result));
+			}
 			&Ir::Ge => {
 				let _scope = self.heap.new_local_scope();
 				
@@ -340,7 +390,10 @@ impl JsEnv {
 				self.stack.push(*result);
 			},
 			&Ir::IntoIter(local) => { unimplemented!(); },
-			&Ir::Jump(label) => { unimplemented!(); },
+			&Ir::Jump(label) => {
+				*ip = label.offset();
+				return Next::Next;
+			}
 			&Ir::JumpEq(label) => { unimplemented!(); },
 			&Ir::JumpFalse(label) => {
 				let frame = self.stack.create_frame(1);
@@ -398,7 +451,11 @@ impl JsEnv {
 			&Ir::LoadGlobal(name) => {
 				let _scope = self.heap.new_local_scope();
 				
-				let value = local_try!(self.global.as_local(self).get(self, name));
+				let global = self.global.as_local(self);
+				if !global.has_property(self, name) {
+					return Next::Throw(JsError::new_reference(self));
+				}
+				let value = local_try!(global.get(self, name));
 				self.stack.push(*value);
 			}
 			&Ir::LoadGlobalThis => {
@@ -590,7 +647,16 @@ impl JsEnv {
 				
 				self.stack.push(JsValue::new_bool(!result));
 			},
-			&Ir::Subtract => { unimplemented!(); },
+			&Ir::Subtract => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self);
+				let arg2 = frame.get(1).as_local(self);
+				let result = local_try!(self.subtract(arg1, arg2));
+				self.stack.drop_frame(frame);
+				self.stack.push(*result);
+			},
 			&Ir::Swap => { unimplemented!(); },
 			&Ir::Throw => {
 				let _scope = self.heap.new_local_scope();
@@ -617,6 +683,42 @@ impl JsEnv {
 				let frame = self.stack.create_frame(1);
 				let arg = frame.get(0).as_local(self);
 				let result = self.type_of(arg);
+				self.stack.drop_frame(frame);
+				
+				self.stack.push(JsValue::new_string(result.as_ptr()));
+			}
+			&Ir::TypeofName(name) => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(1);
+				let base = frame.get(0).as_local(self);
+				let result = if base.is_undefined() {
+					JsString::from_str(self, "undefined")
+				} else {
+					let arg = local_try!(base.get(self, name));
+					self.type_of(arg)
+				};
+				
+				self.stack.drop_frame(frame);
+				
+				self.stack.push(JsValue::new_string(result.as_ptr()));
+			}
+			&Ir::TypeofIndex => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				let base = frame.get(0).as_local(self);
+				let result = if base.is_undefined() {
+					JsString::from_str(self, "undefined")
+				} else {
+					let index = frame.get(1).as_local(self);
+					let index = local_try!(index.to_string(self));
+					let index = self.intern(&index.to_string());
+					
+					let arg = local_try!(base.get(self, index));
+					self.type_of(arg)
+				};
+				
 				self.stack.drop_frame(frame);
 				
 				self.stack.push(JsValue::new_string(result.as_ptr()));

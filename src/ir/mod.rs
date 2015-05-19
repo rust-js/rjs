@@ -1207,22 +1207,66 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_expr_unary(&mut self, op: Op, expr: &'a Expr, leave: bool) -> JsResult<()> {
+		enum Reference {
+			Index,
+			Name(Name),
+			None
+		}
+		
+		fn emit_reference<'a, 'b>(generator: &'a mut IrGenerator<'b>, expr: &'b Expr) -> JsResult<Reference> {
+			match expr {
+				&Expr::MemberDot(ref expr, ident) => {
+					try!(generator.emit_expr(expr, true));
+					Ok(Reference::Name(ident))
+				}
+				&Expr::MemberIndex(ref expr, ref index) => {
+					try!(generator.emit_expr(expr, true));
+					try!(generator.emit_exprs(index, true));
+					Ok(Reference::Index)
+				}
+				expr @ _ => {
+					if let &Expr::Ident(ref ident) = expr {
+						if ident.state.get() == IdentState::Global {
+							generator.ir.emit(Ir::LoadGlobalThis);
+							return Ok(Reference::Name(ident.name));
+						}
+					}
+					
+					try!(generator.emit_expr(expr, false));
+					Ok(Reference::None)
+				}
+			}
+		}
+		
 		match op {
 			Op::Delete => {
-				match expr {
-					&Expr::MemberDot(ref expr, ident) => {
-						try!(self.emit_expr(expr, true));
-						self.ir.emit(Ir::DeleteName(ident));
+				match try!(emit_reference(self, expr)) {
+					Reference::Index => self.ir.emit(Ir::DeleteIndex),
+					Reference::Name(name) => self.ir.emit(Ir::DeleteName(name)),
+					Reference::None => {
+						self.ir.emit(Ir::Pop);
+						if leave {
+							self.ir.emit(Ir::LoadTrue);
+							return Ok(());
+						}
 					}
-					&Expr::MemberIndex(ref expr, ref index) => {
-						try!(self.emit_expr(expr, true));
-						try!(self.emit_exprs(index, true));
-						self.ir.emit(Ir::DeleteIndex);
-					}
-					expr @ _ => {
-						try!(self.emit_expr(expr, false));
-						self.ir.emit(Ir::LoadTrue);
-					}
+				}
+				
+				if !leave {
+					self.ir.emit(Ir::Pop);
+				}
+				
+				return Ok(());
+			}
+			Op::Typeof => {
+				match try!(emit_reference(self, expr)) {
+					Reference::Index => self.ir.emit(Ir::TypeofIndex),
+					Reference::Name(name) => self.ir.emit(Ir::TypeofName(name)),
+					Reference::None => self.ir.emit(Ir::Typeof)
+				}
+				
+				if !leave {
+					self.ir.emit(Ir::Pop);
 				}
 				
 				return Ok(());

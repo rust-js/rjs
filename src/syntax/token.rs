@@ -284,4 +284,6 @@ declare_idents! {
 	( "RangeError", RANGE_ERROR_CLASS, 101 );
 	( "SyntaxError", SYNTAX_ERROR_CLASS, 102 );
 	( "eval", EVAL, 103 );
+	( "ReferenceError", REFERENCE_ERROR_CLASS, 104 );
+	( "undefined", UNDEFINED, 105 );
 }

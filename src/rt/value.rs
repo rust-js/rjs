@@ -448,7 +448,7 @@ impl Local<JsValue> {
 	// 9.9 ToObject
 	pub fn to_object(&self, env: &mut JsEnv) -> JsResult<Local<JsValue>> {
 		match self.ty {
-			JsType::Null | JsType::Undefined => Err(JsError::Type),
+			JsType::Null | JsType::Undefined => Err(JsError::new_type(env)),
 			JsType::Boolean | JsType::Number | JsType::String => {
 				let class = match self.ty {
 					JsType::Boolean => name::BOOLEAN_CLASS,

@@ -59,7 +59,7 @@ pub struct Slot {
 	pub lifted: bool
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct SlotRef(pub usize);
 
 impl SlotRef {
@@ -123,7 +123,7 @@ pub struct Ident {
 ///
 /// Locals have a reference to the slot and a depth. The depth is used to identify
 /// and resolve closures.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum IdentState {
 	None,
 	Global,

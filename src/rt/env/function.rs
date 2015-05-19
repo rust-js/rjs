@@ -48,7 +48,7 @@ pub fn Function_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 
 // 15.3.4.4 Function.prototype.call (thisArg [ , arg1 [ , arg2, … ] ] )
 pub fn Function_call(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let mut func = args.this;
+	let func = args.this;
 	if !func.is_callable(env) {
 		Err(JsError::new_type(env))
 	} else {

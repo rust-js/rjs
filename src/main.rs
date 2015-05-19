@@ -80,6 +80,8 @@ fn run_safe(file: &'static str) {
 		env.run(&("tests/tc39/harness/".to_string() + include)).ok().unwrap();
 	}
 	
+	debug::reset();
+	
 	match env.run(&file) {
 		Ok(_) => {},
 		Err(error) => {
@@ -87,7 +89,7 @@ fn run_safe(file: &'static str) {
 			
 			let error = error.as_runtime(&mut env);
 			let error = error.as_local(&mut env);
-			let error = env.to_string(error).to_string();
+			let error = error.to_string(&mut env).ok().unwrap().to_string();
 			
 			panic!("{}: Uncaught {}", file, error)
 		}

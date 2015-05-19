@@ -34,6 +34,8 @@ const GC_ENTRY : u32 = 2;
 const GC_STRING : u32 = 3;
 const GC_CHAR : u32 = 4;
 const GC_VALUE : u32 = 5;
+const GC_HASH_STORE : u32 = 6;
+const GC_ARRAY_STORE : u32 = 7;
 
 impl Root<JsObject> {
 	pub fn as_local(&self, env: &JsEnv) -> Local<JsObject> {
