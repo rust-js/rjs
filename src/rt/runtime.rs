@@ -82,7 +82,9 @@ impl JsEnv {
 				
 				debugln!("ENTER {}", location);
 				
-				let result = try!(self.call_block(block, Some(args.this), args.args, &function)).as_local(self);
+				let scope = args.function.scope(self);
+				
+				let result = try!(self.call_block(block, Some(args.this), args.args, &function, scope)).as_local(self);
 				
 				debugln!("EXIT {}", location);
 				
@@ -232,13 +234,17 @@ impl JsEnv {
 		})
 	}
 	
-	pub fn new_function(&mut self, function_ref: FunctionRef) -> JsResult<Local<JsValue>> {
+	pub fn new_function(&mut self, function_ref: FunctionRef, scope: Option<Local<JsValue>>) -> JsResult<Local<JsValue>> {
 		let mut proto = JsObject::new_local(self, JsStoreType::Hash);
 	
 		proto.set_class(self, Some(name::OBJECT_CLASS));
 		
 		let function_prototype = self.function_prototype.as_local(self);
 		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), function_prototype).as_value(self);
+		
+		if self.ir.get_function_description(function_ref).takes_scope {
+			result.set_scope(self, scope);
+		}
 		
 		let value = proto.as_value(self);
 		try!(result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false));

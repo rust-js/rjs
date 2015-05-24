@@ -44,7 +44,7 @@ pub fn Function_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 	
 	let function_ref = FunctionRef(function_ref.0 - 1);
 	
-	env.new_function(function_ref)
+	env.new_function(function_ref, None)
 }
 
 // 15.3.4.4 Function.prototype.call (thisArg [ , arg1 [ , arg2, … ] ] )

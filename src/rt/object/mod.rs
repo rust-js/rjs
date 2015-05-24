@@ -20,6 +20,7 @@ pub struct JsObject {
 	value: Option<JsValue>,
 	function: Option<JsFunction>,
 	prototype: Ptr<JsObject>,
+	scope: Ptr<JsScope>,
 	store: StorePtr,
 	extensible: bool
 }
@@ -38,6 +39,7 @@ impl JsObject {
 			value: None,
 			function: None,
 			prototype: Ptr::null(),
+			scope: Ptr::null(),
 			store: store,
 			extensible: true
 		}
@@ -473,8 +475,20 @@ impl JsItem for Local<JsObject> {
 		}
 	}
 	
-	fn scope(&self, _: &JsEnv) -> Option<Local<JsScope>> {
-		unimplemented!();
+	fn scope(&self, env: &JsEnv) -> Option<Local<JsValue>> {
+		if self.scope.is_null() {
+			None
+		} else {
+			Some(JsValue::new_scope(self.scope).as_local(env))
+		}
+	}
+	
+	fn set_scope(&mut self, _: &JsEnv, scope: Option<Local<JsValue>>) {
+		if let Some(scope) = scope {
+			self.scope = scope.get_scope();
+		} else {
+			self.scope = Ptr::null();
+		}
 	}
 	
 	fn formal_parameters(&self, _: &JsEnv) -> Option<Vec<Name>> {

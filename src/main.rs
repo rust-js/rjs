@@ -226,7 +226,7 @@ fn test() {
 	let mut env = JsEnv::new().ok().unwrap();
 	
 	debug::reset();
-
+	
 	let result = env.eval(r#"
 	"#);
 	
@@ -359,9 +359,9 @@ fn main() {
 //	run("built-ins/Array/prototype/every/15.4.4.16-1-15.js");
 //	run("built-ins/Array/prototype/every/15.4.4.16-1-2.js");
 //	run("built-ins/Array/prototype/every/15.4.4.16-1-3.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-1-4.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-1-5.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-1-6.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-1-4.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-1-5.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-1-6.js");
 	run("built-ins/Array/prototype/every/15.4.4.16-1-7.js");
 	run("built-ins/Array/prototype/every/15.4.4.16-1-8.js");
 	run("built-ins/Array/prototype/every/15.4.4.16-1-9.js");

@@ -40,6 +40,8 @@ pub struct IrFunction {
 	pub args: u32,
 	pub strict: bool,
 	pub has_arguments: bool,
+	pub scope: Option<u32>,
+	pub takes_scope: bool,
 	pub span: Span
 }
 
@@ -133,6 +135,8 @@ impl IrContext {
 			args: function.args,
 			strict: function.block.strict,
 			has_arguments: function.block.has_arguments.get(),
+			scope: function.block.scope.get(),
+			takes_scope: function.block.takes_scope.get(),
 			span: function.span.clone()
 		}
 	}
@@ -166,6 +170,11 @@ impl IrContext {
 		
 		Ok(())
 	}
+	
+	fn get_slot(&self, function_ref: FunctionRef, slot_ref: SlotRef) -> Slot {
+		let function = &self.ast.functions[function_ref.usize()];
+		function.block.locals.borrow().slots[slot_ref.usize()]
+	}
 }
 
 struct IrGenerator<'a> {
@@ -196,12 +205,24 @@ impl<'a> IrGenerator<'a> {
 		
 		for slot in &locals.slots {
 			generator.locals.push(
-				if let None = slot.arg {
+				if slot.arg.is_none() && slot.lifted.is_none() {
 					Some(generator.ir.local(Some(slot.name)))
 				} else {
 					None
 				}
 			);
+		}
+		
+		// Build the prolog to move the arguments into the scope.
+		
+		for i in 0..locals.slots.len() {
+			let slot = &locals.slots[i];
+			if let Some(index) = slot.lifted {
+				if let Some(arg) = slot.arg {
+					generator.ir.emit(Ir::LoadParam(arg));
+					generator.ir.emit(Ir::StoreLifted(index, 0));
+				}
+			}
 		}
 		
 		generator
@@ -1411,20 +1432,20 @@ impl<'a> IrGenerator<'a> {
 	fn emit_load(&mut self, ident: &'a Ident) {
 		match ident.state.get() {
 			IdentState::Global => self.ir.emit(Ir::LoadGlobal(ident.name)),
-			IdentState::Scoped => panic!("Not yet implemented"),
+			IdentState::Scoped => unimplemented!(),
 			IdentState::Arguments => self.ir.emit(Ir::LoadArguments),
 			IdentState::Slot(slot_ref) => {
 				let slot = &self.block_locals.slots[slot_ref.usize()];
-				if let Some(arg) = slot.arg {
+				if let Some(index) = slot.lifted {
+					self.ir.emit(Ir::LoadLifted(index, 0));
+				} else if let Some(arg) = slot.arg {
 					self.ir.emit(Ir::LoadParam(arg));
-				} else if slot.lifted {
-					self.ir.emit(Ir::LoadLifted(slot.name, 0));
 				} else {
 					self.ir.emit(Ir::LoadLocal(self.locals[slot_ref.usize()].unwrap()));
 				}
 			}
-			IdentState::LiftedSlot(_, depth) => {
-				self.ir.emit(Ir::LoadLifted(ident.name, depth));
+			IdentState::LiftedSlot(function_ref, slot_ref, depth) => {
+				self.ir.emit(Ir::LoadLifted(self.ctx.get_slot(function_ref, slot_ref).lifted.unwrap(), depth));
 			}
 			_ => panic!()
 		}
@@ -1437,16 +1458,16 @@ impl<'a> IrGenerator<'a> {
 			IdentState::Arguments => self.ir.emit(Ir::StoreArguments),
 			IdentState::Slot(slot_ref) => {
 				let slot = &self.block_locals.slots[slot_ref.usize()];
-				if let Some(arg) = slot.arg {
+				if let Some(index) = slot.lifted {
+					self.ir.emit(Ir::StoreLifted(index, 0));
+				} else if let Some(arg) = slot.arg {
 					self.ir.emit(Ir::StoreParam(arg));
-				} else if slot.lifted {
-					self.ir.emit(Ir::StoreLifted(slot.name, 0));
 				} else {
 					self.ir.emit(Ir::StoreLocal(self.locals[slot_ref.usize()].unwrap()));
 				}
 			}
-			IdentState::LiftedSlot(_, depth) => {
-				self.ir.emit(Ir::StoreLifted(ident.name, depth));
+			IdentState::LiftedSlot(function_ref, slot_ref, depth) => {
+				self.ir.emit(Ir::StoreLifted(self.ctx.get_slot(function_ref, slot_ref).lifted.unwrap(), depth));
 			}
 			_ => panic!()
 		}

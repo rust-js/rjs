@@ -17,6 +17,7 @@ pub use self::undefined::JsUndefined;
 pub use self::number::JsNumber;
 pub use self::boolean::JsBoolean;
 pub use self::iterator::JsIterator;
+pub use self::scope::JsScope;
 
 mod interpreter;
 mod utf;
@@ -31,6 +32,7 @@ mod boolean;
 mod undefined;
 mod null;
 mod iterator;
+mod scope;
 
 const GC_OBJECT : u32 = 1;
 const GC_ENTRY : u32 = 2;
@@ -40,6 +42,7 @@ const GC_VALUE : u32 = 5;
 const GC_HASH_STORE : u32 = 6;
 const GC_ARRAY_STORE : u32 = 7;
 const GC_ITERATOR : u32 = 8;
+const GC_SCOPE : u32 = 8;
 
 impl Root<JsObject> {
 	pub fn as_local(&self, env: &JsEnv) -> Local<JsObject> {
@@ -128,7 +131,7 @@ impl JsEnv {
 		let block = try!(self.ir.get_function_ir(function_ref));
 		
 		let mut result = self.heap.alloc_root::<JsValue>(GC_VALUE);
-		*result = try!(self.call_block(block, None, Vec::new(), &function));
+		*result = try!(self.call_block(block, None, Vec::new(), &function, None));
 		
 		debugln!("EXIT {}", location);
 		
@@ -425,11 +428,11 @@ pub trait JsItem {
 	}
 	
 	fn prototype(&self, env: &JsEnv) -> Option<Local<JsValue>> {
-		panic!("Prototype not supported");
+		panic!("prototype not supported");
 	}
 	
 	fn set_prototype(&mut self, env: &JsEnv, prototype: Option<Local<JsValue>>) {
-		panic!("Prototype not supported");
+		panic!("prototype not supported");
 	}
 	
 	fn has_class(&self, env: &JsEnv) -> bool {
@@ -441,7 +444,7 @@ pub trait JsItem {
 	}
 	
 	fn set_class(&mut self, env: &JsEnv, class: Option<Name>) {
-		panic!("Class not supported");
+		panic!("class not supported");
 	}
 	
 	fn is_extensible(&self, env: &JsEnv) -> bool {
@@ -452,8 +455,12 @@ pub trait JsItem {
 		Err(JsError::new_type(env, ::errors::TYPE_CANNOT_HAS_INSTANCE))
 	}
 	
-	fn scope(&self, env: &JsEnv) -> Option<Local<JsScope>> {
-		None
+	fn scope(&self, env: &JsEnv) -> Option<Local<JsValue>> {
+		panic!("scope not supported");
+	}
+	
+	fn set_scope(&mut self, env: &JsEnv, scope: Option<Local<JsValue>>) {
+		panic!("scope not supported");
 	}
 	
 	fn formal_parameters(&self, env: &JsEnv) -> Option<Vec<Name>> {
@@ -482,9 +489,6 @@ pub trait JsItem {
 	
 	// fn parameter_map(&self) -> JsParameterMap;
 }
-
-// TODO
-pub struct JsScope;
 
 #[derive(Copy, Clone)]
 pub struct JsDescriptor {
@@ -691,7 +695,8 @@ pub enum JsType {
 	Boolean = 3,
 	String = 4,
 	Object = 5,
-	Iterator = 6
+	Iterator = 6,
+	Scope = 7,
 }
 
 impl JsType {

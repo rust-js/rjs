@@ -682,17 +682,12 @@ fn Array_everyOrSome(env: &mut JsEnv, args: JsArgs, test: bool) -> JsResult<Loca
 	let len_value = try!(array.get(env, name::LENGTH));
 	let len = try!(len_value.to_uint32(env)) as usize;
 	
-	let callback_fn = if args.args.len() > 0 {
-		let callback_fn = args.args[0];
-		if !callback_fn.is_callable(env) {
-			return Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
-		}
-		callback_fn
-	} else {
+	let callback_fn = args.arg(env, 0);
+	if !callback_fn.is_callable(env) {
 		return Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
-	};
+	}
 	
-	let this_arg = args.arg(env, 0);
+	let this_arg = args.arg(env, 1);
 	
 	for k in 0..len {
 		let p_k = Name::from_index(k);

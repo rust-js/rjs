@@ -1,6 +1,6 @@
 #![allow(unused_variables)]
 
-use super::{JsEnv, JsValue, JsString, JsItem, JsIterator};
+use super::{JsEnv, JsValue, JsString, JsItem, JsIterator, JsScope};
 use gc::*;
 use ::{JsResult, JsError};
 use ir::IrFunction;
@@ -25,8 +25,23 @@ macro_rules! local_try {
 	}
 }
 
+struct Frame<'a> {
+	env: &'a mut JsEnv,
+	ip: usize,
+	locals: StackFrame,
+	this: Option<Local<JsValue>>,
+	args: Vec<Local<JsValue>>,
+	thrown: Option<Root<JsValue>>,
+	strict: bool,
+	arguments: Option<usize>,
+	parent_scope: Option<usize>,
+	scope: Option<usize>
+}
+
 impl JsEnv {
-	pub fn call_block(&mut self, block: Rc<Block>, this: Option<Local<JsValue>>, args: Vec<Local<JsValue>>, function: &IrFunction) -> JsResult<JsValue> {
+	pub fn call_block(&mut self, block: Rc<Block>, this: Option<Local<JsValue>>, args: Vec<Local<JsValue>>, function: &IrFunction, scope: Option<Local<JsValue>>) -> JsResult<JsValue> {
+		let mut locals = block.locals.len();
+		
 		for i in 0..block.locals.len() {
 			self.stack.push(JsValue::new_undefined());
 		}
@@ -34,46 +49,70 @@ impl JsEnv {
 		let arguments = if function.has_arguments {
 			let arguments = self.new_arguments(&args);
 			self.stack.push(*try!(arguments));
-			block.locals.len()
+			locals += 1;
+			Some(locals - 1)
 		} else {
-			0
+			None
 		};
 		
-		let locals =
-			block.locals.len() +
-			if function.has_arguments { 1 } else { 0 };
+		let parent_scope = if let Some(scope) = scope {
+			self.stack.push(*scope);
+			locals += 1;
+			Some(locals - 1)
+		} else {
+			None
+		};
+		
+		let scope = if let Some(size) = function.scope {
+			let scope = JsScope::new_local(self, size as usize, scope).as_value(self);
+			self.stack.push(*scope);
+			locals += 1;
+			Some(locals - 1)
+		} else {
+			None
+		};
+		
+		let ir = &block.ir[..];
+		let mut leave = None;
 		
 		let locals = self.stack.create_frame(locals);
 		
-		let ir = &block.ir[..];
-		let mut ip = 0;
-		let mut thrown = None;
-		let mut leave = None;
-		let strict = function.strict;
+		let mut frame = Frame {
+			env: self,
+			ip: 0,
+			locals: locals,
+			this: this,
+			args: args,
+			thrown: None,
+			strict: function.strict,
+			arguments: arguments,
+			parent_scope: parent_scope,
+			scope: scope
+		};
 		
 		loop {
-			debugln!("IP: {}", ip);
+			debugln!("IP: {}", frame.ip);
 			
-			let ir = &ir[ip];
+			let ir = &ir[frame.ip];
 			
-			match self.call_stmt(&mut ip, ir, &locals, &this, &args, &mut thrown, strict, arguments) {
+			match frame.call_stmt(ir) {
 				Next::Next => {},
 				Next::Return(result) => return Ok(result),
 				Next::Throw(error) => {
-					thrown = Some(error.as_runtime(self));
+					frame.thrown = Some(error.as_runtime(frame.env));
 					
 					// Find the try/catch block that belongs to the current instruction.
 					
 					let mut found = false;
 					
-					for frame in &block.try_catches {
+					for try_catch in &block.try_catches {
 						// If the ip is in the try range, jump to the catch or
 						// finally block.
 						
-						if frame.try.contains(ip) {
-							ip = if let Some(catch) = frame.catch {
+						if try_catch.try.contains(frame.ip) {
+							frame.ip = if let Some(catch) = try_catch.catch {
 								catch.start().offset()
-							} else if let Some(finally) = frame.finally {
+							} else if let Some(finally) = try_catch.finally {
 								finally.start().offset()
 							} else {
 								panic!("Expected either a catch or finally block");
@@ -86,10 +125,10 @@ impl JsEnv {
 						// If the ip is in the catch block, jump to the finally
 						// block if there is one.
 						
-						if let Some(catch) = frame.catch {
-							if catch.contains(ip) {
-								if let Some(finally) = frame.finally {
-									ip = finally.start().offset();
+						if let Some(catch) = try_catch.catch {
+							if catch.contains(frame.ip) {
+								if let Some(finally) = try_catch.finally {
+									frame.ip = finally.start().offset();
 									
 									found = true;
 									break;
@@ -114,19 +153,19 @@ impl JsEnv {
 					let mut found = false;
 					let mut next = false;
 					
-					for frame in &block.try_catches {
+					for try_catch in &block.try_catches {
 						if next {
 							// If the leave instruction falls inside this frame, we
 							// stop processing frames because we can actually jump to it.
 							// Otherwise we check to see whether we need to process
 							// this finally block.
 							
-							if frame.contains(leave_) {
-								if let Some(finally) = frame.finally {
+							if try_catch.contains(leave_) {
+								if let Some(finally) = try_catch.finally {
 									// We have another finally block to process. Jump into
 									// it.
 									
-									ip = finally.start().offset();
+									frame.ip = finally.start().offset();
 									
 									found = true;
 									break;
@@ -137,10 +176,10 @@ impl JsEnv {
 								break;
 							}
 						}
-						if frame.try.contains(ip) || frame.catch.map_or(false, |catch| catch.contains(ip)) {
+						if try_catch.try.contains(frame.ip) || try_catch.catch.map_or(false, |catch| catch.contains(frame.ip)) {
 							// If the leave is in a try or catch block, jump to the finally block.
 							
-							ip = if let Some(finally) = frame.finally {
+							frame.ip = if let Some(finally) = try_catch.finally {
 								leave = Some(leave_);
 								finally.start().offset()
 							} else {
@@ -150,7 +189,7 @@ impl JsEnv {
 							found = true;
 							break;
 						}
-						if frame.finally.map_or(false, |finally| finally.contains(ip)) {
+						if try_catch.finally.map_or(false, |finally| finally.contains(frame.ip)) {
 							// If the leave is in a finally block, treat it as an end finally
 							// but with a specific leave.
 							
@@ -165,7 +204,7 @@ impl JsEnv {
 							// an end finally, and we couldn't find another finally block,
 							// just jump to the leave.
 							
-							ip = leave_;
+							frame.ip = leave_;
 							leave = None;
 						} else {
 							panic!("Cannot find try/catch frame of leave");
@@ -183,7 +222,7 @@ impl JsEnv {
 					// If we don't have an error in flight, we process the pending
 					// leave.
 					
-					if let Some(ref error) = thrown {
+					if let Some(ref error) = frame.thrown {
 						// We have an error in flight and are exiting the finally
 						// block. We need to find the next frame that can process
 						// the error.
@@ -196,26 +235,26 @@ impl JsEnv {
 						let mut next = false;
 						let mut found = false;
 						
-						for frame in &block.try_catches {
+						for try_catch in &block.try_catches {
 							if next {
 								// If the frame has a catch block, let the catch
 								// block handle the error. Otherwise it must have
 								// a finally block and we enter that.
 								
-								if let Some(catch) = frame.catch {
-									ip = catch.start().offset();
+								if let Some(catch) = try_catch.catch {
+									frame.ip = catch.start().offset();
 									
 									found = true;
 									break;
-								} else if let Some(finally) = frame.finally {
-									ip = finally.start().offset();
+								} else if let Some(finally) = try_catch.finally {
+									frame.ip = finally.start().offset();
 									
 									found = true;
 									break;
 								} else {
 									panic!("Expected at least a catch or finally block");
 								}
-							} else if frame.finally.map_or(false, |finally| finally.contains(ip)) {
+							} else if try_catch.finally.map_or(false, |finally| finally.contains(frame.ip)) {
 								// If the end finally is part of this frame, start processing
 								// frames to find the next finally.
 								
@@ -235,8 +274,8 @@ impl JsEnv {
 						// catch and the leave is the first instruction after the finally
 						// block.
 						
-						if leave_ == ip + 1 {
-							ip = leave_;
+						if leave_ == frame.ip + 1 {
+							frame.ip = leave_;
 							continue;
 						}
 						
@@ -250,19 +289,19 @@ impl JsEnv {
 						let mut next = false;
 						let mut found = false;
 						
-						for frame in &block.try_catches {
+						for try_catch in &block.try_catches {
 							if next {
 								// If the leave instruction falls inside this frame, we
 								// stop processing frames because we can actually jump to it.
 								// Otherwise we check to see whether we need to process
 								// this finally block.
 								
-								if frame.contains(leave_) {
-									if let Some(finally) = frame.finally {
+								if try_catch.contains(leave_) {
+									if let Some(finally) = try_catch.finally {
 										// We have another finally block to process. Jump into
 										// it.
 										
-										ip = finally.start().offset();
+										frame.ip = finally.start().offset();
 										
 										found = true;
 										break;
@@ -271,7 +310,7 @@ impl JsEnv {
 									// There are no matching frames left.
 									break;
 								}
-							} else if frame.finally.map_or(false, |finally| finally.contains(ip)) {
+							} else if try_catch.finally.map_or(false, |finally| finally.contains(frame.ip)) {
 								// If the end finally is part of this frame, start processing
 								// frames to find the next finally.
 								
@@ -282,7 +321,7 @@ impl JsEnv {
 						// If we didn't find a frame, jump to the leave.
 						
 						if !found {
-							ip = leave_;
+							frame.ip = leave_;
 						}
 					} else {
 						panic!("End finaly without pending error or leave");
@@ -291,181 +330,197 @@ impl JsEnv {
 			}
 		}
 	}
+}
+
+impl<'a> Frame<'a> {
+	fn find_scope(&self, depth: u32) -> Local<JsScope> {
+		if depth == 0 {
+			self.locals.get(self.scope.unwrap()).as_scope(self.env)
+		} else {
+			let mut scope = self.locals.get(self.parent_scope.unwrap()).as_scope(self.env);
+			let mut depth = depth - 1;
+			while depth > 0 {
+				scope = scope.parent(self.env).unwrap().as_scope(self.env);
+				depth -= 1;
+			}
+			scope
+		}
+	}
 	
 	#[inline(always)]
-	fn call_stmt(&mut self, ip: &mut usize, ir: &Ir, locals: &StackFrame, this: &Option<Local<JsValue>>, args: &Vec<Local<JsValue>>, thrown: &mut Option<Root<JsValue>>, strict: bool, arguments: usize) -> Next {
+	fn call_stmt(&mut self, ir: &Ir) -> Next {
 		match ir {
 			&Ir::Add => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(self);
-				let arg2 = frame.get(1).as_local(self);
-				let result = local_try!(self.add(arg1, arg2));
-				self.stack.drop_frame(frame);
-				self.stack.push(*result);
+				let frame = self.env.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self.env);
+				let arg2 = frame.get(1).as_local(self.env);
+				let result = local_try!(self.env.add(arg1, arg2));
+				self.env.stack.drop_frame(frame);
+				self.env.stack.push(*result);
 			}
 			&Ir::BitAnd => { unimplemented!(); },
 			&Ir::BitNot => { unimplemented!(); },
 			&Ir::BitOr => { unimplemented!(); },
 			&Ir::BitXOr => { unimplemented!(); },
 			&Ir::Call(count) => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(count as usize + 2);
+				let frame = self.env.stack.create_frame(count as usize + 2);
 				let mut args = Vec::new();
 				for i in 0..count as usize {
-					args.push(frame.get(i + 2).as_local(self));
+					args.push(frame.get(i + 2).as_local(self.env));
 				}
 				
-				let this = frame.get(0).as_local(self);
-				let function = frame.get(1).as_local(self);
-				let function = self.get_value(function);
+				let this = frame.get(0).as_local(self.env);
+				let function = frame.get(1).as_local(self.env);
+				let function = self.env.get_value(function);
 				
-				let result = local_try!(function.call(self, this, args));
+				let result = local_try!(function.call(self.env, this, args));
 				
-				self.stack.drop_frame(frame);
-				self.stack.push(*result);
+				self.env.stack.drop_frame(frame);
+				self.env.stack.push(*result);
 			}
 			&Ir::CurrentIter(local) => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let iterator = Local::from_ptr(locals.get(local.offset()).get_iterator(), &self.heap);
+				let iterator = self.locals.get(local.offset()).as_iterator(self.env);
 				let name = iterator.current();
 				
 				let result = if let Some(index) = name.index() {
-					JsString::from_str(self, &index.to_string()).as_value(self)
+					JsString::from_str(self.env, &index.to_string()).as_value(self.env)
 				} else {
-					JsString::from_str(self, &*self.ir.interner().get(name)).as_value(self)
+					JsString::from_str(self.env, &*self.env.ir.interner().get(name)).as_value(self.env)
 				};
 				
-				self.stack.push(*result);
+				self.env.stack.push(*result);
 			},
 			&Ir::Debugger => { unimplemented!(); },
 			&Ir::DeleteIndex => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
+				let frame = self.env.stack.create_frame(2);
 				
-				let index = frame.get(1).as_local(self);
-				let index = local_try!(self.intern_value(index));
+				let index = frame.get(1).as_local(self.env);
+				let index = local_try!(self.env.intern_value(index));
 				
-				let result = local_try!(frame.get(0).as_local(self).delete(self, index, true));
+				let result = local_try!(frame.get(0).as_local(self.env).delete(self.env, index, true));
 				
-				self.stack.drop_frame(frame);
-				self.stack.push(JsValue::new_bool(result));
+				self.env.stack.drop_frame(frame);
+				self.env.stack.push(JsValue::new_bool(result));
 			}
 			&Ir::DeleteName(name) => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(1);
+				let frame = self.env.stack.create_frame(1);
 				
-				let result = local_try!(frame.get(0).as_local(self).delete(self, name, true));
+				let result = local_try!(frame.get(0).as_local(self.env).delete(self.env, name, true));
 				
-				self.stack.drop_frame(frame);
-				self.stack.push(JsValue::new_bool(result));
+				self.env.stack.drop_frame(frame);
+				self.env.stack.push(JsValue::new_bool(result));
 			}
 			&Ir::Divide => { unimplemented!(); },
 			&Ir::Dup => {
-				let frame = self.stack.create_frame(1);
-				self.stack.push(frame.get(0));
+				let frame = self.env.stack.create_frame(1);
+				self.env.stack.push(frame.get(0));
 			}
 			&Ir::EndFinally => return Next::EndFinally,
 			&Ir::EndIter(local) => { /* no-op */ },
 			&Ir::EnterWith => { unimplemented!(); },
 			&Ir::Eq => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(self);
-				let arg2 = frame.get(1).as_local(self);
-				let result = local_try!(self.eq(arg1, arg2));
-				self.stack.drop_frame(frame);
+				let frame = self.env.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self.env);
+				let arg2 = frame.get(1).as_local(self.env);
+				let result = local_try!(self.env.eq(arg1, arg2));
+				self.env.stack.drop_frame(frame);
 				
-				self.stack.push(JsValue::new_bool(result));
+				self.env.stack.push(JsValue::new_bool(result));
 			}
 			&Ir::Ge => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(self);
-				let arg2 = frame.get(1).as_local(self);
-				let result = local_try!(self.compare_ge(arg1, arg2));
-				self.stack.drop_frame(frame);
-				self.stack.push(JsValue::new_bool(result));
+				let frame = self.env.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self.env);
+				let arg2 = frame.get(1).as_local(self.env);
+				let result = local_try!(self.env.compare_ge(arg1, arg2));
+				self.env.stack.drop_frame(frame);
+				self.env.stack.push(JsValue::new_bool(result));
 			}
 			&Ir::Gt => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(self);
-				let arg2 = frame.get(1).as_local(self);
-				let result = local_try!(self.compare_gt(arg1, arg2));
-				self.stack.drop_frame(frame);
-				self.stack.push(JsValue::new_bool(result));
+				let frame = self.env.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self.env);
+				let arg2 = frame.get(1).as_local(self.env);
+				let result = local_try!(self.env.compare_gt(arg1, arg2));
+				self.env.stack.drop_frame(frame);
+				self.env.stack.push(JsValue::new_bool(result));
 			},
 			&Ir::In => { unimplemented!(); },
 			&Ir::InstanceOf => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(self);
-				let arg2 = frame.get(1).as_local(self);
-				let result = local_try!(self.instanceof(arg1, arg2));
-				self.stack.drop_frame(frame);
+				let frame = self.env.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self.env);
+				let arg2 = frame.get(1).as_local(self.env);
+				let result = local_try!(self.env.instanceof(arg1, arg2));
+				self.env.stack.drop_frame(frame);
 				
-				self.stack.push(*result);
+				self.env.stack.push(*result);
 			},
 			&Ir::IntoIter(local) => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(1);
+				let frame = self.env.stack.create_frame(1);
 				
-				let arg = frame.get(0).as_local(self);
-				let result = JsIterator::new_local(self, arg).as_value(self);
-				locals.set(local.offset(), *result);
+				let arg = frame.get(0).as_local(self.env);
+				let result = JsIterator::new_local(self.env, arg).as_value(self.env);
+				self.locals.set(local.offset(), *result);
 				
-				self.stack.drop_frame(frame);
+				self.env.stack.drop_frame(frame);
 			},
 			&Ir::Jump(label) => {
-				*ip = label.offset();
+				self.ip = label.offset();
 				return Next::Next;
 			}
 			&Ir::JumpEq(label) => { unimplemented!(); },
 			&Ir::JumpFalse(label) => {
-				let frame = self.stack.create_frame(1);
+				let frame = self.env.stack.create_frame(1);
 				let jump = !frame.get(0).get_bool();
-				self.stack.drop_frame(frame);
+				self.env.stack.drop_frame(frame);
 				if jump {
-					*ip  = label.offset();
+					self.ip  = label.offset();
 					return Next::Next;
 				}
 			}
 			&Ir::JumpTrue(label) => {
-				let frame = self.stack.create_frame(1);
+				let frame = self.env.stack.create_frame(1);
 				let jump = frame.get(0).get_bool();
-				self.stack.drop_frame(frame);
+				self.env.stack.drop_frame(frame);
 				if jump {
-					*ip  = label.offset();
+					self.ip  = label.offset();
 					return Next::Next;
 				}
 			}
 			&Ir::Le => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(self);
-				let arg2 = frame.get(1).as_local(self);
-				let result = local_try!(self.compare_le(arg1, arg2));
-				self.stack.drop_frame(frame);
-				self.stack.push(JsValue::new_bool(result));
+				let frame = self.env.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self.env);
+				let arg2 = frame.get(1).as_local(self.env);
+				let result = local_try!(self.env.compare_le(arg1, arg2));
+				self.env.stack.drop_frame(frame);
+				self.env.stack.push(JsValue::new_bool(result));
 			}
 			&Ir::Leave(label) => return Next::Leave(label.offset()),
 			&Ir::LeaveWith => { unimplemented!(); },
-			&Ir::LoadArguments => self.stack.push(locals.get(arguments)),
+			&Ir::LoadArguments => self.env.stack.push(self.locals.get(self.arguments.unwrap())),
 			&Ir::LoadException => {
-				if let Some(ref exception) = *thrown {
-					self.stack.push(**exception)
+				if let Some(ref exception) = self.thrown {
+					self.env.stack.push(**exception)
 				} else {
 					panic!("Load exception statement without exception in flight");
 				}
@@ -475,211 +530,232 @@ impl JsEnv {
 				// we're guarenteed to correctly clear the exception
 				// in flight when we enter one.
 				
-				*thrown = None;
+				self.thrown = None;
 			}
-			&Ir::LoadF64(value) => self.stack.push(JsValue::new_number(value)),
-			&Ir::LoadFalse => self.stack.push(JsValue::new_false()),
+			&Ir::LoadF64(value) => self.env.stack.push(JsValue::new_number(value)),
+			&Ir::LoadFalse => self.env.stack.push(JsValue::new_false()),
 			&Ir::LoadFunction(function) => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let function = *local_try!(self.new_function(function));
-				self.stack.push(function);
+				let scope = if let Some(index) = self.scope {
+					Some(self.locals.get(index).as_local(self.env))
+				} else {
+					None
+				};
+				
+				let function = *local_try!(self.env.new_function(function, scope));
+				self.env.stack.push(function);
 			}
 			&Ir::LoadGlobal(name) => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let global = self.global.as_local(self);
-				if !global.has_property(self, name) {
-					return Next::Throw(JsError::new_reference(self));
+				let global = self.env.global.as_local(self.env);
+				if !global.has_property(self.env, name) {
+					return Next::Throw(JsError::new_reference(self.env));
 				}
-				let value = local_try!(global.get(self, name));
-				self.stack.push(*value);
+				let value = local_try!(global.get(self.env, name));
+				self.env.stack.push(*value);
 			}
 			&Ir::LoadGlobalThis => {
-				self.stack.push(JsValue::new_object(self.global.as_ptr()));
+				self.env.stack.push(JsValue::new_object(self.env.global.as_ptr()));
 			}
-			&Ir::LoadI32(value) => self.stack.push(JsValue::new_number(value as f64)),
-			&Ir::LoadI64(value) => self.stack.push(JsValue::new_number(value as f64)),
+			&Ir::LoadI32(value) => self.env.stack.push(JsValue::new_number(value as f64)),
+			&Ir::LoadI64(value) => self.env.stack.push(JsValue::new_number(value as f64)),
 			&Ir::LoadIndex => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
+				let frame = self.env.stack.create_frame(2);
 				
-				let index = frame.get(1).as_local(self);
-				let index = local_try!(self.intern_value(index));
+				let index = frame.get(1).as_local(self.env);
+				let index = local_try!(self.env.intern_value(index));
 				
-				let result = local_try!(frame.get(0).as_local(self).get(self, index));
+				let result = local_try!(frame.get(0).as_local(self.env).get(self.env, index));
 				
-				self.stack.drop_frame(frame);
+				self.env.stack.drop_frame(frame);
 				
-				self.stack.push(*result);
+				self.env.stack.push(*result);
 			}
-			&Ir::LoadLifted(name, depth) => { panic!("lifted not yet implemented"); },
-			&Ir::LoadLocal(local) => self.stack.push(locals.get(local.offset())),
+			&Ir::LoadLifted(index, depth) => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let scope = self.find_scope(depth);
+				let result = scope.get(self.env, index as usize);
+				self.env.stack.push(*result);
+			},
+			&Ir::LoadLocal(local) => self.env.stack.push(self.locals.get(local.offset())),
 			&Ir::LoadMissing => { unimplemented!(); },
 			&Ir::LoadName(name) => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(1);
-				let result = local_try!(frame.get(0).as_local(self).get(self, name));
-				self.stack.drop_frame(frame);
-				self.stack.push(*result);
+				let frame = self.env.stack.create_frame(1);
+				let result = local_try!(frame.get(0).as_local(self.env).get(self.env, name));
+				self.env.stack.drop_frame(frame);
+				self.env.stack.push(*result);
 			}
 			&Ir::LoadNameLit => { unimplemented!(); },
-			&Ir::LoadNull => self.stack.push(JsValue::new_null()),
+			&Ir::LoadNull => self.env.stack.push(JsValue::new_null()),
 			&Ir::LoadParam(index) => {
-				if index < args.len() as u32 {
-					self.stack.push(*args[index as usize]);
+				if index < self.args.len() as u32 {
+					self.env.stack.push(*self.args[index as usize]);
 				} else {
-					self.stack.push(JsValue::new_undefined());
+					self.env.stack.push(JsValue::new_undefined());
 				}
 			}
 			&Ir::LoadRegex(ref pattern, ref modifiers) => { unimplemented!(); },
 			&Ir::LoadString(ref string) => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let result = JsString::from_str(self, &string).as_value(self);
-				self.stack.push(*result);
+				let result = JsString::from_str(self.env, &string).as_value(self.env);
+				self.env.stack.push(*result);
 			}
 			&Ir::LoadThis => {
-				if let Some(ref this) = *this {
-					self.stack.push(**this);
+				if let Some(ref this) = self.this {
+					self.env.stack.push(**this);
 				} else {
-					self.stack.push(JsValue::new_object(self.global.as_ptr()));
+					self.env.stack.push(JsValue::new_object(self.env.global.as_ptr()));
 				}
 			},
-			&Ir::LoadTrue => self.stack.push(JsValue::new_true()),
-			&Ir::LoadUndefined => self.stack.push(JsValue::new_undefined()),
+			&Ir::LoadTrue => self.env.stack.push(JsValue::new_true()),
+			&Ir::LoadUndefined => self.env.stack.push(JsValue::new_undefined()),
 			&Ir::Lsh => { unimplemented!(); },
 			&Ir::Lt => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(self);
-				let arg2 = frame.get(1).as_local(self);
-				let result = local_try!(self.compare_gt(arg1, arg2));
-				self.stack.drop_frame(frame);
-				self.stack.push(JsValue::new_bool(result));
+				let frame = self.env.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self.env);
+				let arg2 = frame.get(1).as_local(self.env);
+				let result = local_try!(self.env.compare_gt(arg1, arg2));
+				self.env.stack.drop_frame(frame);
+				self.env.stack.push(JsValue::new_bool(result));
 			},
 			&Ir::Modulus => { unimplemented!(); },
 			&Ir::Multiply => { unimplemented!(); },
 			&Ir::Ne => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(self);
-				let arg2 = frame.get(1).as_local(self);
-				let result = local_try!(self.ne(arg1, arg2));
-				self.stack.drop_frame(frame);
+				let frame = self.env.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self.env);
+				let arg2 = frame.get(1).as_local(self.env);
+				let result = local_try!(self.env.ne(arg1, arg2));
+				self.env.stack.drop_frame(frame);
 				
-				self.stack.push(JsValue::new_bool(result));
+				self.env.stack.push(JsValue::new_bool(result));
 			},
 			&Ir::Negative => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(1);
-				let arg = frame.get(0).as_local(self);
-				let result = local_try!(self.negative(arg));
-				self.stack.drop_frame(frame);
+				let frame = self.env.stack.create_frame(1);
+				let arg = frame.get(0).as_local(self.env);
+				let result = local_try!(self.env.negative(arg));
+				self.env.stack.drop_frame(frame);
 				
-				self.stack.push(JsValue::new_number(result));
+				self.env.stack.push(JsValue::new_number(result));
 			},
 			&Ir::New(count) => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(count as usize + 1);
+				let frame = self.env.stack.create_frame(count as usize + 1);
 				let mut args = Vec::new();
 				for i in 0..count as usize {
-					args.push(frame.get(i + 1).as_local(self));
+					args.push(frame.get(i + 1).as_local(self.env));
 				}
 				
-				let constructor = frame.get(0).as_local(self);
+				let constructor = frame.get(0).as_local(self.env);
 				
-				let result = local_try!(constructor.construct(self, args));
+				let result = local_try!(constructor.construct(self.env, args));
 				
-				self.stack.drop_frame(frame);
-				self.stack.push(*result);
+				self.env.stack.drop_frame(frame);
+				self.env.stack.push(*result);
 			},
 			&Ir::NewArray => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 					
-				let result = self.new_array().as_value(self);
-				self.stack.push(*result);
+				let result = self.env.new_array().as_value(self.env);
+				self.env.stack.push(*result);
 			}
 			&Ir::NewObject => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 					
-				let result = self.new_object().as_value(self);
-				self.stack.push(*result);
+				let result = self.env.new_object().as_value(self.env);
+				self.env.stack.push(*result);
 			}
 			&Ir::NextIter(local, label) => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let mut iterator = Local::from_ptr(locals.get(local.offset()).get_iterator(), &self.heap);
+				let mut iterator = self.locals.get(local.offset()).as_iterator(self.env);
 				
-				if iterator.next(self) {
-					*ip  = label.offset();
+				if iterator.next(self.env) {
+					self.ip  = label.offset();
 					return Next::Next;
 				}
 			},
 			&Ir::Not => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(1);
-				let arg = frame.get(0).as_local(self);
-				let result = self.logical_not(arg);
-				self.stack.drop_frame(frame);
-				self.stack.push(*result);
+				let frame = self.env.stack.create_frame(1);
+				let arg = frame.get(0).as_local(self.env);
+				let result = self.env.logical_not(arg);
+				self.env.stack.drop_frame(frame);
+				self.env.stack.push(*result);
 			},
 			&Ir::Pick(depth) => { unimplemented!(); },
 			&Ir::Pop => {
-				let frame = self.stack.create_frame(1);
-				self.stack.drop_frame(frame);
+				let frame = self.env.stack.create_frame(1);
+				self.env.stack.drop_frame(frame);
 			},
 			&Ir::Positive => { unimplemented!(); },
 			&Ir::Return => {
-				let frame = self.stack.create_frame(1);
+				let frame = self.env.stack.create_frame(1);
 				let result = frame.get(0);
-				self.stack.drop_frame(frame);
+				self.env.stack.drop_frame(frame);
 				return Next::Return(result);
 			}
 			&Ir::Rsh => { unimplemented!(); },
 			&Ir::RshZeroFill => { unimplemented!(); },
 			&Ir::StoreArguments => { unimplemented!(); },
 			&Ir::StoreGlobal(name) => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(1);
-				let value = frame.get(0).as_local(self);
-				local_try!(self.global.as_local(self).put(self, name, value, strict));
-				self.stack.drop_frame(frame);
+				let frame = self.env.stack.create_frame(1);
+				let value = frame.get(0).as_local(self.env);
+				local_try!(self.env.global.as_local(self.env).put(self.env, name, value, self.strict));
+				self.env.stack.drop_frame(frame);
 			}
 			&Ir::StoreIndex => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(3);
+				let frame = self.env.stack.create_frame(3);
 				
-				let index = frame.get(1).as_local(self);
-				let index = local_try!(self.intern_value(index));
+				let index = frame.get(1).as_local(self.env);
+				let index = local_try!(self.env.intern_value(index));
 				
-				let value = frame.get(2).as_local(self);
-				local_try!(frame.get(0).as_local(self).put(self, index, value, strict));
+				let value = frame.get(2).as_local(self.env);
+				local_try!(frame.get(0).as_local(self.env).put(self.env, index, value, self.strict));
 				
-				self.stack.drop_frame(frame);
+				self.env.stack.drop_frame(frame);
 			}
-			&Ir::StoreLifted(name, depth) => { panic!("lifted not yet implemented"); },
+			&Ir::StoreLifted(index, depth) => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(1);
+				
+				let mut scope = self.find_scope(depth);
+				let result = scope.set(index as usize, frame.get(0).as_local(self.env));
+				
+				self.env.stack.drop_frame(frame);
+			},
 			&Ir::StoreLocal(local) => {
-				let frame = self.stack.create_frame(1);
-				locals.set(local.offset(), frame.get(0));
-				self.stack.drop_frame(frame);
+				let frame = self.env.stack.create_frame(1);
+				self.locals.set(local.offset(), frame.get(0));
+				self.env.stack.drop_frame(frame);
 			}
 			&Ir::StoreName(name) => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
-				let value = frame.get(1).as_local(self);
-				local_try!(frame.get(0).as_local(self).put(self, name, value, strict));
-				self.stack.drop_frame(frame);
+				let frame = self.env.stack.create_frame(2);
+				let value = frame.get(1).as_local(self.env);
+				local_try!(frame.get(0).as_local(self.env).put(self.env, name, value, self.strict));
+				self.env.stack.drop_frame(frame);
 			}
 			&Ir::StoreGetter(function) => { unimplemented!(); },
 			&Ir::StoreNameGetter(name, function) => { unimplemented!(); },
@@ -687,106 +763,106 @@ impl JsEnv {
 			&Ir::StoreNameSetter(name, function) => { unimplemented!(); },
 			&Ir::StoreParam(u32) => { unimplemented!(); },
 			&Ir::StrictEq => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(self);
-				let arg2 = frame.get(1).as_local(self);
-				let result = self.strict_eq(arg1, arg2);
-				self.stack.drop_frame(frame);
+				let frame = self.env.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self.env);
+				let arg2 = frame.get(1).as_local(self.env);
+				let result = self.env.strict_eq(arg1, arg2);
+				self.env.stack.drop_frame(frame);
 				
-				self.stack.push(JsValue::new_bool(result));
+				self.env.stack.push(JsValue::new_bool(result));
 			},
 			&Ir::StrictNe => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(self);
-				let arg2 = frame.get(1).as_local(self);
-				let result = self.strict_eq(arg1, arg2);
-				self.stack.drop_frame(frame);
+				let frame = self.env.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self.env);
+				let arg2 = frame.get(1).as_local(self.env);
+				let result = self.env.strict_eq(arg1, arg2);
+				self.env.stack.drop_frame(frame);
 				
-				self.stack.push(JsValue::new_bool(!result));
+				self.env.stack.push(JsValue::new_bool(!result));
 			},
 			&Ir::Subtract => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(self);
-				let arg2 = frame.get(1).as_local(self);
-				let result = local_try!(self.subtract(arg1, arg2));
-				self.stack.drop_frame(frame);
+				let frame = self.env.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self.env);
+				let arg2 = frame.get(1).as_local(self.env);
+				let result = local_try!(self.env.subtract(arg1, arg2));
+				self.env.stack.drop_frame(frame);
 				
-				self.stack.push(JsValue::new_number(result));
+				self.env.stack.push(JsValue::new_number(result));
 			},
 			&Ir::Swap => { unimplemented!(); },
 			&Ir::Throw => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(1);
-				let error = Root::from_local(&self.heap, frame.get(0).as_local(self));
-				self.stack.drop_frame(frame);
+				let frame = self.env.stack.create_frame(1);
+				let error = Root::from_local(&self.env.heap, frame.get(0).as_local(self.env));
+				self.env.stack.drop_frame(frame);
 				
 				return Next::Throw(JsError::Runtime(error));
 			}
 			&Ir::ToBoolean => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(1);
-				let arg = frame.get(0).as_local(self);
+				let frame = self.env.stack.create_frame(1);
+				let arg = frame.get(0).as_local(self.env);
 				let result = arg.to_boolean();
-				self.stack.drop_frame(frame);
+				self.env.stack.drop_frame(frame);
 				
-				self.stack.push(JsValue::new_bool(result));
+				self.env.stack.push(JsValue::new_bool(result));
 			}
 			&Ir::Typeof => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(1);
-				let arg = frame.get(0).as_local(self);
-				let result = self.type_of(arg);
-				self.stack.drop_frame(frame);
+				let frame = self.env.stack.create_frame(1);
+				let arg = frame.get(0).as_local(self.env);
+				let result = self.env.type_of(arg);
+				self.env.stack.drop_frame(frame);
 				
-				self.stack.push(JsValue::new_string(result.as_ptr()));
+				self.env.stack.push(JsValue::new_string(result.as_ptr()));
 			}
 			&Ir::TypeofName(name) => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(1);
-				let base = frame.get(0).as_local(self);
+				let frame = self.env.stack.create_frame(1);
+				let base = frame.get(0).as_local(self.env);
 				let result = if base.is_undefined() {
-					JsString::from_str(self, "undefined")
+					JsString::from_str(self.env, "undefined")
 				} else {
-					let arg = local_try!(base.get(self, name));
-					self.type_of(arg)
+					let arg = local_try!(base.get(self.env, name));
+					self.env.type_of(arg)
 				};
 				
-				self.stack.drop_frame(frame);
+				self.env.stack.drop_frame(frame);
 				
-				self.stack.push(JsValue::new_string(result.as_ptr()));
+				self.env.stack.push(JsValue::new_string(result.as_ptr()));
 			}
 			&Ir::TypeofIndex => {
-				let _scope = self.heap.new_local_scope();
+				let _scope = self.env.heap.new_local_scope();
 				
-				let frame = self.stack.create_frame(2);
-				let base = frame.get(0).as_local(self);
+				let frame = self.env.stack.create_frame(2);
+				let base = frame.get(0).as_local(self.env);
 				let result = if base.is_undefined() {
-					JsString::from_str(self, "undefined")
+					JsString::from_str(self.env, "undefined")
 				} else {
-					let index = frame.get(1).as_local(self);
-					let index = local_try!(self.intern_value(index));
+					let index = frame.get(1).as_local(self.env);
+					let index = local_try!(self.env.intern_value(index));
 					
-					let arg = local_try!(base.get(self, index));
-					self.type_of(arg)
+					let arg = local_try!(base.get(self.env, index));
+					self.env.type_of(arg)
 				};
 				
-				self.stack.drop_frame(frame);
+				self.env.stack.drop_frame(frame);
 				
-				self.stack.push(JsValue::new_string(result.as_ptr()));
+				self.env.stack.push(JsValue::new_string(result.as_ptr()));
 			}
 		}
 		
-		*ip += 1;
+		self.ip += 1;
 		
 		Next::Next
 	}

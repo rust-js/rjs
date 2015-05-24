@@ -9,42 +9,56 @@ pub struct LocalResolver<'a> {
 }
 
 struct LocalResolverScope<'a> {
+	function_ref: FunctionRef,
 	blocks: Vec<&'a Block>,
 	locals: &'a RefCell<Locals>,
-	had_arguments: bool
+	had_arguments: bool,
+	build_scope: bool,
+	takes_scope: bool,
+	slot_count: u32
 }
 
 impl<'a> LocalResolver<'a> {
-	pub fn resolve(context: &'a AstContext, program: FunctionRef) {
+	pub fn resolve(context: &'a AstContext, program_ref: FunctionRef) {
 		let mut resolver = LocalResolver {
 			scopes: Vec::new(),
 			context: context
 		};
 		
-		let program = &context.functions[program.usize()];
+		let program = &context.functions[program_ref.usize()];
 		
-		resolver.resolve_scope(&program.block);
+		resolver.resolve_scope(&program.block, program_ref);
 	}
 
 	fn resolve_function(&mut self, function_ref: FunctionRef) {
 		let function = &self.context.functions[function_ref.usize()];
 		
-		self.resolve_scope(&function.block);
+		self.resolve_scope(&function.block, function_ref);
 	}
 
-	fn resolve_scope(&mut self, block: &'a RootBlock) {
+	fn resolve_scope(&mut self, block: &'a RootBlock, function_ref: FunctionRef) {
 		self.scopes.push(LocalResolverScope {
+			function_ref: function_ref,
 			blocks: vec![&block.block],
 			locals: &block.locals,
-			had_arguments: false
+			had_arguments: false,
+			build_scope: false,
+			takes_scope: false,
+			slot_count: 0
 		});
 		
 		self.visit_block(&block.block);
 		
-		let scope = self.scopes.pop();
+		let scope = self.scopes.pop().unwrap();
 		
-		if scope.unwrap().had_arguments {
+		if scope.had_arguments {
 			block.has_arguments.set(true);
+		}
+		if scope.takes_scope {
+			block.takes_scope.set(true);
+		}
+		if scope.build_scope {
+			block.scope.set(Some(scope.slot_count as u32));
 		}
 	}
 
@@ -58,7 +72,6 @@ impl<'a> LocalResolver<'a> {
 		// If we've already resolved this one, skip it.
 		
 		let state = ident.state.get();
-		
 		if !state.is_none() {
 			return;
 		}
@@ -99,22 +112,41 @@ impl<'a> LocalResolver<'a> {
 					ident.state.set(if depth == 0 {
 						IdentState::Slot(*local_slot_ref)
 					} else {
-						IdentState::LiftedSlot(*local_slot_ref, depth as u32)
+						IdentState::LiftedSlot(scope.function_ref, *local_slot_ref, depth as u32)
 					});
 					
 					// If the depth is greater than zero, it's lifted and we need to update the block state.
 					
 					if depth > 0 {
-						scope.locals.borrow_mut().slots[local_slot_ref.usize()].lifted = true;
+						scope.locals.borrow_mut().slots[local_slot_ref.usize()].lifted = Some(scope.slot_count);
+						scope.slot_count += 1;
 					}
 					
-					return;
+					break 'outer;
 				}
 			}
 		}
 		
-		ident.state.set(IdentState::Global);
-	} 
+		match ident.state.get() {
+			IdentState::None => ident.state.set(IdentState::Global),
+			IdentState::LiftedSlot(_, _, depth) => self.mark_build_slot(depth),
+			_ => {}
+		};
+	}
+	
+	fn mark_build_slot(&mut self, mut depth: u32) {
+		let mut offset = self.scopes.len() - 1;
+		self.scopes[offset].takes_scope = true;
+		offset -= 1;
+		while depth > 0 {
+			self.scopes[offset].build_scope = true;
+			if depth > 1 {
+				self.scopes[offset].takes_scope = true;
+			}
+			depth -= 1;
+			offset -= 1;
+		}
+	}
 
 	fn resolve_set_ident(&mut self, ident: &'a Ident) {
 		self.resolve_ident(ident);
@@ -179,8 +211,8 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 		self.scopes[len - 1].blocks.pop();
 	}
 	
-	fn visit_root_block(&mut self, block: &'a RootBlock) {
-		self.resolve_scope(block)
+	fn visit_root_block(&mut self, _: &'a RootBlock) {
+		panic!();
 	}
 	
 	fn visit_item_for_var_in(&mut self, item: &'a Item) {

@@ -18,7 +18,7 @@ impl AstContext {
 	}
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct FunctionRef(pub u32);
 
 impl FunctionRef {
@@ -56,11 +56,11 @@ impl Locals {
 /// scope (function). This only applies to functions and when optimizations are
 /// enabled. When optimizations are disabled (i.e. when there is an eval
 /// somewhere in the stack), local slots are not tracked.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Slot {
 	pub name: Name,
 	pub arg: Option<u32>,
-	pub lifted: bool
+	pub lifted: Option<u32>
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -77,6 +77,8 @@ pub struct RootBlock {
 	pub args: Vec<Name>,
 	pub block: Block,
 	pub locals: RefCell<Locals>,
+	pub scope: Cell<Option<u32>>,
+	pub takes_scope: Cell<bool>,
 	pub strict: bool,
 	pub has_arguments: Cell<bool>
 }
@@ -140,16 +142,12 @@ pub enum IdentState {
 	Scoped,
 	Arguments,
 	Slot(SlotRef),
-	LiftedSlot(SlotRef, u32)
+	LiftedSlot(FunctionRef, SlotRef, u32)
 }
 
 impl IdentState {
 	pub fn is_none(&self) -> bool {
-		if let IdentState::None = *self {
-			true
-		} else {
-			false
-		}
+		if let IdentState::None = *self { true } else { false }
 	}
 }
 

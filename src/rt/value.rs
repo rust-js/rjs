@@ -112,6 +112,13 @@ impl JsValue {
 		}
 	}
 	
+	pub fn new_scope(value: Ptr<JsScope>) -> JsValue {
+		JsValue {
+			ty: JsType::Scope,
+			value: JsRawValue::new_ptr(value)
+		}
+	}
+	
 	pub fn ty(&self) -> JsType {
 		self.ty
 	}
@@ -157,6 +164,10 @@ impl JsValue {
 	pub fn set_string(&mut self, value: Ptr<JsString>) {
 		*self = JsValue::new_string(value);
 	}
+
+	pub fn as_string(&self, env: &JsEnv) -> Local<JsString> {
+		Local::from_ptr(self.get_string(), &env.heap)
+	}
 	
 	pub fn get_object(&self) -> Ptr<JsObject> {
 		assert_eq!(self.ty, JsType::Object);
@@ -168,6 +179,10 @@ impl JsValue {
 		*self = JsValue::new_object(value);
 	}
 	
+	pub fn as_object(&self, env: &JsEnv) -> Local<JsObject> {
+		Local::from_ptr(self.get_object(), &env.heap)
+	}
+	
 	pub fn get_iterator(&self) -> Ptr<JsIterator> {
 		assert_eq!(self.ty, JsType::Iterator);
 		
@@ -176,6 +191,24 @@ impl JsValue {
 	
 	pub fn set_iterator(&mut self, value: Ptr<JsIterator>) {
 		*self = JsValue::new_iterator(value);
+	}
+	
+	pub fn as_iterator(&self, env: &JsEnv) -> Local<JsIterator> {
+		Local::from_ptr(self.get_iterator(), &env.heap)
+	}
+	
+	pub fn get_scope(&self) -> Ptr<JsScope> {
+		assert_eq!(self.ty, JsType::Scope);
+		
+		self.value.get_ptr()
+	}
+	
+	pub fn set_scope(&mut self, value: Ptr<JsScope>) {
+		*self = JsValue::new_scope(value);
+	}
+	
+	pub fn as_scope(&self, env: &JsEnv) -> Local<JsScope> {
+		Local::from_ptr(self.get_scope(), &env.heap)
 	}
 }
 
@@ -282,8 +315,12 @@ impl JsItem for Local<JsValue> {
 		delegate!(self, env, has_instance(env, object))
 	}
 	
-	fn scope(&self, env: &JsEnv) -> Option<Local<JsScope>>  {
+	fn scope(&self, env: &JsEnv) -> Option<Local<JsValue>>  {
 		delegate!(self, env, scope(env))
+	}
+	
+	fn set_scope(&mut self, env: &JsEnv, scope: Option<Local<JsValue>>) {
+		delegate!(self, env, set_scope(env, scope))
 	}
 	
 	fn formal_parameters(&self, env: &JsEnv) -> Option<Vec<Name>>  {
@@ -471,7 +508,13 @@ impl Local<JsValue> {
 	pub fn to_object(&self, env: &mut JsEnv) -> JsResult<Local<JsValue>> {
 		match self.ty {
 			JsType::Null | JsType::Undefined => Err(JsError::new_type(env, ::errors::TYPE_INVALID)),
-			JsType::Boolean | JsType::Number | JsType::String => {
+			JsType::String => {
+				let constructor = try!(env.global().as_local(env).get(env, name::STRING_CLASS));
+				let value = self.as_local(env);
+				let object = try!(constructor.construct(env, vec![value]));
+				Ok(object)
+			}
+			JsType::Boolean | JsType::Number => {
 				let class = match self.ty {
 					JsType::Boolean => name::BOOLEAN_CLASS,
 					JsType::Number => name::NUMBER_CLASS,
@@ -487,14 +530,6 @@ impl Local<JsValue> {
 			JsType::Object => Ok(*self),
 			_ => panic!("unexpected type")
 		}
-	}
-	
-	pub fn as_object(&self, env: &JsEnv) -> Local<JsObject> {
-		Local::from_ptr(self.get_object(), &env.heap)
-	}
-
-	pub fn as_string(&self, env: &JsEnv) -> Local<JsString> {
-		Local::from_ptr(self.get_string(), &env.heap)
 	}
 }
 

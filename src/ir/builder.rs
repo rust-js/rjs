@@ -153,10 +153,9 @@ impl Block {
 				&Ir::LoadI32(value) => { write!(string, "ld.i32 {}", value).ok(); },
 				&Ir::LoadI64(value) => { write!(string, "ld.i64 {}", value).ok(); },
 				&Ir::LoadIndex => string.push_str("ld.idx"),
-				&Ir::LoadLifted(name, depth) => {
+				&Ir::LoadLifted(index, depth) => {
 					string.push_str("ld.lifted ");
-					self.print_name(string, name, interner);
-					write!(string, ", {}", depth).ok();
+					write!(string, "{}, {}", index, depth).ok();
 				},
 				&Ir::LoadLocal(local) => {
 					string.push_str("ld.local ");
@@ -213,10 +212,9 @@ impl Block {
 					self.print_name(string, name, interner);
 				},
 				&Ir::StoreIndex => string.push_str("st.index"),
-				&Ir::StoreLifted(name, depth) => {
+				&Ir::StoreLifted(index, depth) => {
 					string.push_str("st.lifted ");
-					self.print_name(string, name, interner);
-					write!(string, ", {}", depth).ok();
+					write!(string, "{}, {}", index, depth).ok();
 				},
 				&Ir::StoreLocal(local) => {
 					string.push_str("st.local ");
@@ -487,7 +485,7 @@ pub enum Ir {
 	LoadI32(i32),
 	LoadI64(i64),
 	LoadIndex,
-	LoadLifted(Name, u32),
+	LoadLifted(u32, u32),
 	LoadLocal(Local),
 	LoadMissing,
 	LoadName(Name),
@@ -519,7 +517,7 @@ pub enum Ir {
 	StoreArguments,
 	StoreGlobal(Name),
 	StoreIndex,
-	StoreLifted(Name, u32),
+	StoreLifted(u32, u32),
 	StoreLocal(Local),
 	StoreName(Name),
 	StoreGetter(FunctionRef),

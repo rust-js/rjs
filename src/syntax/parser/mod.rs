@@ -98,7 +98,7 @@ impl<'a> Parser<'a> {
 		let slot = Slot {
 			name: name,
 			arg: None,
-			lifted: false
+			lifted: None
 		};
 		
 		let local_slot_ref = SlotRef(scope.slots.len());
@@ -275,6 +275,8 @@ impl<'a> Parser<'a> {
 					},
 					locals: RefCell::new(Locals::new(slots)),
 					args: Vec::new(),
+					scope: Cell::new(None),
+					takes_scope: Cell::new(false),
 					strict: false,
 					has_arguments: Cell::new(false)
 				},
@@ -344,6 +346,8 @@ impl<'a> Parser<'a> {
 			},
 			locals: RefCell::new(Locals::new(slots)),
 			args: args,
+			scope: Cell::new(None),
+			takes_scope: Cell::new(false),
 			strict: false,
 			has_arguments: Cell::new(false)
 		})
@@ -361,7 +365,7 @@ impl<'a> Parser<'a> {
 			let slot = Slot {
 				name: name,
 				arg: Some(i as u32),
-				lifted: false
+				lifted: None
 			};
 			
 			let local_slot_ref = SlotRef(scope.slots.len());
