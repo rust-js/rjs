@@ -1,8 +1,7 @@
 pub mod builder;
 
-use std::io::prelude::*;
 use std::fs::File;
-use syntax::Name;
+use syntax::{Name, Span};
 use syntax::ast::*;
 use syntax::token::Lit;
 use syntax::ast::visitor::AstVisitor;
@@ -14,6 +13,8 @@ use syntax::parser::Parser;
 use syntax::reader::StringReader;
 use ::{JsResult, JsError};
 use std::rc::Rc;
+use std::fmt::Write;
+use std::io::Read;
 
 #[derive(Copy, Clone)]
 struct NamedLabel {
@@ -31,15 +32,15 @@ struct ReturnTarget {
 pub struct IrContext {
 	interner: StrInterner,
 	ast: AstContext,
-	functions: Vec<IrFunction>
+	functions: Vec<Option<Rc<builder::Block>>>
 }
 
-struct IrFunction {
-	block: Option<Rc<builder::Block>>
-}
-
-pub struct IrFunctionDescription {
-	pub name: Option<Name>
+pub struct IrFunction {
+	pub name: Option<Name>,
+	pub args: u32,
+	pub strict: bool,
+	pub has_arguments: bool,
+	pub span: Span
 }
 
 struct LhsRef<'a> {
@@ -79,7 +80,7 @@ impl IrContext {
 	pub fn get_function_ir(&mut self, function_ref: FunctionRef) -> JsResult<Rc<builder::Block>> {
 		try!(self.build_function_ir(function_ref));
 		
-		Ok(self.functions[function_ref.usize()].block.as_ref().unwrap().clone())
+		Ok(self.functions[function_ref.usize()].as_ref().unwrap().clone())
 	}
 	
 	fn build_ir(&mut self, reader: &mut StringReader) -> JsResult<FunctionRef> {
@@ -91,9 +92,7 @@ impl IrContext {
 		// Append the new functions to our functions.
 		
 		for _ in offset..self.ast.functions.len() {
-			self.functions.push(IrFunction {
-				block: None
-			});
+			self.functions.push(None);
 		}
 		
 		try!(self.build_function_ir(program));
@@ -102,7 +101,7 @@ impl IrContext {
 	}
 	
 	fn build_function_ir(&mut self, function_ref: FunctionRef) -> JsResult<()> {
-		if self.functions[function_ref.usize()].block.is_some() {
+		if self.functions[function_ref.usize()].is_some() {
 			return Ok(());
 		}
 
@@ -121,16 +120,20 @@ impl IrContext {
 			generator.ir.build()
 		};
 		
-		self.functions[function_ref.usize()].block = Some(Rc::new(block));
+		self.functions[function_ref.usize()] = Some(Rc::new(block));
 		
 		Ok(())
 	}
 	
-	pub fn get_function_description(&self, function_ref: FunctionRef) -> IrFunctionDescription {
+	pub fn get_function_description(&self, function_ref: FunctionRef) -> IrFunction {
 		let function = &self.ast.functions[function_ref.usize()];
 		
-		IrFunctionDescription {
-			name: function.name
+		IrFunction {
+			name: function.name,
+			args: function.args,
+			strict: function.block.strict,
+			has_arguments: function.block.has_arguments.get(),
+			span: function.span.clone()
 		}
 	}
 	
@@ -140,20 +143,25 @@ impl IrContext {
 			
 			let function = &self.ast.functions[i];
 			
+			ir.push_str("\n");
+			ir.push_str(&*function.span.file);
+			write!(ir, "[{}:{}]", function.span.start_line, function.span.start_col).ok();
+			ir.push_str(" ");
+			
 			if function.global {
-				ir.push_str("\n(global):\n\n");
+				ir.push_str("(global):\n\n");
 			} else {
 				let name = match function.name {
 					Some(ref name) => name.as_str(&mut self.interner),
 					None => "(anonymous)"
 				};
 				
-				ir.push_str("\nfunction ");
+				ir.push_str("function ");
 				ir.push_str(name);
 				ir.push_str(":\n\n");
 			}
 			
-			self.functions[i].block.as_ref().unwrap().print(ir, true, &mut self.interner);
+			self.functions[i].as_ref().unwrap().print(ir, true, &mut self.interner);
 		}
 		
 		Ok(())
@@ -783,7 +791,7 @@ impl<'a> IrGenerator<'a> {
 			&Expr::Literal(ref lit) => self.emit_expr_literal(&lit, leave),
 			&Expr::MemberDot(ref expr, ident) => self.emit_expr_member_dot(expr, ident, leave),
 			&Expr::MemberIndex(ref expr, ref index) => self.emit_expr_member_index(expr, index, leave),
-			&Expr::Missing => self.emit_expr_missing(leave),
+			&Expr::Missing => { panic!("missing must be handled at array creation"); },
 			&Expr::New(ref expr) => self.emit_expr_new(expr, leave),
 			&Expr::ObjectLiteral(ref props) => self.emit_expr_object_literal(props, leave),
 			&Expr::Paren(ref exprs) => self.emit_expr_paren(exprs, leave),
@@ -807,15 +815,44 @@ impl<'a> IrGenerator<'a> {
 		Ok(())
 	}
 	
+	// 11.1.4 Array Initialiser
 	fn emit_expr_array_literal(&mut self, exprs: &'a Vec<Expr>, leave: bool) -> JsResult<()> {
 		if leave {
 			self.ir.emit(Ir::NewArray);
 			
 			if exprs.len() > 0 {
-				for expr in exprs {
+				let mut length = 0;
+				let mut last_missing = false;
+				
+				for i in 0..exprs.len() {
+					let expr = &exprs[i];
+					
+					let missing = if let Expr::Missing = *expr { true } else { false };
+					if !missing {
+						self.ir.emit(Ir::Dup);
+						self.ir.emit(Ir::LoadI32(i as i32));
+						try!(self.emit_expr(&exprs[i], true));
+						// TODO: This is not conforming the specs. The specs state that
+						// array initialization should use [[DefineOwnProperty]] should
+						// be used but StoreIndex resolved to [[Put]].
+						self.ir.emit(Ir::StoreIndex);
+						
+						length = i + 1;
+					} else if i == exprs.len() - 1 {
+						last_missing = true;
+					}
+				}
+				
+				let expected_length = if last_missing {
+					exprs.len() - 1
+				} else {
+					exprs.len()
+				};
+				
+				if length != expected_length {
 					self.ir.emit(Ir::Dup);
-					try!(self.emit_expr(expr, true));
-					self.ir.emit(Ir::PushArray);
+					self.ir.emit(Ir::LoadI32(expected_length as i32));
+					self.ir.emit(Ir::StoreName(name::LENGTH));
 				}
 			}
 		} else {
@@ -854,7 +891,6 @@ impl<'a> IrGenerator<'a> {
 			Op::RightShiftArithmetic => self.ir.emit(Ir::Rsh),
 			Op::RightShiftLogical => self.ir.emit(Ir::RshZeroFill),
 			Op::Subtract => self.ir.emit(Ir::Subtract),
-			Op::Typeof => self.ir.emit(Ir::Typeof),
 			_ => panic!("Invalid operator")
 		}
 	}
@@ -1045,14 +1081,6 @@ impl<'a> IrGenerator<'a> {
 		Ok(())
 	}
 	
-	fn emit_expr_missing(&mut self, leave: bool) -> JsResult<()> {
-		if leave {
-			self.ir.emit(Ir::LoadMissing);
-		}
-		
-		Ok(())
-	}
-	
 	fn emit_expr_new(&mut self, expr: &'a Expr, leave: bool) -> JsResult<()> {
 		if let &Expr::Call(ref expr, ref args) = expr {
 			try!(self.emit_expr(expr, true));
@@ -1092,7 +1120,7 @@ impl<'a> IrGenerator<'a> {
 							&PropertyKey::Literal(ref lit) => {
 								try!(self.emit_expr_literal(&*lit, true));
 								try!(self.emit_expr(&*expr, true));
-								self.ir.emit(Ir::StoreNameLit);
+								self.ir.emit(Ir::StoreIndex);
 							}
 						}
 					}
@@ -1232,7 +1260,7 @@ impl<'a> IrGenerator<'a> {
 						}
 					}
 					
-					try!(generator.emit_expr(expr, false));
+					try!(generator.emit_expr(expr, true));
 					Ok(Reference::None)
 				}
 			}
@@ -1361,7 +1389,6 @@ impl<'a> IrGenerator<'a> {
 			Op::Negative => self.ir.emit(Ir::Negative),
 			Op::Not => self.ir.emit(Ir::Not),
 			Op::Positive => self.ir.emit(Ir::Positive),
-			Op::Typeof => self.ir.emit(Ir::Typeof),
 			Op::Void => {
 				self.ir.emit(Ir::Pop);
 				
@@ -1444,21 +1471,26 @@ mod test {
 
 	#[test]
 	fn test() {
-		println!("{}", parse(r#"s
-function testcase() {
-  foo = "prior to throw";
-  try {
-    throw new Error();
-  }
-  catch (foo) {
-    var foo = "initializer in catch";
-  }
- return foo === "prior to throw";
-  
- }
-runTestCase(testcase);
+		println!("{}", parse(r#"
+		function f(a, b, c) {
+			return a * b * c;
+		}
+		function f(a, b,c,d,e,f) {
+			return b === c ? d : e === f;
+		}
+		function f(a, b, c) {
+			return a + b * c;
+		}
+		function f(a, b, c) {
+			return a * b + c;
+		}
+		function f(a) {
+			return a + function () { };
+		}
+		function f(a, b) {
+			return a + b['a'](1, 2, 3);
+		}
 "#));
-		panic!();
 	}
 	
 	fn parse(js: &str) -> String {

@@ -15,6 +15,7 @@ pub mod util;
 #[macro_use]
 pub mod gc;
 pub mod rt;
+mod errors;
 
 pub enum JsError {
 	Io(std::io::Error),
@@ -58,8 +59,8 @@ impl JsError {
 		}
 	}
 	
-	pub fn new_type(env: &mut JsEnv) -> JsError {
-		Self::new_runtime(env, name::TYPE_ERROR_CLASS, None, None, None)
+	pub fn new_type(env: &mut JsEnv, message: &str) -> JsError {
+		Self::new_runtime(env, name::TYPE_ERROR_CLASS, Some(message), None, None)
 	}
 	
 	pub fn new_range(env: &mut JsEnv) -> JsError {

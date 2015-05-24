@@ -1,10 +1,9 @@
 const INITIAL_OBJECT : usize = 20;
 
-use super::Store;
+use super::{Store, Entry, JsStoreKey};
 use super::super::{JsEnv, JsDescriptor, GC_HASH_STORE, GC_ENTRY};
 use syntax::Name;
 use gc::{Local, Array, ArrayLocal};
-use super::Entry;
 
 pub struct HashStore {
 	entries: Array<Entry>,
@@ -205,19 +204,19 @@ impl Store for HashStore {
                 
         		self.entries[last as usize].next = next;
         		
-        		self.entries[index].flags = 0;
+        		self.entries[index] = Entry::empty();
         	} else if next != -1 {
                 // Otherwise, we replace the head of the chain with the
                 // next entry and invalidate the next entry.
         		
         		self.entries[index] = self.entries[next as usize];
         		
-        		self.entries[next as usize].flags = 0;
+        		self.entries[next as usize] = Entry::empty();
         	} else {
                 // If we're the head and there is no next entry, just
                 // invalidate this one.
         		
-        		self.entries[index].flags = 0;
+        		self.entries[index] = Entry::empty();
         	}
         	
         	// Decrement the count.
@@ -247,33 +246,17 @@ impl Store for HashStore {
 		}
 	}
 	
-	fn key_iter(&self, _: &JsEnv) -> Box<Iterator<Item=Name>> {
-		Box::new(HashIter {
-			entries: self.entries,
-			offset: 0
-		})
-	}
-}
-
-pub struct HashIter {
-	entries: Array<Entry>,
-	offset: usize
-}
-
-impl Iterator for HashIter {
-	type Item = Name;
-	
-	fn next(&mut self) -> Option<Self::Item> {
-		while self.offset < self.entries.len() {
-			let entry = self.entries[self.offset];
-			self.offset += 1;
-			
-			if entry.is_valid() {
-				return Some(entry.name);
+	fn get_key(&self, _: &JsEnv, offset: usize) -> JsStoreKey {
+		if offset >= self.entries.len() {
+			JsStoreKey::End
+		} else {
+			let entry = self.entries[offset];
+			if entry.is_valid() && entry.is_enumerable() {
+				JsStoreKey::Key(entry.name)
+			} else {
+				JsStoreKey::Missing
 			}
 		}
-		
-		None
 	}
 }
 

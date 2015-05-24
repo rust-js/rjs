@@ -1,7 +1,8 @@
 use ::{JsResult, JsError};
-use super::super::{JsEnv, JsString, JsFnMode, JsArgs, JsValue, JsItem};
+use super::super::{JsEnv, JsString, JsFnMode, JsArgs, JsValue, JsItem, JsFunction, JsType};
 use syntax::ast::FunctionRef;
 use gc::*;
+use std::fmt::Write;
 
 pub fn Function_baseConstructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	// Nothing to do. The default result already is undefined.
@@ -50,14 +51,9 @@ pub fn Function_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 pub fn Function_call(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let func = args.this;
 	if !func.is_callable(env) {
-		Err(JsError::new_type(env))
+		Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION))
 	} else {
-		let this_arg = if args.args.len() > 0 {
-			args.args[0]
-		} else {
-			JsValue::new_undefined().as_local(env)
-		};
-		
+		let this_arg = args.arg(env, 0);
 		let call_args = args.args.into_iter().skip(1).collect::<Vec<_>>();
 		
 		func.call(env, this_arg, call_args)
@@ -68,18 +64,60 @@ pub fn Function_apply(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>>
 	unimplemented!();
 }
 
+// 15.3.4.2 Function.prototype.toString ( )
+// TODO: This can be greatly improved, e.g. by retaining/getting the real code.
 pub fn Function_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	unimplemented!();
+	if args.this.ty() == JsType::Object {
+		if let Some(ref function) = args.this.as_object(env).function() {
+			let name;
+			let args;
+			
+			match *function {
+				JsFunction::Ir(function_ref) => {
+					let description = env.ir.get_function_description(function_ref);
+					name = description.name;
+					args = None;
+				}
+				JsFunction::Native(name_, args_, _, _) => {
+					name = name_;
+					args = Some(args_);
+				}
+			}
+			
+			let mut code = String::new();
+		
+			code.push_str("function ");
+			
+			if let Some(name) = name {
+				code.push_str(&*env.ir.interner().get(name));
+				code.push_str(" ");
+			}
+			
+			code.push_str("(");
+			
+			if let Some(args) = args {
+				for i in 0..args {
+					if i > 0 {
+						code.push_str(", ");
+					}
+					
+					write!(code, "arg{}", i).ok();
+				}
+			} else {
+				code.push_str(" /* ... */ ");
+			}
+			
+			code.push_str(") {\n");
+			code.push_str("    /* ... */\n");
+			code.push_str("}\n");
+			
+			return Ok(JsString::from_str(env, &code).as_value(env));
+		}
+	}
+	
+	Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 }
 
 pub fn Function_toLocaleString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	unimplemented!();
-}
-
-pub fn Function_length_get(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	unimplemented!();
-}
-
-pub fn Function_length_set(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	unimplemented!();
 }

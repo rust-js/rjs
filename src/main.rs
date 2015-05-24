@@ -89,7 +89,12 @@ fn run_safe(file: &'static str) {
 			
 			let error = error.as_runtime(&mut env);
 			let error = error.as_local(&mut env);
-			let error = error.to_string(&mut env).ok().unwrap().to_string();
+			
+			let error = if let Ok(error) = error.to_string(&mut env) {
+				error.to_string()
+			} else {
+				"(cannot convert error to string)".to_string()
+			};
 			
 			panic!("{}: Uncaught {}", file, error)
 		}
@@ -217,41 +222,31 @@ enum Header {
 	List(Vec<String>)
 }
 
-/*
 fn test() {
-	parse("f(1 + 2);");
-	assert!(false);
-}
-
-fn test_run() {
-	let mut ctx = JsContext::new();
-
-	let result = ctx.eval(r#"
-function f(x, y) {
-	return x + y;
-}
-
-var x = 1;
-var y = 2;
-var z = f(x, y);
-if (z > 2) {
-	a = 3;
-} else {
-	a = 7;
-}
-return a;
-	"#).ok().unwrap();
+	let mut env = JsEnv::new().ok().unwrap();
 	
-	assert_eq!(JsType::Number, result.ty());
-	assert_eq!(7f64, result.get_number());
-}
+	debug::reset();
 
-fn parse(js: &str) {
-	let mut ctx = IrContext::new();
-	ctx.parse_string(js).ok().unwrap();
+	let result = env.eval(r#"
+	"#);
+	
+	print!("{}", debug::reset());
+	
+	if let Err(error) = result {
+		let _scope = env.heap().new_local_scope();
+		
+		let error = error.as_runtime(&mut env);
+		let error = error.as_local(&mut env);
+		
+		let error = if let Ok(error) = error.to_string(&mut env) {
+			error.to_string()
+		} else {
+			"(cannot convert error to string)".to_string()
+		};
+		
+		panic!("Uncaught {}", error)
+	}
 }
-*/
-
 
 fn main() {
 	/*
@@ -281,89 +276,89 @@ fn main() {
 	run("annexB/B.2.6.propertyCheck.js");
 	run("annexB/B.RegExp.prototype.compile.js");
 	*/
-	run("built-ins/Array/15.4.5.1-3.d-1.js");
-	run("built-ins/Array/15.4.5.1-3.d-2.js");
-	run("built-ins/Array/15.4.5.1-3.d-3.js");
-	run("built-ins/Array/15.4.5.1-5-1.js");
-	run("built-ins/Array/15.4.5.1-5-2.js");
-	run("built-ins/Array/15.4.5-1.js");
-	run("built-ins/Array/from/S22.1.2.1_T1.js");
-	run("built-ins/Array/from/S22.1.2.1_T2.js");
-	run("built-ins/Array/from/S22.1.2.1_T3.js");
-	run("built-ins/Array/isArray/15.4.3.2-0-1.js");
-	run("built-ins/Array/isArray/15.4.3.2-0-2.js");
-	run("built-ins/Array/isArray/15.4.3.2-0-3.js");
-	run("built-ins/Array/isArray/15.4.3.2-0-4.js");
-	run("built-ins/Array/isArray/15.4.3.2-0-5.js");
-	run("built-ins/Array/isArray/15.4.3.2-0-6.js");
-	run("built-ins/Array/isArray/15.4.3.2-0-7.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-1.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-10.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-11.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-12.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-13.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-15.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-2.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-3.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-4.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-5.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-6.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-7.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-8.js");
-	run("built-ins/Array/isArray/15.4.3.2-1-9.js");
-	run("built-ins/Array/isArray/15.4.3.2-2-1.js");
-	run("built-ins/Array/isArray/15.4.3.2-2-2.js");
-	run("built-ins/Array/isArray/15.4.3.2-2-3.js");
-	run("built-ins/Array/length/S15.4.2.2_A1.1_T1.js");
-	run("built-ins/Array/length/S15.4.2.2_A1.1_T2.js");
-	run("built-ins/Array/length/S15.4.2.2_A1.1_T3.js");
-	run("built-ins/Array/length/S15.4.2.2_A1.2_T1.js");
-	run("built-ins/Array/length/S15.4.2.2_A2.1_T1.js");
-	run("built-ins/Array/length/S15.4.2.2_A2.2_T1.js");
-	run("built-ins/Array/length/S15.4.2.2_A2.2_T2.js");
-	run("built-ins/Array/length/S15.4.2.2_A2.2_T3.js");
-	run("built-ins/Array/length/S15.4.2.2_A2.3_T1.js");
-	run("built-ins/Array/length/S15.4.2.2_A2.3_T2.js");
-	run("built-ins/Array/length/S15.4.2.2_A2.3_T3.js");
-	run("built-ins/Array/length/S15.4.2.2_A2.3_T4.js");
-	run("built-ins/Array/length/S15.4.2.2_A2.3_T5.js");
-	run("built-ins/Array/of/S22.1.2.3_T1.js");
-	run("built-ins/Array/of/S22.1.2.3_T2.js");
-	run("built-ins/Array/prototype/concat/15.4.4.4-5-b-iii-3-b-1.js");
-	run("built-ins/Array/prototype/concat/15.4.4.4-5-c-i-1.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A1_T1.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A1_T2.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A1_T3.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A1_T4.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A2_T1.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A2_T2.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A3_T1.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A3_T2.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A3_T3.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.1.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.2.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.3.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.4.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.5.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.6.js");
-	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.7.js");
-	run("built-ins/Array/prototype/constructor/S15.4.4.1_A1_T1.js");
-	run("built-ins/Array/prototype/constructor/S15.4.4.1_A2.js");
-	run("built-ins/Array/prototype/entries/iteration.js");
-	run("built-ins/Array/prototype/entries/iteration-mutable.js");
-	run("built-ins/Array/prototype/entries/property-descriptor.js");
-	run("built-ins/Array/prototype/entries/returns-iterator.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-0-1.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-0-2.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-1-1.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-1-10.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-1-11.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-1-12.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-1-13.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-1-14.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-1-15.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-1-2.js");
-	run("built-ins/Array/prototype/every/15.4.4.16-1-3.js");
+//	run("built-ins/Array/15.4.5.1-3.d-1.js");
+//	run("built-ins/Array/15.4.5.1-3.d-2.js");
+//	run("built-ins/Array/15.4.5.1-3.d-3.js");
+//	run("built-ins/Array/15.4.5.1-5-1.js");
+//	run("built-ins/Array/15.4.5.1-5-2.js");
+//	run("built-ins/Array/15.4.5-1.js");
+//	run("built-ins/Array/from/S22.1.2.1_T1.js");
+//	run("built-ins/Array/from/S22.1.2.1_T2.js");
+//	run("built-ins/Array/from/S22.1.2.1_T3.js");
+//	run("built-ins/Array/isArray/15.4.3.2-0-1.js");
+//	run("built-ins/Array/isArray/15.4.3.2-0-2.js");
+//	run("built-ins/Array/isArray/15.4.3.2-0-3.js");
+//	run("built-ins/Array/isArray/15.4.3.2-0-4.js");
+//	run("built-ins/Array/isArray/15.4.3.2-0-5.js");
+//	run("built-ins/Array/isArray/15.4.3.2-0-6.js");
+//	run("built-ins/Array/isArray/15.4.3.2-0-7.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-1.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-10.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-11.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-12.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-13.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-15.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-2.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-3.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-4.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-5.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-6.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-7.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-8.js");
+//	run("built-ins/Array/isArray/15.4.3.2-1-9.js");
+//	run("built-ins/Array/isArray/15.4.3.2-2-1.js");
+//	run("built-ins/Array/isArray/15.4.3.2-2-2.js");
+//	run("built-ins/Array/isArray/15.4.3.2-2-3.js");
+//	run("built-ins/Array/length/S15.4.2.2_A1.1_T1.js");
+//	run("built-ins/Array/length/S15.4.2.2_A1.1_T2.js");
+//	run("built-ins/Array/length/S15.4.2.2_A1.1_T3.js");
+//	run("built-ins/Array/length/S15.4.2.2_A1.2_T1.js");
+//	run("built-ins/Array/length/S15.4.2.2_A2.1_T1.js");
+//	run("built-ins/Array/length/S15.4.2.2_A2.2_T1.js");
+//	run("built-ins/Array/length/S15.4.2.2_A2.2_T2.js");
+//	run("built-ins/Array/length/S15.4.2.2_A2.2_T3.js");
+//	run("built-ins/Array/length/S15.4.2.2_A2.3_T1.js");
+//	run("built-ins/Array/length/S15.4.2.2_A2.3_T2.js");
+//	run("built-ins/Array/length/S15.4.2.2_A2.3_T3.js");
+//	run("built-ins/Array/length/S15.4.2.2_A2.3_T4.js");
+//	run("built-ins/Array/length/S15.4.2.2_A2.3_T5.js");
+//	run("built-ins/Array/of/S22.1.2.3_T1.js");
+//	run("built-ins/Array/of/S22.1.2.3_T2.js");
+//	run("built-ins/Array/prototype/concat/15.4.4.4-5-b-iii-3-b-1.js");
+//	run("built-ins/Array/prototype/concat/15.4.4.4-5-c-i-1.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A1_T1.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A1_T2.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A1_T3.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A1_T4.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A2_T1.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A2_T2.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A3_T1.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A3_T2.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A3_T3.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.1.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.2.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.3.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.4.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.5.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.6.js");
+//	run("built-ins/Array/prototype/concat/S15.4.4.4_A4.7.js");
+//	run("built-ins/Array/prototype/constructor/S15.4.4.1_A1_T1.js");
+//	run("built-ins/Array/prototype/constructor/S15.4.4.1_A2.js");
+//	run("built-ins/Array/prototype/entries/iteration.js");
+//	run("built-ins/Array/prototype/entries/iteration-mutable.js");
+//	run("built-ins/Array/prototype/entries/property-descriptor.js");
+//	run("built-ins/Array/prototype/entries/returns-iterator.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-0-1.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-0-2.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-1-1.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-1-10.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-1-11.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-1-12.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-1-13.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-1-14.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-1-15.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-1-2.js");
+//	run("built-ins/Array/prototype/every/15.4.4.16-1-3.js");
 	run("built-ins/Array/prototype/every/15.4.4.16-1-4.js");
 	run("built-ins/Array/prototype/every/15.4.4.16-1-5.js");
 	run("built-ins/Array/prototype/every/15.4.4.16-1-6.js");
@@ -2622,6 +2617,7 @@ fn main() {
 	run("built-ins/Array/S15.4_A1.1_T7.js");
 	run("built-ins/Array/S15.4_A1.1_T8.js");
 	run("built-ins/Array/S15.4_A1.1_T9.js");
+	/*
 	run("built-ins/Boolean/prototype/constructor/S15.6.4.1_A1.js");
 	run("built-ins/Boolean/prototype/S15.6.3.1_A1.js");
 	run("built-ins/Boolean/prototype/S15.6.3.1_A2.js");
@@ -11926,26 +11922,24 @@ fn main() {
 	run("language/statements/throw/S12.13_A3_T4.js");
 	run("language/statements/throw/S12.13_A3_T5.js");
 	run("language/statements/throw/S12.13_A3_T6.js");
-	*/
-//	run("language/statements/try/12.14.1-1gs.js");
-//	run("language/statements/try/12.14.1-1-s.js");
-//	run("language/statements/try/12.14.1-2-s.js");
-//	run("language/statements/try/12.14.1-3-s.js");
-//	run("language/statements/try/12.14.1-4-s.js");
-//	run("language/statements/try/12.14.1-5-s.js");
-//	run("language/statements/try/12.14.1-6-s.js");
-//	run("language/statements/try/12.14-1.js");
-//	run("language/statements/try/12.14-10.js");
-//	run("language/statements/try/12.14-11.js");
-//	run("language/statements/try/12.14-12.js");
-//	run("language/statements/try/12.14-13.js");
-//	run("language/statements/try/12.14-14.js");
-//	run("language/statements/try/12.14-15.js");
-//	run("language/statements/try/12.14-16.js");
-//	run("language/statements/try/12.14-2.js");
-//	run("language/statements/try/12.14-3.js");
+	run("language/statements/try/12.14.1-1gs.js");
+	run("language/statements/try/12.14.1-1-s.js");
+	run("language/statements/try/12.14.1-2-s.js");
+	run("language/statements/try/12.14.1-3-s.js");
+	run("language/statements/try/12.14.1-4-s.js");
+	run("language/statements/try/12.14.1-5-s.js");
+	run("language/statements/try/12.14.1-6-s.js");
+	run("language/statements/try/12.14-1.js");
+	run("language/statements/try/12.14-10.js");
+	run("language/statements/try/12.14-11.js");
+	run("language/statements/try/12.14-12.js");
+	run("language/statements/try/12.14-13.js");
+	run("language/statements/try/12.14-14.js");
+	run("language/statements/try/12.14-15.js");
+	run("language/statements/try/12.14-16.js");
+	run("language/statements/try/12.14-2.js");
+	run("language/statements/try/12.14-3.js");
 	run("language/statements/try/12.14-4.js");
-	return;
 	run("language/statements/try/12.14-6.js");
 	run("language/statements/try/12.14-7.js");
 	run("language/statements/try/12.14-8.js");
@@ -12008,7 +12002,6 @@ fn main() {
 	run("language/statements/try/S12.14_A9_T3.js");
 	run("language/statements/try/S12.14_A9_T4.js");
 	run("language/statements/try/S12.14_A9_T5.js");
-	/*
 	run("language/statements/variable/12.2.1-10-s.js");
 	run("language/statements/variable/12.2.1-11.js");
 	run("language/statements/variable/12.2.1-12.js");

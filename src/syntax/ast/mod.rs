@@ -1,7 +1,7 @@
 pub mod visitor;
 
 use syntax::token::Lit;
-use super::Name;
+use super::{Name, Span};
 use std::rc::Rc;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -30,9 +30,12 @@ impl FunctionRef {
 pub struct Function {
 	pub global: bool,
 	pub name: Option<Name>,
-	pub block: RootBlock
+	pub args: u32,
+	pub block: RootBlock,
+	pub span: Span
 }
 
+#[derive(Debug)]
 pub struct Locals {
 	pub slots: Vec<Slot>,
 	/// Whether to de-optimize this function. This applies when there is an eval
@@ -53,6 +56,7 @@ impl Locals {
 /// scope (function). This only applies to functions and when optimizations are
 /// enabled. When optimizations are disabled (i.e. when there is an eval
 /// somewhere in the stack), local slots are not tracked.
+#[derive(Debug)]
 pub struct Slot {
 	pub name: Name,
 	pub arg: Option<u32>,
@@ -68,17 +72,22 @@ impl SlotRef {
 	}
 }
 
+#[derive(Debug)]
 pub struct RootBlock {
 	pub args: Vec<Name>,
 	pub block: Block,
-	pub locals: RefCell<Locals>
+	pub locals: RefCell<Locals>,
+	pub strict: bool,
+	pub has_arguments: Cell<bool>
 }
 
+#[derive(Debug)]
 pub struct Block {
 	pub stmts: Vec<Item>,
 	pub locals: HashMap<Name, SlotRef>
 }
 
+#[derive(Debug)]
 pub enum Item {
 	Block(Option<Label>, Block),
 	Break(Option<Label>),
@@ -102,6 +111,7 @@ pub enum Item {
 	With(ExprSeq, Box<Item>)
 }
 
+#[derive(Debug)]
 pub struct Label {
 	pub name: Name
 }
@@ -143,6 +153,7 @@ impl IdentState {
 	}
 }
 
+#[derive(Debug)]
 pub struct Var {
 	pub ident: Ident,
 	pub expr: Option<Box<Expr>>
@@ -153,11 +164,13 @@ pub struct ExprSeq {
 	pub exprs: Vec<Expr>
 }
 
+#[derive(Debug)]
 pub enum SwitchClause {
 	Case(ExprSeq, Vec<Item>),
 	Default(Vec<Item>)
 }
 
+#[derive(Debug)]
 pub struct Catch {
 	pub ident: Ident,
 	pub block: Block

@@ -1,6 +1,7 @@
 use super::*;
 use gc::*;
 use ::{JsResult, JsError};
+use syntax::Name;
 use syntax::ast::FunctionRef;
 use syntax::token::name;
 use std::f64;
@@ -34,43 +35,65 @@ impl JsEnv {
 	}
 	
 	// 11.6.2 The Subtraction Operator ( - )
-	pub fn subtract(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<Local<JsValue>> {
+	pub fn subtract(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
 		let lhs = self.get_value(lhs);
 		let rhs = self.get_value(rhs);
 		let lnum = try!(lhs.to_number(self));
 		let rnum = try!(rhs.to_number(self));
 		
-		Ok(JsValue::new_number(lnum - rnum).as_local(self))
+		Ok(lnum - rnum)
+	}
+	
+	pub fn negative(&mut self, expr: Local<JsValue>) -> JsResult<f64> {
+		let old_value = try!(expr.to_number(self));
+		let result = if old_value.is_nan() {
+			old_value
+		} else {
+			-old_value
+		};
+		
+		Ok(result)
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.2.3
 	pub fn call_function(&mut self, args: JsArgs) -> JsResult<Local<JsValue>> {
 		if args.function.ty() != JsType::Object {
-			return Err(JsError::new_type(self));
+			return Err(JsError::new_type(self, ::errors::TYPE_INVALID));
 		};
 		
-		let function = args.function.get_object();
-		let function = function.function();
+		let function = args.function.as_object(self).function();
 		if !function.is_some() {
-			return Err(JsError::new_type(self));
+			return Err(JsError::new_type(self, ::errors::TYPE_INVALID));
 		}
 		
 		let function = function.as_ref().unwrap();
 		
 		Ok(match function {
 			&JsFunction::Ir(function_ref) => {
-				let function = try!(self.ir.get_function_ir(function_ref));
+				let block = try!(self.ir.get_function_ir(function_ref));
 				
-				debugln!("ENTER {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
+				let function = self.ir.get_function_description(function_ref);
+				let name = if let Some(name) = function.name {
+					self.ir.interner().get(name).to_string()
+				} else {
+					"(anonymous)".to_string()
+				};
+				let location = format!("{}[{}:{}] {}", *function.span.file, function.span.start_line, function.span.start_col, name);
 				
-				let result = try!(self.call_block(function, Some(args.this), args.args)).as_local(self);
+				debugln!("ENTER {}", location);
 				
-				debugln!("EXIT {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
+				let result = try!(self.call_block(block, Some(args.this), args.args, &function)).as_local(self);
+				
+				debugln!("EXIT {}", location);
 				
 				result
 			}
-			&JsFunction::Native(_, _, ref callback) => {
-				try!(callback(self, args))
+			&JsFunction::Native(_, _, ref callback, can_construct) => {
+				if !can_construct && args.mode == JsFnMode::New {
+					return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_CONSTRUCTOR));
+				}
+				
+				try!((*callback as &JsFn)(self, args))
 			}
 		})
 	}
@@ -88,7 +111,8 @@ impl JsEnv {
 			JsType::Boolean => "boolean",
 			JsType::Number => "number",
 			JsType::String => "string",
-			JsType::Object => if value.get_object().function().is_some() { "function" } else { "object" }
+			JsType::Object => if value.as_object(self).function().is_some() { "function" } else { "object" },
+			_ => panic!("unexpected type")
 		})
 	}
 	
@@ -211,9 +235,10 @@ impl JsEnv {
 	pub fn new_function(&mut self, function_ref: FunctionRef) -> JsResult<Local<JsValue>> {
 		let mut proto = JsObject::new_local(self, JsStoreType::Hash);
 	
-		proto.set_class(self, Some(name::FUNCTION_CLASS));
+		proto.set_class(self, Some(name::OBJECT_CLASS));
 		
-		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), self.function_prototype.as_local(self)).as_value(self);
+		let function_prototype = self.function_prototype.as_local(self);
+		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), function_prototype).as_value(self);
 		
 		let value = proto.as_value(self);
 		try!(result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false));
@@ -259,8 +284,8 @@ impl JsEnv {
 			let rval = JsValue::new_number(rval).as_local(self);
 			self.eq(lval, rval)
 		} else if lty == JsType::String && rty == JsType::Number {
-			let rval = try!(lval.to_number(self));
-			let rval = JsValue::new_number(rval).as_local(self);
+			let lval = try!(lval.to_number(self));
+			let lval = JsValue::new_number(lval).as_local(self);
 			self.eq(lval, rval)
 		} else if lty == JsType::Boolean {
 			let lval = try!(lval.to_number(self));
@@ -280,6 +305,11 @@ impl JsEnv {
 			Ok(false)
 		}
 	}
+	
+	// 11.9.2 The Does-not-equals Operator ( != )
+	pub fn ne(&mut self, lref: Local<JsValue>, rref: Local<JsValue>) -> JsResult<bool> {
+		return Ok(!try!(self.eq(lref, rref)))
+	} 
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.9.4
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.9.5
@@ -320,7 +350,8 @@ impl JsEnv {
 					}
 				}
 				JsType::Boolean => lval.get_bool() == rval.get_bool(),
-				JsType::Object => lval.get_object() == rval.get_object()
+				JsType::Object => lval.get_object() == rval.get_object(),
+				_ => panic!("unexpected type")
 			}
 		}
 	}
@@ -387,8 +418,26 @@ impl JsEnv {
 				}
 				JsType::String => JsString::equals(x.get_string(), y.get_string()),
 				JsType::Boolean => x.get_bool() == y.get_bool(),
-				JsType::Object => x.get_object().as_ptr() == y.get_object().as_ptr()
+				JsType::Object => x.get_object().as_ptr() == y.get_object().as_ptr(),
+				_ => panic!("unexpected type")
 			}
 		}
+	}
+	
+	// 10.6 Arguments Object
+	// TODO: Incomplete.
+	pub fn new_arguments(&mut self, args: &Vec<Local<JsValue>>) -> JsResult<Local<JsValue>> {
+		let mut result = self.new_object();
+		
+		result.set_class(self, Some(name::ARGUMENTS_CLASS));
+		
+		let value = JsValue::new_number(args.len() as f64).as_local(self);
+		try!(result.define_own_property(self, name::LENGTH, JsDescriptor::new_value(value, true, false, true), false));
+		
+		for i in 0..args.len() {
+			try!(result.define_own_property(self, Name::from_index(i), JsDescriptor::new_simple_value(args[i]), false));
+		}
+		
+		Ok(result.as_value(self))
 	}
 }

@@ -6,6 +6,7 @@ use ::JsResult;
 use syntax::Name;
 use syntax::token::name;
 use gc::*;
+use std::f64;
 
 use self::global::*;
 use self::object::*;
@@ -13,6 +14,9 @@ use self::function::*;
 use self::array::*;
 use self::string::*;
 use self::date::*;
+use self::number::*;
+use self::boolean::*;
+use self::regexp::*;
 
 mod global;
 mod object;
@@ -20,23 +24,41 @@ mod array;
 mod function;
 mod string;
 mod date;
+mod number;
+mod boolean;
+mod regexp;
 
 macro_rules! function {
-	( $target:expr, $name:expr , $function:ident , $arity:expr , $prototype:expr , $env:expr ) => {
+	( $target:expr , $name:expr , $function:ident , $arity:expr , $prototype:expr , $env:expr ) => {
 		{
-			let function = new_function($env, Some($name), $arity, Box::new($function), $prototype);
+			let function = new_naked_function($env, Some($name), $arity, &$function, $prototype, false);
 			$target.define_own_property($env, $name, JsDescriptor::new_value(function, true, false, true), false).ok();
 		}
 	}
 }
 
 macro_rules! accessor {
-	( $target:expr, $name:expr , $get:ident , $set:ident , $prototype:expr , $env:expr ) => {
+	( $target:expr , $name:expr , $get:ident , $set:ident , $prototype:expr , $env:expr ) => {
 		{
-			let get_function = new_function($env, Some($name), 0, Box::new($get), $prototype);
-			let set_function = new_function($env, Some($name), 1, Box::new($set), $prototype);
+			let get_function = new_naked_function($env, Some($name), 0, &$get, $prototype, false);
+			let set_function = new_naked_function($env, Some($name), 1, &$set, $prototype, false);
 			$target.define_own_property($env, $name, JsDescriptor::new_accessor(get_function, set_function, false, true), false).ok();
 		}
+	}
+}
+
+macro_rules! property {
+	( $target:expr , $name:expr , $value:expr , $writable:expr , $enumerable:expr , $configurable:expr , $env:expr ) => {
+		{
+			let value = JsDescriptor::new_value($value, $writable, $enumerable, $configurable);
+			$target.define_own_property($env, $name, value, false).ok();
+		}
+	}
+}
+
+macro_rules! value {
+	( $target:expr , $name:expr , $value:expr , $writable:expr , $enumerable:expr , $configurable:expr , $env:expr ) => {
+		property!($target, $name, $value.as_local($env), $writable, $enumerable, $configurable, $env)
 	}
 }
 
@@ -62,36 +84,18 @@ fn setup_global(env: &mut JsEnv) {
 	let mut object_prototype = JsObject::new_local(&env, JsStoreType::Hash);
 	env.object_prototype = Root::from_local(&env.heap, object_prototype);
 	
-	// Build Function
+	// Constructor setup.
 	
-	let mut function_prototype = new_function(env, None, 0, Box::new(Function_baseConstructor), &object_prototype).as_object(env);
-	env.function_prototype = Root::from_local(&env.heap, function_prototype);
-	
-	let function_class = new_function(env, Some(name::FUNCTION_CLASS), 0, Box::new(Function_constructor), &function_prototype);
-	let mut function_class_object = function_class.as_object(env);
-	function_class_object.set_class(env, Some(name::FUNCTION_CLASS));
-	
-	setup_function(env, &mut function_prototype, &function_class_object);
-	
-	global.define_own_property(env, name::FUNCTION_CLASS, JsDescriptor::new_value(function_class, true, false, true), false).ok();
-	
-	// Build Object
-	
-	let object_class = setup_object(env, &mut object_prototype, &function_prototype);
-	
-	global.define_own_property(env, name::OBJECT_CLASS, JsDescriptor::new_value(object_class, true, false, true), false).ok();
-	
-	// Build Array
-	
+	let function_prototype = setup_function(env, global, object_prototype);
+	setup_object(env, global, &mut object_prototype, &function_prototype);
 	setup_array(env, global, &function_prototype);
-	
-	// Build String
-	
 	setup_string(env, global, &function_prototype);
-	
-	// Build Date
-	
 	setup_date(env, global, &function_prototype);
+	setup_number(env, global, &function_prototype);
+	setup_boolean(env, global, &function_prototype);
+	setup_math(env, global, &function_prototype);
+	setup_regexp(env, global, &function_prototype);
+	setup_json(env, global, &function_prototype);
 	
 	// Build global functions
 	
@@ -99,22 +103,38 @@ fn setup_global(env: &mut JsEnv) {
 	function!(global, name::UNESCAPE, Global_unescape, 1, &function_prototype, env);
 	function!(global, name::EVAL, Global_eval, 1, &function_prototype, env);
 	
-	let value = JsDescriptor::new_value(JsValue::new_undefined().as_local(env), true, false, true);
-	global.define_own_property(env, name::UNDEFINED, value, false).ok();
+	value!(global, name::NAN, JsValue::new_number(f64::NAN), false, false, false, env);
+	value!(global, name::INFINITY, JsValue::new_number(f64::INFINITY), false, false, false, env);
+	value!(global, name::UNDEFINED, JsValue::new_undefined(), true, false, true, env);
 }
 
-fn setup_function(env: &mut JsEnv, prototype: &mut Local<JsObject>, class: &Local<JsObject>) {
-	let value = class.as_value(env);
-	prototype.define_own_property(env, name::CONSTRUCTOR, JsDescriptor::new_value(value, true, false, true), false).ok();
+fn setup_function(env: &mut JsEnv, mut global: Local<JsValue>, object_prototype: Local<JsObject>) -> Local<JsObject> {
+	let mut prototype = new_naked_function(env, None, 0, &Function_baseConstructor, &object_prototype, false).as_object(env);
+	env.function_prototype = Root::from_local(&env.heap, prototype);
 	
-	function!(prototype, name::CALL, Function_call, 1, prototype, env);
-	function!(prototype, name::APPLY, Function_apply, 2, prototype, env);
-	function!(prototype, name::TO_STRING, Function_toString, 0, prototype, env);
-	function!(prototype, name::TO_LOCALE_STRING, Function_toLocaleString, 0, prototype, env);
-	accessor!(prototype, name::LENGTH, Function_length_get, Function_length_set, prototype, env);
+	let class = new_naked_function(env, Some(name::FUNCTION_CLASS), 0, &Function_constructor, &prototype, true);
+	
+	let mut class_object = class.as_object(env);
+
+	let value = prototype.as_value(env);
+	class_object.define_own_property(env, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false).ok();
+	prototype.define_own_property(env, name::CONSTRUCTOR, JsDescriptor::new_value(class, true, false, true), false).ok();
+	
+	class_object.set_class(env, Some(name::FUNCTION_CLASS));
+	
+	property!(prototype, name::CONSTRUCTOR, class.as_value(env), true, false, true, env);
+	
+	function!(prototype, name::CALL, Function_call, 1, &prototype, env);
+	function!(prototype, name::APPLY, Function_apply, 2, &prototype, env);
+	function!(prototype, name::TO_STRING, Function_toString, 0, &prototype, env);
+	function!(prototype, name::TO_LOCALE_STRING, Function_toLocaleString, 0, &prototype, env);
+	
+	property!(global, name::FUNCTION_CLASS, class.as_value(env), true, false, true, env);
+	
+	prototype
 }
 
-fn setup_object<'a>(env: &mut JsEnv, prototype: &mut Local<JsObject>, function_prototype: &Local<JsObject>) -> Local<JsValue> {
+fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut Local<JsObject>, function_prototype: &Local<JsObject>) {
 	function!(prototype, name::TO_STRING, Object_toString, 0, function_prototype, env);
 	function!(prototype, name::TO_LOCALE_STRING, Object_valueOf, 0, function_prototype, env);
 	function!(prototype, name::VALUE_OF, Object_toString, 0, function_prototype, env);
@@ -124,18 +144,23 @@ fn setup_object<'a>(env: &mut JsEnv, prototype: &mut Local<JsObject>, function_p
 	function!(prototype, name::GET_PROTOTYPE_OF, Object_getPrototypeOf, 1, function_prototype, env);
 	function!(prototype, name::DEFINE_PROPERTY, Object_defineProperty, 1, function_prototype, env);
 	
-	let mut class = new_function(env, Some(name::OBJECT_CLASS), 0, Box::new(Object_constructor), prototype);
+	let constructor = &Object_constructor;
+	let class = JsObject::new_function(env, JsFunction::Native(Some(name::OBJECT_CLASS), 0, constructor as *const JsFn, true), *function_prototype);
+	let mut class = class.as_value(env);
+	
+	property!(global, name::OBJECT_CLASS, class, true, false, true, env);
+	
+	property!(class, name::PROTOTYPE, prototype.as_value(env), false, false, false, env);
+	value!(class, name::LENGTH, JsValue::new_number(0f64), true, false, true, env);
 	
 	function!(class, name::CREATE, Object_create, 1, function_prototype, env);
 	function!(class, name::GET_OWN_PROPERTY_DESCRIPTOR, Object_getOwnPropertyDescriptor, 2, function_prototype, env);
-	
-	class
 }
 
 fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: &Local<JsObject>) {
-	let mut class = new_function(env, Some(name::ARRAY_CLASS), 0, Box::new(Array_constructor), &function_prototype);	
-
-	global.define_own_property(env, name::ARRAY_CLASS, JsDescriptor::new_value(class, true, false, true), false).ok();
+	let mut class = new_function(env, Some(name::ARRAY_CLASS), 0, &Array_constructor, &function_prototype);	
+	
+	property!(global, name::ARRAY_CLASS, class, true, false, true, env);
 
 	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
 
@@ -167,21 +192,22 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototy
 }
 
 fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: &Local<JsObject>) {
-	let class = new_function(env, Some(name::STRING_CLASS), 0, Box::new(String_constructor), &function_prototype);	
-
-	global.define_own_property(env, name::STRING_CLASS, JsDescriptor::new_value(class, true, false, true), false).ok();
+	let class = new_function(env, Some(name::STRING_CLASS), 0, &String_constructor, &function_prototype);	
+	
+	property!(global, name::STRING_CLASS, class, true, false, true, env);
 
 	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
-	
+
 	env.string_prototype = Root::from_local(&env.heap, prototype);
 	
 	function!(&mut prototype, name::SUBSTR, String_substr, 1, function_prototype, env);
+	function!(&mut prototype, name::TO_STRING, String_toString, 0, function_prototype, env);
 }
 
 fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: &Local<JsObject>) {
-	let class = new_function(env, Some(name::DATE_CLASS), 0, Box::new(Date_constructor), &function_prototype);	
-
-	global.define_own_property(env, name::DATE_CLASS, JsDescriptor::new_value(class, true, false, true), false).ok();
+	let class = new_function(env, Some(name::DATE_CLASS), 0, &Date_constructor, &function_prototype);	
+	
+	property!(global, name::DATE_CLASS, class, true, false, true, env);
 
 	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
 	
@@ -190,24 +216,65 @@ fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototyp
 	function!(&mut prototype, name::TO_GMT_STRING, Date_toGMTString, 0, function_prototype, env);
 }
 
-fn new_naked_function<'a>(env: &JsEnv, name: Option<Name>, args: u32, function: Box<JsFn>, prototype: &Local<JsObject>) -> Local<JsObject> {
-	JsObject::new_function(env, JsFunction::Native(name, args, function), *prototype)
+fn setup_number<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: &Local<JsObject>) {
+	let mut class = new_function(env, Some(name::NUMBER_CLASS), 0, &Number_constructor, &function_prototype);
+	
+	value!(class, name::MAX_VALUE, JsValue::new_number(f64::MAX), false, false, false, env);
+	value!(class, name::MIN_VALUE, JsValue::new_number(f64::MIN), false, false, false, env);
+	value!(class, name::NAN, JsValue::new_number(f64::NAN), false, false, false, env);
+	value!(class, name::NEGATIVE_INFINITY, JsValue::new_number(f64::NEG_INFINITY), false, false, false, env);
+	value!(class, name::POSITIVE_INFINITY, JsValue::new_number(f64::INFINITY), false, false, false, env);
+	
+	property!(global, name::NUMBER_CLASS, class, true, false, true, env);
+
+	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
+
+	function!(&mut prototype, name::VALUE_OF, Number_valueOf, 0, function_prototype, env);
+	function!(&mut prototype, name::TO_STRING, Number_toString, 0, function_prototype, env);
 }
 
-// 15.2.3.1 Object.prototype
-// http://ecma-international.org/ecma-262/5.1/#sec-13.2
-// TODO: INCOMPLETE
-fn new_function<'a>(env: &mut JsEnv, name: Option<Name>, args: u32, function: Box<JsFn>, prototype: &Local<JsObject>) -> Local<JsValue> {
+fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: &Local<JsObject>) {
+	let class = new_function(env, Some(name::BOOLEAN_CLASS), 0, &Boolean_constructor, &function_prototype);
+	
+	property!(global, name::BOOLEAN_CLASS, class, true, false, true, env);
+}
+
+fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: &Local<JsObject>) {
+	let mut class = JsObject::new_local(env, JsStoreType::Hash);
+	
+	class.set_class(env, Some(name::MATH_CLASS));
+	
+	property!(global, name::MATH_CLASS, class.as_value(env), true, false, true, env);
+}
+
+fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: &Local<JsObject>) {
+	let class = new_function(env, Some(name::REGEXP_CLASS), 0, &RegExp_constructor, &function_prototype);
+	
+	property!(global, name::REGEXP_CLASS, class, true, false, true, env);
+}
+
+fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: &Local<JsObject>) {
+	let mut class = JsObject::new_local(env, JsStoreType::Hash);
+	
+	class.set_class(env, Some(name::JSON_CLASS));
+	
+	property!(global, name::JSON_CLASS, class.as_value(env), true, false, true, env);
+}
+
+fn new_naked_function<'a>(env: &mut JsEnv, name: Option<Name>, args: u32, function: &JsFn, prototype: &Local<JsObject>, can_construct: bool) -> Local<JsValue> {
+	JsObject::new_function(env, JsFunction::Native(name, args, function as *const JsFn, can_construct), *prototype).as_value(env)
+}
+
+fn new_function<'a>(env: &mut JsEnv, name: Option<Name>, args: u32, function: &JsFn, prototype: &Local<JsObject>) -> Local<JsValue> {
 	let mut proto = JsObject::new_local(env, JsStoreType::Hash);
 	
-	proto.set_class(env, Some(name::FUNCTION_CLASS));
+	proto.set_class(env, Some(name::OBJECT_CLASS));
 	
-	let mut result = new_naked_function(env, name, args, function, &prototype);
-	let result_value = result.as_value(env);
+	let mut result = new_naked_function(env, name, args, function, prototype, true);
 	
 	let value = proto.as_value(env);
-	result.define_own_property(env, name::PROTOTYPE, JsDescriptor::new_value(value, false, false, false), false).ok();
-	proto.define_own_property(env, name::CONSTRUCTOR, JsDescriptor::new_value(result_value, true, false, true), false).ok();
+	result.define_own_property(env, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false).ok();
+	proto.define_own_property(env, name::CONSTRUCTOR, JsDescriptor::new_value(result, true, false, true), false).ok();
 	
-	result_value
+	result
 }

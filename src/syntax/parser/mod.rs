@@ -28,6 +28,14 @@ struct BlockScope {
 }
 
 impl<'a> Parser<'a> {
+	fn span(&self) -> Span {
+		self.lexer.span().clone()
+	}
+	
+	fn span_at(&self, offset: isize) -> Span {
+		self.lexer.span_at(offset).clone()
+	}
+	
 	fn at_global(&self) -> bool {
 		self.scopes.len() == 1 && self.scopes[0].blocks.len() == 1
 	}
@@ -169,7 +177,7 @@ impl<'a> Parser<'a> {
 	fn fatal<T>(&self, message: &str) -> JsResult<T> {
 		let span = match self.lexer.peek(0) {
 			Some(token) => token.span().clone(),
-			_ => Span::new(-1, -1, -1, -1)
+			_ => Span::new(-1, -1, -1, -1, Rc::new(String::new()))
 		};
 		
 		let message = format!("{}:{}: {}", span.start_line, span.start_col, message.to_string());
@@ -246,9 +254,13 @@ impl<'a> Parser<'a> {
 			
 			let mut items = Vec::new();
 			
+			let start = parser.span();
+			
 			while !parser.is_eof() {
 				items.push(try!(parser.parse_stmt(None)));
 			}
+			
+			let end = parser.span_at(-1);
 			
 			let locals = parser.pop_block_scope();
 			let slots = parser.pop_scope();
@@ -262,8 +274,12 @@ impl<'a> Parser<'a> {
 						locals: locals
 					},
 					locals: RefCell::new(Locals::new(slots)),
-					args: Vec::new()
-				}
+					args: Vec::new(),
+					strict: false,
+					has_arguments: Cell::new(false)
+				},
+				args: 0,
+				span: Span::from_range(start, end)
 			})
 		};
 		
@@ -276,16 +292,23 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_function(&mut self) -> JsResult<FunctionRef> {
+		let start = self.span_at(-1);
+		
 		let name = try!(self.parse_opt_name());
 		
 		let args = try!(self.parse_parameter_list());
+		let arg_count = args.len();
 		
 		let block = try!(self.parse_function_block(args));
+		
+		let end = self.span_at(-1);
 		
 		let function = Box::new(Function {
 			global: false,
 			name: name,
-			block: block
+			block: block,
+			args: arg_count as u32,
+			span: Span::from_range(start, end)
 		});
 		
 		let function_ref = FunctionRef(self.context.functions.len() as u32);
@@ -320,7 +343,9 @@ impl<'a> Parser<'a> {
 				locals: locals
 			},
 			locals: RefCell::new(Locals::new(slots)),
-			args: args
+			args: args,
+			strict: false,
+			has_arguments: Cell::new(false)
 		})
 	}
 	
@@ -591,6 +616,90 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr(&mut self) -> JsResult<Expr> {
+		let expr = try!(self.parse_expr_binary());
+		
+		match self.peek() {
+			Some(&Token::QuestionMark) => self.parse_expr_ternary(expr),
+			Some(&Token::Assign) => self.parse_expr_binary_assign(expr, Op::Assign),
+			Some(&Token::MultiplyAssign) => self.parse_expr_binary_assign(expr, Op::Multiply),
+			Some(&Token::DivideAssign) => self.parse_expr_binary_assign(expr, Op::Divide),
+			Some(&Token::ModulusAssign) => self.parse_expr_binary_assign(expr, Op::Modulus),
+			Some(&Token::PlusAssign) => self.parse_expr_binary_assign(expr, Op::Add),
+			Some(&Token::MinusAssign) => self.parse_expr_binary_assign(expr, Op::Subtract),
+			Some(&Token::LeftShiftArithmeticAssign) => self.parse_expr_binary_assign(expr, Op::LeftShiftArithmetic),
+			Some(&Token::RightShiftArithmeticAssign) => self.parse_expr_binary_assign(expr, Op::RightShiftArithmetic),
+			Some(&Token::RightShiftLogicalAssign) => self.parse_expr_binary_assign(expr, Op::RightShiftLogical),
+			Some(&Token::BitAndAssign) => self.parse_expr_binary_assign(expr, Op::BitAnd),
+			Some(&Token::BitXOrAssign) => self.parse_expr_binary_assign(expr, Op::BitXOr),
+			Some(&Token::BitOrAssign) => self.parse_expr_binary_assign(expr, Op::BitOr),
+			_ => return Ok(expr)
+		}
+	}
+	
+	fn parse_expr_binary(&mut self) -> JsResult<Expr> {
+		let mut expr = try!(self.parse_expr_tail());
+		
+		loop {
+			let op = match self.peek() {
+				Some(&Token::Multiply) => Op::Multiply,
+				Some(&Token::Divide) => Op::Divide,
+				Some(&Token::Modulus) => Op::Modulus,
+				Some(&Token::Plus) => Op::Add,
+				Some(&Token::Minus) => Op::Subtract,
+				Some(&Token::LeftShiftArithmetic) => Op::LeftShiftArithmetic,
+				Some(&Token::RightShiftArithmetic) => Op::RightShiftArithmetic,
+				Some(&Token::RightShiftLogical) => Op::RightShiftLogical,
+				Some(&Token::LessThan) => Op::LessThan,
+				Some(&Token::GreaterThan) => Op::GreaterThan,
+				Some(&Token::LessThanEquals) => Op::LessThanEquals,
+				Some(&Token::GreaterThanEquals) => Op::GreaterThanEquals,
+				Some(&Token::Instanceof) => Op::InstanceOf,
+				Some(&Token::In) => Op::In,
+				Some(&Token::Equals) => Op::Equals,
+				Some(&Token::NotEquals) => Op::NotEquals,
+				Some(&Token::IdentityEquals) => Op::IdentityEquals,
+				Some(&Token::IdentityNotEquals) => Op::IdentityNotEquals,
+				Some(&Token::BitAnd) => Op::BitAnd,
+				Some(&Token::BitXOr) => Op::BitXOr,
+				Some(&Token::BitOr) => Op::BitOr,
+				Some(&Token::And) => Op::And,
+				Some(&Token::Or) => Op::Or,
+				_ => break
+			};
+			
+			self.bump();
+			
+			let right = try!(self.parse_expr_tail());
+			
+			let rebalance = if let &Expr::Binary(lop, _, _) = &expr {
+				lop.precedence() < op.precedence()
+			} else {
+				false
+			};
+			
+			expr = if rebalance {
+				if let Expr::Binary(lop, lleft, lright) = expr {
+					Expr::Binary(
+						lop,
+						lleft,
+						Box::new(Expr::Binary(
+							op,
+							lright,
+							Box::new(right)
+						))
+					)
+				} else {
+					unreachable!();
+				}
+			} else {
+				Expr::Binary(op, Box::new(expr), Box::new(right))
+			};
+		}
+		
+		Ok(expr)
+	}
+	
+	fn parse_expr_tail(&mut self) -> JsResult<Expr> {
 		let mut expr = try!(match self.peek() {
 			Some(&Token::Function) => {
 				self.bump();
@@ -619,7 +728,7 @@ impl<'a> Parser<'a> {
 			_ => {
 				let message = { format!("Cannot parse expression, got {:?}", self.peek()) };
 				
-				self.fatal(&message)
+				return self.fatal(&message);
 			}
 		});
 		
@@ -640,42 +749,6 @@ impl<'a> Parser<'a> {
 						_ => self.parse_expr_unary_post(expr, Op::PostDecr)
 					}
 				},
-				Some(&Token::Multiply) => self.parse_expr_binary(expr, Op::Multiply),
-				Some(&Token::Divide) => self.parse_expr_binary(expr, Op::Divide),
-				Some(&Token::Modulus) => self.parse_expr_binary(expr, Op::Modulus),
-				Some(&Token::Plus) => self.parse_expr_binary(expr, Op::Add),
-				Some(&Token::Minus) => self.parse_expr_binary(expr, Op::Subtract),
-				Some(&Token::LeftShiftArithmetic) => self.parse_expr_binary(expr, Op::LeftShiftArithmetic),
-				Some(&Token::RightShiftArithmetic) => self.parse_expr_binary(expr, Op::RightShiftArithmetic),
-				Some(&Token::RightShiftLogical) => self.parse_expr_binary(expr, Op::RightShiftLogical),
-				Some(&Token::LessThan) => self.parse_expr_binary(expr, Op::LessThan),
-				Some(&Token::GreaterThan) => self.parse_expr_binary(expr, Op::GreaterThan),
-				Some(&Token::LessThanEquals) => self.parse_expr_binary(expr, Op::LessThanEquals),
-				Some(&Token::GreaterThanEquals) => self.parse_expr_binary(expr, Op::GreaterThanEquals),
-				Some(&Token::Instanceof) => self.parse_expr_binary(expr, Op::InstanceOf),
-				Some(&Token::In) => self.parse_expr_binary(expr, Op::In),
-				Some(&Token::Equals) => self.parse_expr_binary(expr, Op::Equals),
-				Some(&Token::NotEquals) => self.parse_expr_binary(expr, Op::NotEquals),
-				Some(&Token::IdentityEquals) => self.parse_expr_binary(expr, Op::IdentityEquals),
-				Some(&Token::IdentityNotEquals) => self.parse_expr_binary(expr, Op::IdentityNotEquals),
-				Some(&Token::BitAnd) => self.parse_expr_binary(expr, Op::BitAnd),
-				Some(&Token::BitXOr) => self.parse_expr_binary(expr, Op::BitXOr),
-				Some(&Token::BitOr) => self.parse_expr_binary(expr, Op::BitOr),
-				Some(&Token::And) => self.parse_expr_binary(expr, Op::And),
-				Some(&Token::Or) => self.parse_expr_binary(expr, Op::Or),
-				Some(&Token::QuestionMark) => self.parse_expr_ternary(expr),
-				Some(&Token::Assign) => self.parse_expr_binary_assign(expr, Op::Assign),
-				Some(&Token::MultiplyAssign) => self.parse_expr_binary_assign(expr, Op::Multiply),
-				Some(&Token::DivideAssign) => self.parse_expr_binary_assign(expr, Op::Divide),
-				Some(&Token::ModulusAssign) => self.parse_expr_binary_assign(expr, Op::Modulus),
-				Some(&Token::PlusAssign) => self.parse_expr_binary_assign(expr, Op::Add),
-				Some(&Token::MinusAssign) => self.parse_expr_binary_assign(expr, Op::Subtract),
-				Some(&Token::LeftShiftArithmeticAssign) => self.parse_expr_binary_assign(expr, Op::LeftShiftArithmetic),
-				Some(&Token::RightShiftArithmeticAssign) => self.parse_expr_binary_assign(expr, Op::RightShiftArithmetic),
-				Some(&Token::RightShiftLogicalAssign) => self.parse_expr_binary_assign(expr, Op::RightShiftLogical),
-				Some(&Token::BitAndAssign) => self.parse_expr_binary_assign(expr, Op::BitAnd),
-				Some(&Token::BitXOrAssign) => self.parse_expr_binary_assign(expr, Op::BitXOr),
-				Some(&Token::BitOrAssign) => self.parse_expr_binary_assign(expr, Op::BitOr),
 				_ => return Ok(expr)
 			});
 		}
@@ -705,36 +778,6 @@ impl<'a> Parser<'a> {
 		let args = try!(self.parse_arguments());
 		
 		Ok(Expr::Call(Box::new(expr), args))
-	}
-	
-	fn parse_expr_binary(&mut self, expr: Expr, op: Op) -> JsResult<Expr> {
-		self.bump();
-		
-		let right = try!(self.parse_expr());
-		
-		let rebalance = if let &Expr::Binary(rop, _, _) = &right {
-			rop.precedence() < op.precedence() 
-		} else {
-			false
-		};
-		
-		Ok(if rebalance {
-			if let Expr::Binary(rop, rleft, rright) = right {
-				Expr::Binary(
-					rop,
-					Box::new(Expr::Binary(
-						op,
-						Box::new(expr),
-						rleft
-					)),
-					rright
-				)
-			} else {
-				unreachable!();
-			}
-		} else {
-			Expr::Binary(op, Box::new(expr), Box::new(right))
-		})
 	}
 	
 	fn parse_expr_binary_assign(&mut self, expr: Expr, op: Op) -> JsResult<Expr> {
@@ -905,12 +948,18 @@ impl<'a> Parser<'a> {
 				if name == name::GET {
 					try!(self.expect(&Token::CloseParen));
 					
+					let start = self.span();
+					
 					let block = try!(self.parse_function_block(Vec::new()));
+					
+					let end = self.span_at(-1);
 					
 					let function = Box::new(Function {
 						global: false,
 						name: None,
-						block: block
+						block: block,
+						args: 0,
+						span: Span::from_range(start, end)
 					});
 					
 					let function_ref = FunctionRef(self.context.functions.len() as u32);
@@ -922,12 +971,18 @@ impl<'a> Parser<'a> {
 					
 					try!(self.expect(&Token::CloseParen));
 					
+					let start = self.span();
+					
 					let block = try!(self.parse_function_block(args));
+					
+					let end = self.span_at(-1);
 					
 					let function = Box::new(Function {
 						global: false,
 						name: None,
-						block: block
+						block: block,
+						args: 1,
+						span: Span::from_range(start, end)
 					});
 					
 					let function_ref = FunctionRef(self.context.functions.len() as u32);

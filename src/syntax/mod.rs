@@ -3,6 +3,7 @@ use util::interner::RcStr;
 use std::fmt;
 use std::ops::Deref;
 use std::i32;
+use std::rc::Rc;
 
 pub mod reader;
 pub mod lexer;
@@ -15,16 +16,28 @@ pub struct Span {
 	pub start_line: i32,
 	pub start_col: i32,
 	pub end_line: i32,
-	pub end_col: i32
+	pub end_col: i32,
+	pub file: Rc<String>
 }
 
 impl Span {
-	pub fn new(start_line: i32, start_col: i32, end_line: i32, end_col: i32) -> Span {
+	pub fn new(start_line: i32, start_col: i32, end_line: i32, end_col: i32, file: Rc<String>) -> Span {
 		Span {
 			start_line: start_line,
 			start_col: start_col,
 			end_line: end_line,
-			end_col: end_col
+			end_col: end_col,
+			file: file
+		}
+	}
+	
+	pub fn from_range(start: Span, end: Span) -> Span {
+		Span {
+			start_line: start.start_line,
+			start_col: start.start_col,
+			end_line: end.end_line,
+			end_col: end.end_col,
+			file: start.file.clone()
 		}
 	}
 }

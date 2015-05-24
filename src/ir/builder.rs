@@ -202,7 +202,6 @@ impl Block {
 				&Ir::Pick(offset) => { write!(string, "pick {}", offset).ok(); },
 				&Ir::Pop => string.push_str("pop"),
 				&Ir::Positive => string.push_str("pos"),
-				&Ir::PushArray => string.push_str("array.push"),
 				&Ir::Return => string.push_str("ret"),
 				&Ir::Rsh => string.push_str("rsh"),
 				&Ir::RshZeroFill => string.push_str("rsh.zf"),
@@ -227,7 +226,6 @@ impl Block {
 					string.push_str("st.name ");
 					self.print_name(string, name, interner);
 				},
-				&Ir::StoreNameLit => string.push_str("st.name.lit"),
 				&Ir::StoreParam(index) => { write!(string, "st.arg {}", index).ok(); },
 				&Ir::StoreSetter(function) => { write!(string, "st.setter {}", function.usize()).ok(); },
 				&Ir::StoreNameSetter(name, function) => { write!(string, "st.setter.name {}, {}", name.value(), function.usize()).ok(); },
@@ -515,7 +513,6 @@ pub enum Ir {
 	Pick(u32),
 	Pop,
 	Positive,
-	PushArray,
 	Return,
 	Rsh,
 	RshZeroFill,
@@ -525,7 +522,6 @@ pub enum Ir {
 	StoreLifted(Name, u32),
 	StoreLocal(Local),
 	StoreName(Name),
-	StoreNameLit,
 	StoreGetter(FunctionRef),
 	StoreNameGetter(Name, FunctionRef),
 	StoreSetter(FunctionRef),

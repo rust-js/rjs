@@ -1,8 +1,9 @@
 #![allow(unused_variables)]
 
-use super::{JsEnv, JsValue, JsString, JsItem};
+use super::{JsEnv, JsValue, JsString, JsItem, JsIterator};
 use gc::*;
 use ::{JsResult, JsError};
+use ir::IrFunction;
 use ir::builder::{Block, Ir};
 use std::rc::Rc;
 use super::stack::StackFrame;
@@ -25,24 +26,37 @@ macro_rules! local_try {
 }
 
 impl JsEnv {
-	pub fn call_block(&mut self, block: Rc<Block>, this: Option<Local<JsValue>>, args: Vec<Local<JsValue>>) -> JsResult<JsValue> {
+	pub fn call_block(&mut self, block: Rc<Block>, this: Option<Local<JsValue>>, args: Vec<Local<JsValue>>, function: &IrFunction) -> JsResult<JsValue> {
 		for i in 0..block.locals.len() {
 			self.stack.push(JsValue::new_undefined());
 		}
 		
-		let locals = self.stack.create_frame(block.locals.len());
+		let arguments = if function.has_arguments {
+			let arguments = self.new_arguments(&args);
+			self.stack.push(*try!(arguments));
+			block.locals.len()
+		} else {
+			0
+		};
+		
+		let locals =
+			block.locals.len() +
+			if function.has_arguments { 1 } else { 0 };
+		
+		let locals = self.stack.create_frame(locals);
 		
 		let ir = &block.ir[..];
 		let mut ip = 0;
 		let mut thrown = None;
 		let mut leave = None;
+		let strict = function.strict;
 		
 		loop {
 			debugln!("IP: {}", ip);
 			
 			let ir = &ir[ip];
 			
-			match self.call_stmt(&mut ip, ir, &locals, &this, &args, &mut thrown) {
+			match self.call_stmt(&mut ip, ir, &locals, &this, &args, &mut thrown, strict, arguments) {
 				Next::Next => {},
 				Next::Return(result) => return Ok(result),
 				Next::Throw(error) => {
@@ -279,7 +293,7 @@ impl JsEnv {
 	}
 	
 	#[inline(always)]
-	fn call_stmt(&mut self, ip: &mut usize, ir: &Ir, locals: &StackFrame, this: &Option<Local<JsValue>>, args: &Vec<Local<JsValue>>, thrown: &mut Option<Root<JsValue>>) -> Next {
+	fn call_stmt(&mut self, ip: &mut usize, ir: &Ir, locals: &StackFrame, this: &Option<Local<JsValue>>, args: &Vec<Local<JsValue>>, thrown: &mut Option<Root<JsValue>>, strict: bool, arguments: usize) -> Next {
 		match ir {
 			&Ir::Add => {
 				let _scope = self.heap.new_local_scope();
@@ -313,7 +327,20 @@ impl JsEnv {
 				self.stack.drop_frame(frame);
 				self.stack.push(*result);
 			}
-			&Ir::CurrentIter(local) => { unimplemented!(); },
+			&Ir::CurrentIter(local) => {
+				let _scope = self.heap.new_local_scope();
+				
+				let iterator = Local::from_ptr(locals.get(local.offset()).get_iterator(), &self.heap);
+				let name = iterator.current();
+				
+				let result = if let Some(index) = name.index() {
+					JsString::from_str(self, &index.to_string()).as_value(self)
+				} else {
+					JsString::from_str(self, &*self.ir.interner().get(name)).as_value(self)
+				};
+				
+				self.stack.push(*result);
+			},
 			&Ir::Debugger => { unimplemented!(); },
 			&Ir::DeleteIndex => {
 				let _scope = self.heap.new_local_scope();
@@ -321,8 +348,7 @@ impl JsEnv {
 				let frame = self.stack.create_frame(2);
 				
 				let index = frame.get(1).as_local(self);
-				let index = local_try!(index.to_string(self));
-				let index = self.intern(&index.to_string());
+				let index = local_try!(self.intern_value(index));
 				
 				let result = local_try!(frame.get(0).as_local(self).delete(self, index, true));
 				
@@ -345,7 +371,7 @@ impl JsEnv {
 				self.stack.push(frame.get(0));
 			}
 			&Ir::EndFinally => return Next::EndFinally,
-			&Ir::EndIter(local) => { unimplemented!(); },
+			&Ir::EndIter(local) => { /* no-op */ },
 			&Ir::EnterWith => { unimplemented!(); },
 			&Ir::Eq => {
 				let _scope = self.heap.new_local_scope();
@@ -387,9 +413,20 @@ impl JsEnv {
 				let arg2 = frame.get(1).as_local(self);
 				let result = local_try!(self.instanceof(arg1, arg2));
 				self.stack.drop_frame(frame);
+				
 				self.stack.push(*result);
 			},
-			&Ir::IntoIter(local) => { unimplemented!(); },
+			&Ir::IntoIter(local) => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(1);
+				
+				let arg = frame.get(0).as_local(self);
+				let result = JsIterator::new_local(self, arg).as_value(self);
+				locals.set(local.offset(), *result);
+				
+				self.stack.drop_frame(frame);
+			},
 			&Ir::Jump(label) => {
 				*ip = label.offset();
 				return Next::Next;
@@ -425,7 +462,7 @@ impl JsEnv {
 			}
 			&Ir::Leave(label) => return Next::Leave(label.offset()),
 			&Ir::LeaveWith => { unimplemented!(); },
-			&Ir::LoadArguments => { unimplemented!(); },
+			&Ir::LoadArguments => self.stack.push(locals.get(arguments)),
 			&Ir::LoadException => {
 				if let Some(ref exception) = *thrown {
 					self.stack.push(**exception)
@@ -469,8 +506,7 @@ impl JsEnv {
 				let frame = self.stack.create_frame(2);
 				
 				let index = frame.get(1).as_local(self);
-				let index = local_try!(index.to_string(self));
-				let index = self.intern(&index.to_string());
+				let index = local_try!(self.intern_value(index));
 				
 				let result = local_try!(frame.get(0).as_local(self).get(self, index));
 				
@@ -478,7 +514,7 @@ impl JsEnv {
 				
 				self.stack.push(*result);
 			}
-			&Ir::LoadLifted(name, depth) => { unimplemented!(); },
+			&Ir::LoadLifted(name, depth) => { panic!("lifted not yet implemented"); },
 			&Ir::LoadLocal(local) => self.stack.push(locals.get(local.offset())),
 			&Ir::LoadMissing => { unimplemented!(); },
 			&Ir::LoadName(name) => {
@@ -527,8 +563,27 @@ impl JsEnv {
 			},
 			&Ir::Modulus => { unimplemented!(); },
 			&Ir::Multiply => { unimplemented!(); },
-			&Ir::Ne => { unimplemented!(); },
-			&Ir::Negative => { unimplemented!(); },
+			&Ir::Ne => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(self);
+				let arg2 = frame.get(1).as_local(self);
+				let result = local_try!(self.ne(arg1, arg2));
+				self.stack.drop_frame(frame);
+				
+				self.stack.push(JsValue::new_bool(result));
+			},
+			&Ir::Negative => {
+				let _scope = self.heap.new_local_scope();
+				
+				let frame = self.stack.create_frame(1);
+				let arg = frame.get(0).as_local(self);
+				let result = local_try!(self.negative(arg));
+				self.stack.drop_frame(frame);
+				
+				self.stack.push(JsValue::new_number(result));
+			},
 			&Ir::New(count) => {
 				let _scope = self.heap.new_local_scope();
 				
@@ -557,7 +612,16 @@ impl JsEnv {
 				let result = self.new_object().as_value(self);
 				self.stack.push(*result);
 			}
-			&Ir::NextIter(local, label) => { unimplemented!(); },
+			&Ir::NextIter(local, label) => {
+				let _scope = self.heap.new_local_scope();
+				
+				let mut iterator = Local::from_ptr(locals.get(local.offset()).get_iterator(), &self.heap);
+				
+				if iterator.next(self) {
+					*ip  = label.offset();
+					return Next::Next;
+				}
+			},
 			&Ir::Not => {
 				let _scope = self.heap.new_local_scope();
 				
@@ -573,7 +637,6 @@ impl JsEnv {
 				self.stack.drop_frame(frame);
 			},
 			&Ir::Positive => { unimplemented!(); },
-			&Ir::PushArray => { unimplemented!(); },
 			&Ir::Return => {
 				let frame = self.stack.create_frame(1);
 				let result = frame.get(0);
@@ -588,7 +651,7 @@ impl JsEnv {
 				
 				let frame = self.stack.create_frame(1);
 				let value = frame.get(0).as_local(self);
-				local_try!(self.global.as_local(self).put(self, name, value, true));
+				local_try!(self.global.as_local(self).put(self, name, value, strict));
 				self.stack.drop_frame(frame);
 			}
 			&Ir::StoreIndex => {
@@ -597,15 +660,14 @@ impl JsEnv {
 				let frame = self.stack.create_frame(3);
 				
 				let index = frame.get(1).as_local(self);
-				let index = local_try!(index.to_string(self));
-				let index = self.intern(&index.to_string());
+				let index = local_try!(self.intern_value(index));
 				
 				let value = frame.get(2).as_local(self);
-				local_try!(frame.get(0).as_local(self).put(self, index, value, true));
+				local_try!(frame.get(0).as_local(self).put(self, index, value, strict));
 				
 				self.stack.drop_frame(frame);
 			}
-			&Ir::StoreLifted(name, depth) => { unimplemented!(); },
+			&Ir::StoreLifted(name, depth) => { panic!("lifted not yet implemented"); },
 			&Ir::StoreLocal(local) => {
 				let frame = self.stack.create_frame(1);
 				locals.set(local.offset(), frame.get(0));
@@ -616,10 +678,9 @@ impl JsEnv {
 				
 				let frame = self.stack.create_frame(2);
 				let value = frame.get(1).as_local(self);
-				local_try!(frame.get(0).as_local(self).put(self, name, value, true));
+				local_try!(frame.get(0).as_local(self).put(self, name, value, strict));
 				self.stack.drop_frame(frame);
 			}
-			&Ir::StoreNameLit => { unimplemented!(); },
 			&Ir::StoreGetter(function) => { unimplemented!(); },
 			&Ir::StoreNameGetter(name, function) => { unimplemented!(); },
 			&Ir::StoreSetter(function) => { unimplemented!(); },
@@ -655,7 +716,8 @@ impl JsEnv {
 				let arg2 = frame.get(1).as_local(self);
 				let result = local_try!(self.subtract(arg1, arg2));
 				self.stack.drop_frame(frame);
-				self.stack.push(*result);
+				
+				self.stack.push(JsValue::new_number(result));
 			},
 			&Ir::Swap => { unimplemented!(); },
 			&Ir::Throw => {
@@ -712,8 +774,7 @@ impl JsEnv {
 					JsString::from_str(self, "undefined")
 				} else {
 					let index = frame.get(1).as_local(self);
-					let index = local_try!(index.to_string(self));
-					let index = self.intern(&index.to_string());
+					let index = local_try!(self.intern_value(index));
 					
 					let arg = local_try!(base.get(self, index));
 					self.type_of(arg)

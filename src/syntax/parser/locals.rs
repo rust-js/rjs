@@ -10,7 +10,8 @@ pub struct LocalResolver<'a> {
 
 struct LocalResolverScope<'a> {
 	blocks: Vec<&'a Block>,
-	locals: &'a RefCell<Locals>
+	locals: &'a RefCell<Locals>,
+	had_arguments: bool
 }
 
 impl<'a> LocalResolver<'a> {
@@ -34,12 +35,17 @@ impl<'a> LocalResolver<'a> {
 	fn resolve_scope(&mut self, block: &'a RootBlock) {
 		self.scopes.push(LocalResolverScope {
 			blocks: vec![&block.block],
-			locals: &block.locals
+			locals: &block.locals,
+			had_arguments: false
 		});
 		
 		self.visit_block(&block.block);
 		
-		self.scopes.pop();
+		let scope = self.scopes.pop();
+		
+		if scope.unwrap().had_arguments {
+			block.has_arguments.set(true);
+		}
 	}
 
 	fn resolve_ident(&mut self, ident: &'a Ident) {
@@ -59,6 +65,8 @@ impl<'a> LocalResolver<'a> {
 		
 		if ident.name == name::ARGUMENTS {
 			ident.state.set(IdentState::Arguments);
+			let len = self.scopes.len();
+			self.scopes[len - 1].had_arguments = true;
 			return;
 		}
 		

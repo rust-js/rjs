@@ -13,7 +13,7 @@ Error.prototype.name = 'Error';
 Error.prototype.message = '';
 
 Error.prototype.toString = function () {
-	if (typeof this != 'Object') {
+	if (typeof this != 'object') {
 		throw new TypeError();
 	}
 	
@@ -21,7 +21,6 @@ Error.prototype.toString = function () {
 	name = name === undefined ? 'Error' : name.toString();
 	
 	var msg = this.message;
-	msg = msg === undefined ? '' : msg.toString();
 	msg = msg === undefined ? '' : msg.toString();
 	
 	if (name === '') {
@@ -40,7 +39,9 @@ function EvalError(message) {
 	Error.call(this, message);
 }
 
-EvalError.prototype = Object.create(Error);
+EvalError.prototype = Object.create(Error.prototype);
+
+EvalError.prototype.name = 'EvalError';
 
 EvalError.prototype.constructor = EvalError;
 
@@ -50,7 +51,9 @@ function RangeError(message) {
 	Error.call(this, message);
 }
 
-RangeError.prototype = Object.create(Error);
+RangeError.prototype = Object.create(Error.prototype);
+
+RangeError.prototype.name = 'RangeError';
 
 RangeError.prototype.constructor = RangeError;
 
@@ -60,7 +63,9 @@ function ReferenceError(message) {
 	Error.call(this, message);
 }
 
-ReferenceError.prototype = Object.create(Error);
+ReferenceError.prototype = Object.create(Error.prototype);
+
+ReferenceError.prototype.name = 'ReferenceError';
 
 ReferenceError.prototype.constructor = ReferenceError;
 
@@ -70,7 +75,9 @@ function SyntaxError(message) {
 	Error.call(this, message);
 }
 
-SyntaxError.prototype = Object.create(Error);
+SyntaxError.prototype = Object.create(Error.prototype);
+
+SyntaxError.prototype.name = 'SyntaxError';
 
 SyntaxError.prototype.constructor = SyntaxError;
 
@@ -80,7 +87,9 @@ function TypeError(message) {
 	Error.call(this, message);
 }
 
-TypeError.prototype = Object.create(Error);
+TypeError.prototype = Object.create(Error.prototype);
+
+TypeError.prototype.name = 'TypeError';
 
 TypeError.prototype.constructor = TypeError;
 
@@ -90,6 +99,8 @@ function URIError(message) {
 	Error.call(this, message);
 }
 
-URIError.prototype = Object.create(Error);
+URIError.prototype = Object.create(Error.prototype);
+
+URIError.prototype.name = 'URIError';
 
 URIError.prototype.constructor = URIError;

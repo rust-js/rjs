@@ -1,0 +1,12 @@
+pub static TYPE_NOT_A_FUNCTION : &'static str = "Value is not a function";
+pub static TYPE_MISSING_ARGUMENT : &'static str = "Missing argument";
+pub static TYPE_EXPECTED_ARRAY_ITEM : &'static str = "Expected at least one array item";
+pub static TYPE_INVALID : &'static str = "Unexpected type";
+pub static TYPE_CANNOT_PUT : &'static str = "Cannot set property";
+pub static TYPE_CANNOT_HAS_INSTANCE : &'static str = "Instance of parameter must be an object";
+pub static TYPE_ACCESSOR_NOT_CALLABLE : &'static str = "Accessor is not callable";
+pub static TYPE_WRITABLE_INVALID_ON_ACCESSOR : &'static str = "Writable invalid for accessors";
+pub static TYPE_NOT_EXTENSIBLE : &'static str = "Object is not extensible";
+pub static TYPE_CANNOT_WRITE : &'static str = "Property is not writable";
+pub static TYPE_CANNOT_DELETE : &'static str = "Property cannot be deleted";
+pub static TYPE_NOT_A_CONSTRUCTOR : &'static str = "Not a constructor";

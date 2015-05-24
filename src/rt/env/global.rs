@@ -13,11 +13,7 @@ pub fn Global_unescape(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>
 // 15.1.2.1 eval (x)
 // TODO: Execution context has not yet been implemented.
 pub fn Global_eval(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let x = if args.args.len() > 0 {
-		args.args[0]
-	} else {
-		JsValue::new_undefined().as_local(env)
-	};
+	let x = args.arg(env, 0);
 	
 	if x.ty() != JsType::String {
 		Ok(x)

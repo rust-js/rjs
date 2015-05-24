@@ -286,4 +286,14 @@ declare_idents! {
 	( "eval", EVAL, 103 );
 	( "ReferenceError", REFERENCE_ERROR_CLASS, 104 );
 	( "undefined", UNDEFINED, 105 );
+	( "NaN", NAN, 106 );
+	( "Infinity", INFINITY, 107 );
+	( "MAX_VALUE", MAX_VALUE, 108 );
+	( "MIN_VALUE", MIN_VALUE, 109 );
+	( "NEGATIVE_INFINITY", NEGATIVE_INFINITY, 110 );
+	( "POSITIVE_INFINITY", POSITIVE_INFINITY, 111 );
+	( "Math", MATH_CLASS, 112 );
+	( "RegExp", REGEXP_CLASS, 113 );
+	( "JSON", JSON_CLASS, 114 );
+	( "Arguments", ARGUMENTS_CLASS, 115 );
 }

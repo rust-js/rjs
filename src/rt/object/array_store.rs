@@ -1,11 +1,13 @@
-use super::Store;
+use super::{Store, Entry, JsStoreKey};
 use super::super::{JsEnv, JsDescriptor, GC_ENTRY, GC_ARRAY_STORE};
 use syntax::Name;
 use super::hash_store::HashStore;
 use gc::Array;
-use super::Entry;
 use std::cmp;
 use gc::Local;
+use syntax::token::name;
+
+const INITIAL_ARRAY_SIZE : usize = 8;
 
 pub struct ArrayStore {
 	count: usize,
@@ -31,13 +33,30 @@ impl ArrayStore {
 	}
 	
 	fn grow_entries(&mut self, env: &JsEnv, count: usize) {
-		let len = cmp::max(self.capacity * 2, count);
-		
-		let mut copy = unsafe { env.heap.alloc_array(GC_ENTRY, len) };
-		
-		Array::copy(&self.items, &mut copy, self.count);
-		
-		self.items = copy;
+		if self.items.is_null() {
+			self.capacity = INITIAL_ARRAY_SIZE;
+			self.items = unsafe { env.heap.alloc_array(GC_ENTRY, INITIAL_ARRAY_SIZE) };
+		} else {
+			self.capacity = cmp::max(self.capacity * 2, count);
+			
+			let mut copy = unsafe { env.heap.alloc_array(GC_ENTRY, self.capacity) };
+			
+			Array::copy(&self.items, &mut copy, self.count);
+			
+			self.items = copy;
+		}
+	}
+	
+	fn set_length(&mut self, env: &JsEnv, length: usize) {
+		if length < self.count {
+			for i in length..self.count {
+				self.items[i] = Entry::empty();
+			}
+		} else if length > self.count {
+			self.grow_entries(env, length);
+		}
+
+		self.count = length;
 	}
 }
 
@@ -52,6 +71,14 @@ impl Store for ArrayStore {
 			
 			self.count = cmp::max(self.count, index + 1);
 		} else {
+			if name == name::LENGTH {
+				// The special array define_own_property takes care of checking
+				// that length is an u32.
+				
+				let length = value.value.unwrap().get_number() as usize;
+				self.set_length(env, length);
+			}
+			
 			self.props.add(env, name, value);
 		}
 	}
@@ -95,11 +122,28 @@ impl Store for ArrayStore {
 			
 			false
 		} else {
+			if name == name::LENGTH {
+				// The special array define_own_property takes care of checking
+				// that length is an u32.
+				
+				let length = value.value.unwrap().get_number() as usize;
+				self.set_length(env, length);
+			}
+			
 			self.props.replace(env, name, value)
 		}
 	}
 	
-	fn key_iter(&self, _: &JsEnv) -> Box<Iterator<Item=Name>> {
-		unimplemented!();
+	fn get_key(&self, _: &JsEnv, offset: usize) -> JsStoreKey {
+		if offset == self.count {
+			JsStoreKey::End
+		} else {
+			let entry = self.items[offset];
+			if entry.is_valid() && entry.is_enumerable() {
+				JsStoreKey::Key(Name::from_index(offset))
+			} else {
+				JsStoreKey::Missing
+			}
+		}
 	}
 }

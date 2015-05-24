@@ -1,7 +1,7 @@
 extern crate libc;
 
 use super::{JsEnv, JsString, JsType, JsObject, JsItem, JsDescriptor, JsScope, JsPreferredType};
-use super::{JsNull, JsUndefined, JsNumber, JsBoolean, GC_VALUE};
+use super::{JsNull, JsUndefined, JsNumber, JsBoolean, JsIterator, GC_VALUE};
 use ::{JsResult, JsError};
 use syntax::Name;
 use syntax::lexer::Lexer;
@@ -28,7 +28,8 @@ impl fmt::Debug for JsValue {
 			JsType::Number => try!(write!(fmt, "{}", self.get_number())),
 			JsType::Boolean => try!(write!(fmt, "{}", self.get_bool())),
 			JsType::String => try!(write!(fmt, "string")),
-			JsType::Object => try!(write!(fmt, "object"))
+			JsType::Object => try!(write!(fmt, "object")),
+			_ => panic!("unexpected type")
 		}
 		try!(write!(fmt, " }}"));
 		
@@ -104,6 +105,13 @@ impl JsValue {
 		}
 	}
 	
+	pub fn new_iterator(value: Ptr<JsIterator>) -> JsValue {
+		JsValue {
+			ty: JsType::Iterator,
+			value: JsRawValue::new_ptr(value)
+		}
+	}
+	
 	pub fn ty(&self) -> JsType {
 		self.ty
 	}
@@ -159,6 +167,16 @@ impl JsValue {
 	pub fn set_object(&mut self, value: Ptr<JsObject>) {
 		*self = JsValue::new_object(value);
 	}
+	
+	pub fn get_iterator(&self) -> Ptr<JsIterator> {
+		assert_eq!(self.ty, JsType::Iterator);
+		
+		self.value.get_ptr()
+	}
+	
+	pub fn set_iterator(&mut self, value: Ptr<JsIterator>) {
+		*self = JsValue::new_iterator(value);
+	}
 }
 
 macro_rules! delegate {
@@ -169,7 +187,8 @@ macro_rules! delegate {
 			JsType::Number => JsNumber::new($target.get_number()).$method( $( $arg ),* ),
 			JsType::Boolean => JsBoolean::new($target.get_bool()).$method( $( $arg ),* ),
 			JsType::Object => $target.as_object($env).$method( $( $arg ),* ),
-			JsType::String => $target.as_string($env).$method( $( $arg ),* )
+			JsType::String => $target.as_string($env).$method( $( $arg ),* ),
+			_ => panic!("unexpected type")
 		}
 	}
 }
@@ -307,7 +326,8 @@ impl Local<JsValue> {
 				!(value == 0f64 || value.is_nan())
 			}
 			JsType::String => self.get_string().chars.len() > 0,
-			JsType::Object => true
+			JsType::Object => true,
+			_ => panic!("unexpected type")
 		}
 	}
 	
@@ -338,6 +358,7 @@ impl Local<JsValue> {
 				let value = try!(self.to_primitive(env, JsPreferredType::Number));
 				try!(value.to_number(env))
 			}
+			_ => panic!("unexpected type")
 		};
 		
 		Ok(result)
@@ -440,6 +461,7 @@ impl Local<JsValue> {
 				let result = try!(self.to_primitive(env, JsPreferredType::String));
 				try!(result.to_string(env))
 			}
+			_ => panic!("unexpected type")
 		};
 		
 		Ok(result)
@@ -448,7 +470,7 @@ impl Local<JsValue> {
 	// 9.9 ToObject
 	pub fn to_object(&self, env: &mut JsEnv) -> JsResult<Local<JsValue>> {
 		match self.ty {
-			JsType::Null | JsType::Undefined => Err(JsError::new_type(env)),
+			JsType::Null | JsType::Undefined => Err(JsError::new_type(env, ::errors::TYPE_INVALID)),
 			JsType::Boolean | JsType::Number | JsType::String => {
 				let class = match self.ty {
 					JsType::Boolean => name::BOOLEAN_CLASS,
@@ -462,7 +484,8 @@ impl Local<JsValue> {
 				object.as_object(env).set_value(Some(*self));
 				Ok(object)
 			}
-			JsType::Object => Ok(*self)
+			JsType::Object => Ok(*self),
+			_ => panic!("unexpected type")
 		}
 	}
 	

@@ -8,6 +8,7 @@ use syntax::Name;
 use syntax::token::name;
 use syntax::ast::FunctionRef;
 use ::{JsResult, JsError};
+use std::i32;
 pub use self::value::JsValue;
 pub use self::object::{JsObject, JsStoreType};
 pub use self::string::JsString;
@@ -15,6 +16,7 @@ pub use self::null::JsNull;
 pub use self::undefined::JsUndefined;
 pub use self::number::JsNumber;
 pub use self::boolean::JsBoolean;
+pub use self::iterator::JsIterator;
 
 mod interpreter;
 mod utf;
@@ -28,6 +30,7 @@ mod number;
 mod boolean;
 mod undefined;
 mod null;
+mod iterator;
 
 const GC_OBJECT : u32 = 1;
 const GC_ENTRY : u32 = 2;
@@ -36,6 +39,7 @@ const GC_CHAR : u32 = 4;
 const GC_VALUE : u32 = 5;
 const GC_HASH_STORE : u32 = 6;
 const GC_ARRAY_STORE : u32 = 7;
+const GC_ITERATOR : u32 = 8;
 
 impl Root<JsObject> {
 	pub fn as_local(&self, env: &JsEnv) -> Local<JsObject> {
@@ -111,14 +115,22 @@ impl JsEnv {
 	}
 	
 	fn call(&mut self, function_ref: FunctionRef) -> JsResult<Root<JsValue>> {
-		debugln!("ENTER {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
+		let function = self.ir.get_function_description(function_ref);
+		let name = if let Some(name) = function.name {
+			self.ir.interner().get(name).to_string()
+		} else {
+			"(anonymous)".to_string()
+		};
+		let location = format!("{}[{}:{}] {}", *function.span.file, function.span.start_line, function.span.start_col, name);
+		
+		debugln!("ENTER {}", location);
 		
 		let block = try!(self.ir.get_function_ir(function_ref));
 		
 		let mut result = self.heap.alloc_root::<JsValue>(GC_VALUE);
-		*result = try!(self.call_block(block, None, Vec::new()));
+		*result = try!(self.call_block(block, None, Vec::new(), &function));
 		
-		debugln!("EXIT {}", if let Some(name) = self.ir.get_function_description(function_ref).name { self.ir.interner().get(name).to_string() } else { "(anonymous)".to_string() });
+		debugln!("EXIT {}", location);
 		
 		Ok(result)
 	}
@@ -134,6 +146,18 @@ impl JsEnv {
 	
 	pub fn intern(&self, name: &str) -> Name {
 		self.ir.interner().intern(name)
+	}
+	
+	pub fn intern_value(&mut self, value: Local<JsValue>) -> JsResult<Name> {
+		if value.ty() == JsType::Number {
+			let index = value.get_number();
+			if index >= 0f64 && index <= i32::MAX as f64 && index as i32 as f64 == index {
+				return Ok(Name::from_index(index as usize));
+			}
+		}
+		
+		let index = try!(value.to_string(self));
+		Ok(self.intern(&index.to_string()))
 	}
 }
 
@@ -235,12 +259,18 @@ pub trait JsItem {
 	
 	// 8.12.5 [[Put]] ( P, V, Throw )
 	fn put(&mut self, env: &mut JsEnv, property: Name, value: Local<JsValue>, throw: bool) -> JsResult<()> {
-		if !self.can_put(env, property) {
-			return if throw {
-				Err(JsError::new_type(env))
-			} else {
-				Ok(())
-			};
+		// BUG #18: This is wrong but I can't figure out how to solve this. The specs state that
+		// [[CanPut]] will reject the mutation of the property is not writable. However, if
+		// Array.prototype has a not writable 0, the write still succeeds.
+		
+		if self.class(env) != Some(name::ARRAY_CLASS) || !property.is_index() {
+			if !self.can_put(env, property) {
+				return if throw {
+					Err(JsError::new_type(env, ::errors::TYPE_CANNOT_PUT))
+				} else {
+					Ok(())
+				};
+			}
 		}
 		
 		if let Some(own_desc) = self.get_own_property(env, property) {
@@ -319,7 +349,7 @@ pub trait JsItem {
 				return Ok(val);
 			}
 			
-			Err(JsError::new_type(env))
+			Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 		} else {
 			let value_of = try!(this.get(env, name::VALUE_OF));
 			if let Some(val) = try!(try_call(env, this, value_of)) {
@@ -331,14 +361,14 @@ pub trait JsItem {
 				return Ok(str);
 			}
 			
-			Err(JsError::new_type(env))
+			Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 		}
 	}
 	
 	// 8.12.9 [[DefineOwnProperty]] (P, Desc, Throw)
 	fn define_own_property(&mut self, env: &mut JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
 		// If get_own_property returns None and self is not extensible, the below happens.
-		if throw { Err(JsError::new_type(env)) } else { Ok(false) }
+		if throw { Err(JsError::new_type(env, ::errors::TYPE_CANNOT_PUT)) } else { Ok(false) }
 	}
 	
 	fn is_callable(&self, env: &JsEnv) -> bool {
@@ -407,7 +437,7 @@ pub trait JsItem {
 	}
 	
 	fn class(&self, env: &JsEnv) -> Option<Name> {
-		panic!("Class not supported");
+		None
 	}
 	
 	fn set_class(&mut self, env: &JsEnv, class: Option<Name>) {
@@ -419,7 +449,7 @@ pub trait JsItem {
 	}
 	
 	fn has_instance(&self, env: &mut JsEnv, object: Local<JsValue>) -> JsResult<bool> {
-		Err(JsError::new_type(env))
+		Err(JsError::new_type(env, ::errors::TYPE_CANNOT_HAS_INSTANCE))
 	}
 	
 	fn scope(&self, env: &JsEnv) -> Option<Local<JsScope>> {
@@ -594,7 +624,7 @@ impl JsDescriptor {
 	// 8.10.5 ToPropertyDescriptor ( Obj )
 	pub fn to_property_descriptor(env: &mut JsEnv, obj: Local<JsValue>) -> JsResult<JsDescriptor> {
 		if obj.ty() != JsType::Object {
-			Err(JsError::new_type(env))
+			Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 		} else {
 			let enumerable = if obj.has_property(env, name::ENUMERABLE) {
 				let enumerable = try!(obj.get(env, name::ENUMERABLE));
@@ -622,7 +652,7 @@ impl JsDescriptor {
 			let getter = if obj.has_property(env, name::GET) {
 				let getter = try!(obj.get(env, name::GET));
 				if getter.ty() != JsType::Undefined && !getter.is_callable(env) {
-					return Err(JsError::new_type(env));
+					return Err(JsError::new_type(env, ::errors::TYPE_ACCESSOR_NOT_CALLABLE));
 				}
 				Some(getter)
 			} else {
@@ -631,14 +661,14 @@ impl JsDescriptor {
 			let setter = if obj.has_property(env, name::SET) {
 				let setter = try!(obj.get(env, name::SET));
 				if setter.ty() != JsType::Undefined && !setter.is_callable(env) {
-					return Err(JsError::new_type(env));
+					return Err(JsError::new_type(env, ::errors::TYPE_ACCESSOR_NOT_CALLABLE));
 				}
 				Some(setter)
 			} else {
 				None
 			};
 			if (getter.is_some() || setter.is_some()) && writable.is_some() {
-				return Err(JsError::new_type(env));
+				return Err(JsError::new_type(env, ::errors::TYPE_WRITABLE_INVALID_ON_ACCESSOR));
 			}
 			
 			Ok(JsDescriptor {
@@ -660,7 +690,8 @@ pub enum JsType {
 	Number = 2,
 	Boolean = 3,
 	String = 4,
-	Object = 5
+	Object = 5,
+	Iterator = 6
 }
 
 impl JsType {
@@ -692,9 +723,37 @@ pub struct JsArgs {
 	mode: JsFnMode
 }
 
+impl JsArgs {
+	pub fn arg(&self, env: &JsEnv, index: usize) -> Local<JsValue> {
+		if self.args.len() > index {
+			self.args[index]
+		} else {
+			JsValue::new_undefined().as_local(env)
+		}
+	}
+	
+	pub fn arg_or(&self, index: usize, def: Local<JsValue>) -> Local<JsValue> {
+		if self.args.len() > index {
+			self.args[index]
+		} else {
+			def
+		}
+	}
+}
+
 pub type JsFn = Fn(&mut JsEnv, JsArgs) -> JsResult<Local<JsValue>>;
+
 
 pub enum JsFunction {
 	Ir(FunctionRef),
-	Native(Option<Name>, u32, Box<JsFn>)
+	Native(Option<Name>, u32, *const JsFn, bool)
+}
+
+impl Clone for JsFunction {
+	fn clone(&self) -> JsFunction {
+		match *self {
+			JsFunction::Ir(function_ref) => JsFunction::Ir(function_ref),
+			JsFunction::Native(name, args, callback, can_construct) => JsFunction::Native(name, args, callback, can_construct)
+		}
+	}
 }

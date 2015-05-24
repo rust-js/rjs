@@ -21,7 +21,7 @@ fn fatal<T>(reader: &Reader, message: &str) -> JsResult<T> {
 	Err(JsError::Lex(message))
 }
 
-fn parse(reader: &mut Reader, interner: &StrInterner, strict: bool) -> JsResult<Vec<TokenAndSpan>> {
+fn parse(reader: &mut Reader, interner: &StrInterner, strict: bool, file: Rc<String>) -> JsResult<Vec<TokenAndSpan>> {
 	let mut tokens = Vec::new();
 	
 	while !reader.is_eof() {
@@ -211,7 +211,7 @@ fn parse(reader: &mut Reader, interner: &StrInterner, strict: bool) -> JsResult<
 		};
 		
 		let (end_line, end_col) = reader.last_pos();
-		let span = Span::new(start_line, start_col, end_line, end_col);
+		let span = Span::new(start_line, start_col, end_line, end_col, file.clone());
 		
 		tokens.push(TokenAndSpan::new(token, span))
 	}
@@ -1096,10 +1096,20 @@ pub struct Lexer {
 
 impl Lexer {
 	pub fn new(reader: &mut Reader, interner: &StrInterner, strict: bool) -> JsResult<Lexer> {
+		let file = Rc::new(reader.file().to_string());
+		
 		Ok(Lexer {
 			offset: 0,
-			tokens: try!(parse(reader, interner, strict))
+			tokens: try!(parse(reader, interner, strict, file))
 		})
+	}
+	
+	pub fn span(&self) -> &Span {
+		self.tokens[self.offset].span()
+	}
+	
+	pub fn span_at(&self, offset: isize) -> &Span {
+		self.tokens[(self.offset as isize + offset) as usize].span()
 	}
 	
 	pub fn is_eof(&self) -> bool {
