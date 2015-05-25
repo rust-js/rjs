@@ -56,7 +56,7 @@ pub fn Array_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>>
 		func = try!(env.object_prototype.as_local(env).get(env, name::TO_STRING));
 	}
 	
-	func.call(env, array, Vec::new())
+	func.call(env, array, Vec::new(), false)
 }
 
 // 15.4.4.3 Array.prototype.toLocaleString ( )
@@ -78,7 +78,7 @@ pub fn Array_toLocaleString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 					if !func.is_callable(env) {
 						return Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
 					}
-					let result = try!(try!(func.call(env, element_obj, Vec::new())).to_string(env)).to_string();
+					let result = try!(try!(func.call(env, element_obj, Vec::new(), false)).to_string(env)).to_string();
 					string.push_str(&result)
 				}
 			};
@@ -423,7 +423,7 @@ pub fn Array_sort(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 					error = Some(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
 					Ordering::Equal
 				} else {
-					let result = local_try!(compare_fn.call(env, this, vec![x, y]), error);
+					let result = local_try!(compare_fn.call(env, this, vec![x, y], false), error);
 					
 					if local_try!(env.compare_lt(result, zero), error) {
 						Ordering::Less
@@ -699,7 +699,8 @@ fn Array_everyOrSome(env: &mut JsEnv, args: JsArgs, test: bool) -> JsResult<Loca
 			let test_result = try!(callback_fn.call(
 				env,
 				this_arg,
-				vec![k_value, k, array]
+				vec![k_value, k, array],
+				false
 			));
 			
 			if test_result.to_boolean() == test {
@@ -749,7 +750,8 @@ pub fn Array_forEach(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 			try!(callback_fn.call(
 				env,
 				this_arg,
-				vec![k_value, k, array]
+				vec![k_value, k, array],
+				false
 			));
 		}
 	}
@@ -787,7 +789,8 @@ pub fn Array_map(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 			let mapped_value = try!(callback_fn.call(
 				env,
 				this_arg,
-				vec![k_value, k, array]
+				vec![k_value, k, array],
+				false
 			));
 			
 			try!(result.define_own_property(env, p_k, JsDescriptor::new_simple_value(mapped_value), false));
@@ -829,7 +832,8 @@ pub fn Array_filter(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 			let selected = try!(callback_fn.call(
 				env,
 				this_arg,
-				vec![k_value, k, array]
+				vec![k_value, k, array],
+				false
 			));
 			
 			if selected.to_boolean() {
@@ -902,7 +906,8 @@ pub fn Array_reduce(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 			let accumulator = try!(callback_fn.call(
 				env,
 				undefined,
-				vec![k_value, k, array]
+				vec![k_value, k, array],
+				false
 			));
 		}
 		
@@ -966,7 +971,8 @@ pub fn Array_reduceRight(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 			let accumulator = try!(callback_fn.call(
 				env,
 				undefined,
-				vec![k_value, k, array]
+				vec![k_value, k, array],
+				false
 			));
 		}
 		

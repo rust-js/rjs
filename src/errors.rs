@@ -10,3 +10,5 @@ pub static TYPE_NOT_EXTENSIBLE : &'static str = "Object is not extensible";
 pub static TYPE_CANNOT_WRITE : &'static str = "Property is not writable";
 pub static TYPE_CANNOT_DELETE : &'static str = "Property cannot be deleted";
 pub static TYPE_NOT_A_CONSTRUCTOR : &'static str = "Not a constructor";
+pub static TYPE_UNDEFINED : &'static str = "Invalid operation on undefined";
+pub static TYPE_NULL : &'static str = "Invalid operation on null";

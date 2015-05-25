@@ -226,7 +226,7 @@ pub trait AstVisitor<'a> {
 	}
 	
 	fn visit_item_with(&mut self, item: &'a Item) {
-		if let &Item::With(ref exprs, ref stmt) = item {
+		if let &Item::With(ref exprs, ref stmt, _) = item {
 			self.visit_expr_seq(exprs);
 			self.visit_item(stmt);
 		}

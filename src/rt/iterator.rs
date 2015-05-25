@@ -12,7 +12,7 @@ pub struct JsIterator {
 impl JsIterator {
 	pub fn new_local(env: &JsEnv, target: Local<JsValue>) -> Local<JsIterator> {
 		let mut result = env.heap.alloc_local::<JsIterator>(GC_ITERATOR);
-		debugln!("{:?}", target.ty());
+		
 		let target = if target.ty() == JsType::Object {
 			target.as_object(env).as_ptr()
 		} else if let Some(prototype) = target.prototype(env) {

@@ -63,6 +63,8 @@ pub struct JsEnv {
 	string_prototype: Root<JsObject>,
 	number_prototype: Root<JsObject>,
 	boolean_prototype: Root<JsObject>,
+	date_prototype: Root<JsObject>,
+	regexp_prototype: Root<JsObject>,
 	ir: IrContext,
 	stack: stack::Stack
 }
@@ -78,6 +80,8 @@ impl JsEnv {
 		let string_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
 		let number_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
 		let boolean_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
+		let date_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
+		let regexp_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
 		
 		let mut env = JsEnv {
 			heap: heap,
@@ -88,6 +92,8 @@ impl JsEnv {
 			string_prototype: string_prototype,
 			number_prototype: number_prototype,
 			boolean_prototype: boolean_prototype,
+			date_prototype: date_prototype,
+			regexp_prototype: regexp_prototype,
 			ir: IrContext::new(),
 			stack: stack::Stack::new()
 		};
@@ -98,7 +104,11 @@ impl JsEnv {
 	}
 	
 	pub fn run(&mut self, file_name: &str) -> JsResult<Root<JsValue>> {
-		let function_ref = try!(self.ir.parse_file(file_name));
+		self.run_strict(file_name, false)
+	}
+	
+	pub fn run_strict(&mut self, file_name: &str, strict: bool) -> JsResult<Root<JsValue>> {
+		let function_ref = try!(self.ir.parse_file(file_name, strict));
 		
 		let mut ir = String::new();
 		try!(self.ir.print_ir(&mut ir));
@@ -108,7 +118,11 @@ impl JsEnv {
 	}
 	
 	pub fn eval(&mut self, js: &str) -> JsResult<Root<JsValue>> {
-		let function_ref = try!(self.ir.parse_string(js));
+		self.eval_strict(js, false)
+	}
+	
+	pub fn eval_strict(&mut self, js: &str, strict: bool) -> JsResult<Root<JsValue>> {
+		let function_ref = try!(self.ir.parse_string(js, strict));
 		
 		let mut ir = String::new();
 		try!(self.ir.print_ir(&mut ir));
@@ -118,13 +132,13 @@ impl JsEnv {
 	}
 	
 	fn call(&mut self, function_ref: FunctionRef) -> JsResult<Root<JsValue>> {
-		let function = self.ir.get_function_description(function_ref);
+		let function = self.ir.get_function(function_ref);
 		let name = if let Some(name) = function.name {
 			self.ir.interner().get(name).to_string()
 		} else {
 			"(anonymous)".to_string()
 		};
-		let location = format!("{}[{}:{}] {}", *function.span.file, function.span.start_line, function.span.start_col, name);
+		let location = format!("{}[{}:{}] {}", self.ir.interner().get(function.span.file), function.span.start_line, function.span.start_col, name);
 		
 		debugln!("ENTER {}", location);
 		
@@ -217,7 +231,7 @@ pub trait JsItem {
 					Ok(JsValue::new_undefined().as_local(env))
 				} else {
 					let this = self.as_value(env);
-					get.call(env, this, Vec::new())
+					get.call(env, this, Vec::new(), false)
 				}
 			}
 		}
@@ -291,7 +305,7 @@ pub trait JsItem {
 		if let Some(desc) = self.get_property(env, property) {
 			if desc.is_accessor() {
 				let this = self.as_value(env);
-				try!(desc.set(env).call(env, this, vec![value]));
+				try!(desc.set(env).call(env, this, vec![value], false));
 				return Ok(());
 			}
 		}
@@ -330,7 +344,7 @@ pub trait JsItem {
 		fn try_call(env: &mut JsEnv, this: Local<JsValue>, method: Local<JsValue>) -> JsResult<Option<Local<JsValue>>> {
 			if method.is_callable(env) {
 				let this = this.as_value(env);
-				let val = try!(method.call(env, this, Vec::new()));
+				let val = try!(method.call(env, this, Vec::new(), false));
 				if val.ty().is_primitive() {
 					return Ok(Some(val));
 				}
@@ -378,11 +392,12 @@ pub trait JsItem {
 		false
 	}
 	
-	fn call(&self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>> {
+	fn call(&self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>, strict: bool) -> JsResult<Local<JsValue>> {
 		let args = JsArgs {
 			function: self.as_value(env),
 			this: this,
 			args: args,
+			strict: strict,
 			mode: JsFnMode::Call
 		};
 		
@@ -411,6 +426,7 @@ pub trait JsItem {
 			function: self.as_value(env),
 			this: obj,
 			args: args,
+			strict: false,
 			mode: JsFnMode::New
 		};
 		
@@ -428,11 +444,11 @@ pub trait JsItem {
 	}
 	
 	fn prototype(&self, env: &JsEnv) -> Option<Local<JsValue>> {
-		panic!("prototype not supported");
+		panic!("prototype not supported on {:?}", self.as_value(env).ty());
 	}
 	
 	fn set_prototype(&mut self, env: &JsEnv, prototype: Option<Local<JsValue>>) {
-		panic!("prototype not supported");
+		panic!("prototype not supported on {:?}", self.as_value(env).ty());
 	}
 	
 	fn has_class(&self, env: &JsEnv) -> bool {
@@ -725,6 +741,7 @@ pub struct JsArgs {
 	function: Local<JsValue>,
 	this: Local<JsValue>,
 	args: Vec<Local<JsValue>>,
+	strict: bool,
 	mode: JsFnMode
 }
 

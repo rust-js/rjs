@@ -2,7 +2,6 @@ pub mod visitor;
 
 use syntax::token::Lit;
 use super::{Name, Span};
-use std::rc::Rc;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
@@ -58,9 +57,10 @@ impl Locals {
 /// somewhere in the stack), local slots are not tracked.
 #[derive(Copy, Clone, Debug)]
 pub struct Slot {
-	pub name: Name,
+	pub name: Option<Name>,
 	pub arg: Option<u32>,
-	pub lifted: Option<u32>
+	pub lifted: Option<u32>,
+	pub global: bool
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -69,6 +69,23 @@ pub struct SlotRef(pub usize);
 impl SlotRef {
 	pub fn usize(&self) -> usize {
 		self.0
+	}
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct FunctionSlotRef(pub FunctionRef, pub SlotRef, pub u32);
+
+impl FunctionSlotRef {
+	pub fn function(&self) -> FunctionRef {
+		self.0
+	}
+	
+	pub fn slot(&self) -> SlotRef {
+		self.1
+	}
+	
+	pub fn depth(&self) -> u32 {
+		self.2
 	}
 }
 
@@ -110,7 +127,7 @@ pub enum Item {
 	Try(Block, Option<Catch>, Option<Block>),
 	VarDecl(Vec<Var>),
 	While(Option<Label>, Box<Expr>, Box<Item>),
-	With(ExprSeq, Box<Item>)
+	With(ExprSeq, Box<Item>, Cell<Option<SlotRef>>)
 }
 
 #[derive(Debug)]
@@ -121,7 +138,8 @@ pub struct Label {
 #[derive(Debug)]
 pub struct Ident {
 	pub name: Name,
-	pub state: Cell<IdentState>
+	pub state: Cell<IdentState>,
+	pub with_locals: RefCell<Option<Vec<FunctionSlotRef>>>
 }
 
 /// Resolve state of an identifier. Variables can:
@@ -142,7 +160,7 @@ pub enum IdentState {
 	Scoped,
 	Arguments,
 	Slot(SlotRef),
-	LiftedSlot(FunctionRef, SlotRef, u32)
+	LiftedSlot(FunctionSlotRef)
 }
 
 impl IdentState {
@@ -182,7 +200,7 @@ pub enum Expr {
 	Call(Box<Expr>, Vec<Expr>),
 	Function(FunctionRef),
 	Ident(Ident),
-	Literal(Rc<Lit>),
+	Literal(Lit),
 	MemberDot(Box<Expr>, Name),
 	MemberIndex(Box<Expr>, ExprSeq),
 	Missing,
@@ -332,5 +350,5 @@ pub enum Property {
 #[derive(Debug)]
 pub enum PropertyKey {
 	Ident(Name),
-	Literal(Rc<Lit>)
+	Literal(Lit)
 }

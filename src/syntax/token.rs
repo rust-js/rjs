@@ -1,10 +1,10 @@
 use syntax::Span;
 use syntax::Name;
-use std::rc::Rc;
 
+#[derive(Copy, Clone)]
 pub struct TokenAndSpan {
-	token: Token,
-	span: Span
+	pub token: Token,
+	pub span: Span
 }
 
 impl TokenAndSpan {
@@ -14,17 +14,9 @@ impl TokenAndSpan {
 			span: span
 		}
 	}
-	
-	pub fn token(&self) -> &Token {
-		&self.token
-	}
-	
-	pub fn span(&self) -> &Span {
-		&self.span
-	}
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub enum Token {
 	Comment,
 	Whitespace,
@@ -121,7 +113,7 @@ pub enum Token {
 	Static,
 	Yield,
 	Identifier(Name),
-	Literal(Rc<Lit>),
+	Literal(Lit),
 }
 
 impl Token {
@@ -133,15 +125,15 @@ impl Token {
 	}
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub enum Lit {
 	Null,
 	Boolean(bool),
-	String(String),
+	String(Name),
 	Integer(i32),
 	Long(i64),
 	Double(f64),
-	Regex(String, String)
+	Regex(Name, Name)
 }
 
 impl Lit {
@@ -296,4 +288,9 @@ declare_idents! {
 	( "RegExp", REGEXP_CLASS, 113 );
 	( "JSON", JSON_CLASS, 114 );
 	( "Arguments", ARGUMENTS_CLASS, 115 );
+	( "use strict", USE_STRICT, 116 );
+	( "parseInt", PARSE_INT, 117 );
+	( "parseFloat", PARSE_FLOAT, 118 );
+	( "isNaN", IS_NAN, 119 );
+	( "isFinite", IS_FINITE, 120 );
 }

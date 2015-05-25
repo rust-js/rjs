@@ -38,7 +38,7 @@ pub fn Function_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 	source.push_str(&body.to_string());
 	source.push_str(" }");
 	
-	let function_ref = try!(env.ir.parse_string(&source));
+	let function_ref = try!(env.ir.parse_string(&source, args.strict));
 	// The function returned is the program, but we need the function. The program
 	// function is created last so we need the last but one.
 	
@@ -56,7 +56,7 @@ pub fn Function_call(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 		let this_arg = args.arg(env, 0);
 		let call_args = args.args.into_iter().skip(1).collect::<Vec<_>>();
 		
-		func.call(env, this_arg, call_args)
+		func.call(env, this_arg, call_args, false)
 	}
 }
 
@@ -74,7 +74,7 @@ pub fn Function_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 			
 			match *function {
 				JsFunction::Ir(function_ref) => {
-					let description = env.ir.get_function_description(function_ref);
+					let description = env.ir.get_function(function_ref);
 					name = description.name;
 					args = None;
 				}

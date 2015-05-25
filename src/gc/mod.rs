@@ -642,7 +642,7 @@ impl GcHeap {
 		let mut scopes = self.scopes.borrow_mut();
 		let len = scopes.len();
 		if len == 0 {
-			panic!("No local scope present");
+			panic!("no local scope present");
 		}
 		
 		Local {
@@ -662,7 +662,7 @@ impl GcHeap {
 		let mut scopes = self.scopes.borrow_mut();
 		let len = scopes.len();
 		if len == 0 {
-			panic!("No local scope present");
+			panic!("no local scope present");
 		}
 		
 		ArrayLocal {

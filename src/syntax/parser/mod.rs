@@ -5,16 +5,17 @@ use syntax::token::{Token, Lit};
 use syntax::Span;
 use syntax::token::name;
 use ::{JsResult, JsError};
-use std::rc::Rc;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use util::iter::*;
+use util::interner::StrInterner;
 
 mod locals;
 
 pub struct Parser<'a> {
-	lexer: &'a mut Lexer,
+	lexer: &'a mut Lexer<'a>,
 	context: &'a mut AstContext,
+	interner: &'a StrInterner,
 	scopes: Vec<Scope>
 }
 
@@ -28,14 +29,6 @@ struct BlockScope {
 }
 
 impl<'a> Parser<'a> {
-	fn span(&self) -> Span {
-		self.lexer.span().clone()
-	}
-	
-	fn span_at(&self, offset: isize) -> Span {
-		self.lexer.span_at(offset).clone()
-	}
-	
 	fn at_global(&self) -> bool {
 		self.scopes.len() == 1 && self.scopes[0].blocks.len() == 1
 	}
@@ -63,7 +56,7 @@ impl<'a> Parser<'a> {
 		self.scopes[len - 1].blocks.pop().unwrap().locals
 	}
 	
-	fn register_local(&mut self, name: Name, throwarg: bool) {
+	fn register_local(&mut self, name: Name, throwarg: bool, global: bool) {
 		// TODO: Validate performance. We expect that most locals set will be relatively small.
 		// Changing this into a HashSet will very likely not make sense. However, this will
 		// give issues in functions/scopes with many globals (probably more than 20 or 30).
@@ -96,9 +89,10 @@ impl<'a> Parser<'a> {
 		// We need to declare a new variable. Create a slot for it.
 		
 		let slot = Slot {
-			name: name,
+			name: Some(name),
 			arg: None,
-			lifted: None
+			lifted: None,
+			global: global
 		};
 		
 		let local_slot_ref = SlotRef(scope.slots.len());
@@ -109,47 +103,51 @@ impl<'a> Parser<'a> {
 		block.locals.insert(name, local_slot_ref);
 	}
 	
-	fn is_eof(&self) -> bool {
+	fn is_eof(&mut self) -> JsResult<bool> {
 		self.lexer.is_eof()
 	}
 	
-	fn peek(&mut self) -> Option<&Token> {
+	fn peek(&mut self) -> JsResult<Option<Token>> {
 		self.peek_at(0)
 	}
 	
-	fn peek_at(&self, index: usize) -> Option<&Token> {
-		match self.lexer.peek(index) {
-			None => None,
-			Some(token) => Some(token.token())
+	fn peek_at(&mut self, index: usize) -> JsResult<Option<Token>> {
+		match try!(self.lexer.peek(index)) {
+			None => Ok(None),
+			Some(token) => Ok(Some(token.token))
 		}
 	}
 	
-	fn peek_any(&mut self) -> Option<&Token> {
+	fn peek_any(&mut self) -> JsResult<Option<Token>> {
 		self.peek_any_at(0)
 	}
 	
-	fn peek_any_at(&self, index: usize) -> Option<&Token> {
-		match self.lexer.peek_any(index) {
-			None => None,
-			Some(token) => Some(token.token())
+	fn peek_any_at(&mut self, index: usize) -> JsResult<Option<Token>> {
+		match try!(self.lexer.peek_any(index)) {
+			None => Ok(None),
+			Some(token) => Ok(Some(token.token))
 		}
 	}
 	
-	fn next(&mut self) -> &Token {
-		self.lexer.next().token()
+	fn next(&mut self) -> JsResult<Token> {
+		Ok(try!(self.lexer.next()).token)
 	}
 	
-	fn bump(&mut self) {
-		self.lexer.bump();
+	fn bump(&mut self) -> JsResult<()> {
+		try!(self.lexer.bump());
+		
+		Ok(())
 	}
 	
-	fn bump_any(&mut self) {
-		self.lexer.bump_any();
+	fn bump_any(&mut self) -> JsResult<()> {
+		try!(self.lexer.bump_any());
+		
+		Ok(())
 	}
 	
-	fn expect(&mut self, token: &Token) -> JsResult<()> {
+	fn expect(&mut self, token: Token) -> JsResult<()> {
 		let message = {
-			let next = self.next();
+			let next = try!(self.next());
 			
 			if next == token {
 				return Ok(());
@@ -161,34 +159,26 @@ impl<'a> Parser<'a> {
 		self.fatal(&message)
 	}
 	
-	fn consume(&mut self, token: &Token) -> bool {
-		let matched = match self.peek() {
+	fn consume(&mut self, token: Token) -> JsResult<bool> {
+		let matched = match try!(self.peek()) {
 			None => false,
 			Some(t) => t == token
 		};
 		
 		if matched {
-			self.bump();
+			try!(self.bump());
 		}
 		
-		matched
+		Ok(matched)
 	}
 	
-	fn fatal<T>(&self, message: &str) -> JsResult<T> {
-		let span = match self.lexer.peek(0) {
-			Some(token) => token.span().clone(),
-			_ => Span::new(-1, -1, -1, -1, Rc::new(String::new()))
+	fn fatal<T>(&mut self, message: &str) -> JsResult<T> {
+		let span = match try!(self.lexer.peek(0)) {
+			Some(token) => token.span,
+			_ => Span::new(-1, -1, -1, -1, self.interner.intern(""))
 		};
 		
-		let message = format!("{}:{}: {}", span.start_line, span.start_col, message.to_string());
-		
-		// Panic here under debug to get a stack trace.
-		
-		if cfg!(not(ndebug)) {
-			panic!(message);
-		}
-		
-		Err(JsError::Parse(message))
+		Err(JsError::Parse(format!("{}:{}: {}", span.start_line, span.start_col, message.to_string())))
 	}
 	
 	fn expect_eos(&mut self) -> JsResult<()> {
@@ -200,10 +190,10 @@ impl<'a> Parser<'a> {
 		//
 		
 		loop {
-			let matched = match self.peek_any() {
+			let matched = match try!(self.peek_any()) {
 				None => return Ok(()),
-				Some(&Token::SemiColon) | Some(&Token::Newline) => Some(true),
-				Some(&Token::CloseBrace) => return Ok(()),
+				Some(Token::SemiColon) | Some(Token::Newline) => Some(true),
+				Some(Token::CloseBrace) => return Ok(()),
 				Some(ref t) if t.is_hidden() => Some(false),
 				_ => None
 			};
@@ -212,7 +202,7 @@ impl<'a> Parser<'a> {
 				return self.fatal("Expected EOS");
 			}
 				
-			self.bump_any();
+			try!(self.bump_any());
 			
 			if matched.unwrap() {
 				return Ok(());
@@ -220,7 +210,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	fn is_eos(&self) -> bool {
+	fn is_eos(&mut self) -> JsResult<bool> {
 		// Find a valid end of statement. A valid end of statement is:
 		//
 		//   * A semi colon or newline, which is consumed;
@@ -231,70 +221,84 @@ impl<'a> Parser<'a> {
 		let mut index: usize = 0;
 		
 		loop {
-			match self.peek_any_at(index) {
-				None | Some(&Token::SemiColon) | Some(&Token::Newline) | Some(&Token::CloseBrace) => return true,
+			match try!(self.peek_any_at(index)) {
+				None | Some(Token::SemiColon) | Some(Token::Newline) | Some(Token::CloseBrace) => return Ok(true),
 				Some(ref t) if t.is_hidden() => {},
-				_ => return false
+				_ => return Ok(false)
 			}
 				
 			index += 1;
 		}
 	}
 	
-	pub fn parse_program(context: &'a mut AstContext, lexer: &'a mut Lexer) -> JsResult<FunctionRef> {
-		let program = {
-			let mut parser = Parser {
-				lexer: lexer,
-				context: context,
-				scopes: Vec::new()
-			};
-			
-			parser.push_scope();
-			parser.push_block_scope();
-			
-			let mut items = Vec::new();
-			
-			let start = parser.span();
-			
-			while !parser.is_eof() {
-				items.push(try!(parser.parse_stmt(None)));
-			}
-			
-			let end = parser.span_at(-1);
-			
-			let locals = parser.pop_block_scope();
-			let slots = parser.pop_scope();
-	
-			Box::new(Function {
-				name: None,
-				global: true,
-				block: RootBlock {
-					block: Block {
-						stmts: items,
-						locals: locals
-					},
-					locals: RefCell::new(Locals::new(slots)),
-					args: Vec::new(),
-					scope: Cell::new(None),
-					takes_scope: Cell::new(false),
-					strict: false,
-					has_arguments: Cell::new(false)
-				},
-				args: 0,
-				span: Span::from_range(start, end)
-			})
+	pub fn parse_program(context: &'a mut AstContext, lexer: &'a mut Lexer<'a>, interner: &'a StrInterner) -> JsResult<FunctionRef> {
+		let mut parser = Parser {
+			lexer: lexer,
+			context: context,
+			scopes: Vec::new(),
+			interner: interner
 		};
 		
-		let program_ref = FunctionRef(context.functions.len() as u32);
-		context.functions.push(program);
+		parser.push_scope();
+		parser.push_block_scope();
 		
-		locals::LocalResolver::resolve(context, program_ref);
+		let mut items = Vec::new();
+		
+		let start = try!(parser.lexer.span());
+		
+		try!(parser.parse_strict());
+		
+		while !try!(parser.is_eof()) {
+			items.push(try!(parser.parse_stmt(None)));
+		}
+		
+		let end = parser.lexer.last_span().unwrap();
+		
+		let locals = parser.pop_block_scope();
+		let slots = parser.pop_scope();
+
+		let program = Box::new(Function {
+			name: None,
+			global: true,
+			block: RootBlock {
+				block: Block {
+					stmts: items,
+					locals: locals
+				},
+				locals: RefCell::new(Locals::new(slots)),
+				args: Vec::new(),
+				scope: Cell::new(None),
+				takes_scope: Cell::new(false),
+				strict: parser.lexer.strict(),
+				has_arguments: Cell::new(false)
+			},
+			args: 0,
+			span: Span::from_range(start, end)
+		});
+		
+		let program_ref = FunctionRef(parser.context.functions.len() as u32);
+		parser.context.functions.push(program);
+		
+		locals::LocalResolver::resolve(parser.context, program_ref);
 		
 		Ok(program_ref)
 	}
 	
+	fn parse_strict(&mut self) -> JsResult<bool> {
+		let was_strict = self.lexer.strict();
+		
+		if try!(self.peek()) == Some(Token::Literal(Lit::String(name::USE_STRICT))) {
+			try!(self.next());
+			
+			
+			self.lexer.set_strict(true);
+		}
+		
+		Ok(was_strict)
+	}
+	
 	fn parse_function(&mut self) -> JsResult<FunctionRef> {
-		let start = self.span_at(-1);
+		let start = self.lexer.last_span().unwrap();
 		
 		let name = try!(self.parse_opt_name());
 		
@@ -303,7 +307,7 @@ impl<'a> Parser<'a> {
 		
 		let block = try!(self.parse_function_block(args));
 		
-		let end = self.span_at(-1);
+		let end = self.lexer.last_span().unwrap();
 		
 		let function = Box::new(Function {
 			global: false,
@@ -322,7 +326,10 @@ impl<'a> Parser<'a> {
 	fn parse_function_block(&mut self, args: Vec<Name>) -> JsResult<RootBlock> {
 		self.push_scope();
 		
-		try!(self.expect(&Token::OpenBrace));
+		try!(self.expect(Token::OpenBrace));
+		
+		let was_strict = try!(self.parse_strict());
+		let strict = self.lexer.strict();
 		
 		let mut stmts = Vec::new();
 		
@@ -332,9 +339,11 @@ impl<'a> Parser<'a> {
 			self.register_function_args(&args);
 		}
 		
-		while !self.consume(&Token::CloseBrace) {
+		while !try!(self.consume(Token::CloseBrace)) {
 			stmts.push(try!(self.parse_stmt(None)));
 		}
+		
+		self.lexer.set_strict(was_strict);
 		
 		let locals = self.pop_block_scope();
 		let slots = self.pop_scope();
@@ -348,7 +357,7 @@ impl<'a> Parser<'a> {
 			args: args,
 			scope: Cell::new(None),
 			takes_scope: Cell::new(false),
-			strict: false,
+			strict: strict,
 			has_arguments: Cell::new(false)
 		})
 	}
@@ -363,9 +372,10 @@ impl<'a> Parser<'a> {
 			// Create a slot for the parameter.
 		
 			let slot = Slot {
-				name: name,
+				name: Some(name),
 				arg: Some(i as u32),
-				lifted: None
+				lifted: None,
+				global: false
 			};
 			
 			let local_slot_ref = SlotRef(scope.slots.len());
@@ -378,18 +388,18 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_parameter_list(&mut self) -> JsResult<Vec<Name>> {
-		try!(self.expect(&Token::OpenParen));
+		try!(self.expect(Token::OpenParen));
 		
-		if self.consume(&Token::CloseParen) {
+		if try!(self.consume(Token::CloseParen)) {
 			return Ok(Vec::new());
 		}
 		
 		let mut args = Vec::new();
 		
-		while !self.is_eof() {
+		while !try!(self.is_eof()) {
 			args.push(try!(self.parse_name()));
 			
-			match *self.next() {
+			match try!(self.next()) {
 				Token::Comma => continue,
 				Token::CloseParen => return Ok(args),
 				_ => break
@@ -400,7 +410,7 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_name(&mut self) -> JsResult<Name> {
-		if let Token::Identifier(name) = *self.next() {
+		if let Token::Identifier(name) = try!(self.next()) {
 			Ok(name)
 		} else {
 			self.fatal("Expected identifier")
@@ -408,12 +418,12 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_opt_name(&mut self) -> JsResult<Option<Name>> {
-		let name = match self.peek() {
-			Some(&Token::Identifier(name)) => name,
+		let name = match try!(self.peek()) {
+			Some(Token::Identifier(name)) => name,
 			_ => return Ok(None)
 		};
 		
-		self.next();
+		try!(self.next());
 		
 		Ok(Some(name))
 	}
@@ -421,88 +431,89 @@ impl<'a> Parser<'a> {
 	fn parse_ident(&mut self) -> JsResult<Ident> {
 		Ok(Ident {
 			name: try!(self.parse_name()),
-			state: Cell::new(IdentState::None)
+			state: Cell::new(IdentState::None),
+			with_locals: RefCell::new(None)
 		})
 	}
 	
 	fn parse_ident_name(&mut self) -> JsResult<Option<Name>> {
 		// This is a special version of parse_ident that also accepts keywords.
 		
-		let name = match self.peek() {
-			Some(&Token::Identifier(name)) => name,
-			Some(&Token::Literal(ref value)) => {
-				match *value.clone() {
+		let name = match try!(self.peek()) {
+			Some(Token::Identifier(name)) => name,
+			Some(Token::Literal(value)) => {
+				match value {
 					Lit::Boolean(value) => if value { name::TRUE } else { name::FALSE },
 					Lit::Null => name::NULL,
 					_ => return Ok(None)
 				}
 			},
 			// Reserved words
-			Some(&Token::Break) => name::BREAK,
-			Some(&Token::Do) => name::DO,
-			Some(&Token::Instanceof) => name::INSTANCEOF,
-			Some(&Token::Typeof) => name::TYPEOF,
-			Some(&Token::Case) => name::CASE,
-			Some(&Token::Else) => name::ELSE,
-			Some(&Token::New) => name::NEW,
-			Some(&Token::Var) => name::VAR,
-			Some(&Token::Catch) => name::CATCH,
-			Some(&Token::Finally) => name::FINALLY,
-			Some(&Token::Return) => name::RETURN,
-			Some(&Token::Void) => name::VOID,
-			Some(&Token::Continue) => name::CONTINUE,
-			Some(&Token::For) => name::FOR,
-			Some(&Token::Switch) => name::SWITCH,
-			Some(&Token::While) => name::WHILE,
-			Some(&Token::Debugger) => name::DEBUGGER,
-			Some(&Token::Function) => name::FUNCTION,
-			Some(&Token::This) => name::THIS,
-			Some(&Token::With) => name::WHILE,
-			Some(&Token::Default) => name::DEFAULT,
-			Some(&Token::If) => name::IF,
-			Some(&Token::Throw) => name::THROW,
-			Some(&Token::Delete) => name::DELETE,
-			Some(&Token::In) => name::IN,
-			Some(&Token::Try) => name::TRY,
+			Some(Token::Break) => name::BREAK,
+			Some(Token::Do) => name::DO,
+			Some(Token::Instanceof) => name::INSTANCEOF,
+			Some(Token::Typeof) => name::TYPEOF,
+			Some(Token::Case) => name::CASE,
+			Some(Token::Else) => name::ELSE,
+			Some(Token::New) => name::NEW,
+			Some(Token::Var) => name::VAR,
+			Some(Token::Catch) => name::CATCH,
+			Some(Token::Finally) => name::FINALLY,
+			Some(Token::Return) => name::RETURN,
+			Some(Token::Void) => name::VOID,
+			Some(Token::Continue) => name::CONTINUE,
+			Some(Token::For) => name::FOR,
+			Some(Token::Switch) => name::SWITCH,
+			Some(Token::While) => name::WHILE,
+			Some(Token::Debugger) => name::DEBUGGER,
+			Some(Token::Function) => name::FUNCTION,
+			Some(Token::This) => name::THIS,
+			Some(Token::With) => name::WHILE,
+			Some(Token::Default) => name::DEFAULT,
+			Some(Token::If) => name::IF,
+			Some(Token::Throw) => name::THROW,
+			Some(Token::Delete) => name::DELETE,
+			Some(Token::In) => name::IN,
+			Some(Token::Try) => name::TRY,
 			// Future reserved words
-			Some(&Token::Class) => name::CLASS,
-			Some(&Token::Enum) => name::ENUM,
-			Some(&Token::Extends) => name::EXTENDS,
-			Some(&Token::Super) => name::SUPER,
-			Some(&Token::Const) => name::CONST,
-			Some(&Token::Export) => name::EXPORT,
-			Some(&Token::Import) => name::IMPORT,
-			Some(&Token::Implements) => name::IMPLEMENTS,
-			Some(&Token::Let) => name::LET,
-			Some(&Token::Private) => name::PRIVATE,
-			Some(&Token::Public) => name::PUBLIC,
-			Some(&Token::Interface) => name::INTERFACE,
-			Some(&Token::Package) => name::PACKAGE,
-			Some(&Token::Protected) => name::PROTECTED,
-			Some(&Token::Static) => name::STATIC,
-			Some(&Token::Yield) => name::YIELD,
+			Some(Token::Class) => name::CLASS,
+			Some(Token::Enum) => name::ENUM,
+			Some(Token::Extends) => name::EXTENDS,
+			Some(Token::Super) => name::SUPER,
+			Some(Token::Const) => name::CONST,
+			Some(Token::Export) => name::EXPORT,
+			Some(Token::Import) => name::IMPORT,
+			Some(Token::Implements) => name::IMPLEMENTS,
+			Some(Token::Let) => name::LET,
+			Some(Token::Private) => name::PRIVATE,
+			Some(Token::Public) => name::PUBLIC,
+			Some(Token::Interface) => name::INTERFACE,
+			Some(Token::Package) => name::PACKAGE,
+			Some(Token::Protected) => name::PROTECTED,
+			Some(Token::Static) => name::STATIC,
+			Some(Token::Yield) => name::YIELD,
 			_ => return Ok(None)
 		};
 		
-		self.bump();
+		try!(self.bump());
 		
 		Ok(Some(name))
 	}
 	
-	fn parse_lit(&mut self) -> JsResult<Rc<Lit>> {
-		if let Token::Literal(ref lit) = *self.next() {
-			return Ok(lit.clone());
+	fn parse_lit(&mut self) -> JsResult<Lit> {
+		if let Token::Literal(lit) = try!(self.next()) {
+			return Ok(lit);
 		}
 		
 		self.fatal("Expected literal")
 	}
 	
 	fn parse_block(&mut self) -> JsResult<Block> {
-		try!(self.expect(&Token::OpenBrace));
+		try!(self.expect(Token::OpenBrace));
 		
 		let stmts = try!(self.parse_stmt_list());
 		
-		try!(self.expect(&Token::CloseBrace));
+		try!(self.expect(Token::CloseBrace));
 		
 		Ok(Block {
 			stmts: stmts,
@@ -511,48 +522,48 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_stmt(&mut self, label: Option<Label>) -> JsResult<Item> {
-		if let Some(&Token::Function) = self.peek() {
-			if let Some(&Token::Identifier(..)) = self.peek_at(1) {
-				self.bump();
+		if let Some(Token::Function) = try!(self.peek()) {
+			if let Some(Token::Identifier(..)) = try!(self.peek_at(1)) {
+				try!(self.bump());
 				
 				let function_ref = try!(self.parse_function());
 				let name = self.context.functions[function_ref.usize()].name.unwrap();
 				
-				if self.scopes.len() > 1 {
-					self.register_local(name, false);
-				}
+				let at_global = self.at_global();
+				self.register_local(name, false, at_global);
 				
 				let ident = Ident {
 					name: name,
-					state: Cell::new(IdentState::None)
+					state: Cell::new(IdentState::None),
+					with_locals: RefCell::new(None)
 				};
 				
 				return Ok(Item::Function(ident, function_ref));
 			}
 		}
 		
-		match self.peek() {
-			Some(&Token::OpenBrace) => Ok(Item::Block(label, try!(self.parse_block()))),
-			Some(&Token::Var) => self.parse_var_stmt(),
-			Some(&Token::SemiColon) => {
-				self.bump();
+		match try!(self.peek()) {
+			Some(Token::OpenBrace) => Ok(Item::Block(label, try!(self.parse_block()))),
+			Some(Token::Var) => self.parse_var_stmt(),
+			Some(Token::SemiColon) => {
+				try!(self.bump());
 				Ok(Item::Empty)
 			},
-			Some(&Token::If) => self.parse_if(),
-			Some(&Token::Do) => self.parse_do(label),
-			Some(&Token::While) => self.parse_while(label),
-			Some(&Token::For) => self.parse_for(label),
-			Some(&Token::Continue) => self.parse_continue(),
-			Some(&Token::Break) => self.parse_break(),
-			Some(&Token::Return) => self.parse_return(),
-			Some(&Token::With) => self.parse_with(),
-			Some(&Token::Switch) => self.parse_switch(label),
-			Some(&Token::Throw) => self.parse_throw(),
-			Some(&Token::Try) => self.parse_try(),
-			Some(&Token::Debugger) => self.parse_debugger(),
+			Some(Token::If) => self.parse_if(),
+			Some(Token::Do) => self.parse_do(label),
+			Some(Token::While) => self.parse_while(label),
+			Some(Token::For) => self.parse_for(label),
+			Some(Token::Continue) => self.parse_continue(),
+			Some(Token::Break) => self.parse_break(),
+			Some(Token::Return) => self.parse_return(),
+			Some(Token::With) => self.parse_with(),
+			Some(Token::Switch) => self.parse_switch(label),
+			Some(Token::Throw) => self.parse_throw(),
+			Some(Token::Try) => self.parse_try(),
+			Some(Token::Debugger) => self.parse_debugger(),
 			_ => {
-				if let Some(&Token::Identifier(..)) = self.peek() {
-					if let Some(&Token::Colon) = self.peek_at(1) {
+				if let Some(Token::Identifier(..)) = try!(self.peek()) {
+					if let Some(Token::Colon) = try!(self.peek_at(1)) {
 						return self.parse_labelled();
 					}
 				}
@@ -569,8 +580,8 @@ impl<'a> Parser<'a> {
 			// Parse statements until we find an end condition. We also match Default and Case
 			// so this can be used for Switch too.
 			
-			match self.peek() {
-				None | Some(&Token::CloseBrace) | Some(&Token::Case) | Some(&Token::Default) => return Ok(stmts),
+			match try!(self.peek()) {
+				None | Some(Token::CloseBrace) | Some(Token::Case) | Some(Token::Default) => return Ok(stmts),
 				_ => {}
 			}
 			
@@ -579,7 +590,7 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_var_stmt(&mut self) -> JsResult<Item> {
-		self.bump();
+		try!(self.bump());
 		
 		let var_decl = try!(self.parse_var_decl());
 		
@@ -591,16 +602,13 @@ impl<'a> Parser<'a> {
 	fn parse_var_decl(&mut self) -> JsResult<Vec<Var>> {
 		let mut vars = Vec::new();
 		
-		while !self.is_eof() {
+		while !try!(self.is_eof()) {
 			let ident = try!(self.parse_ident());
 			
-			// Don't register locals at the global scope.
+			let at_global = self.at_global();
+			self.register_local(ident.name, false, at_global);
 			
-			if !self.at_global() {
-				self.register_local(ident.name, false);
-			}
-			
-			let expr = if self.consume(&Token::Assign) {
+			let expr = if try!(self.consume(Token::Assign)) {
 				Some(Box::new(try!(self.parse_expr())))
 			} else {
 				None
@@ -611,7 +619,7 @@ impl<'a> Parser<'a> {
 				expr: expr
 			});
 			
-			if !self.consume(&Token::Comma) {
+			if !try!(self.consume(Token::Comma)) {
 				return Ok(vars);
 			}
 		}
@@ -622,20 +630,20 @@ impl<'a> Parser<'a> {
 	fn parse_expr(&mut self) -> JsResult<Expr> {
 		let expr = try!(self.parse_expr_binary());
 		
-		match self.peek() {
-			Some(&Token::QuestionMark) => self.parse_expr_ternary(expr),
-			Some(&Token::Assign) => self.parse_expr_binary_assign(expr, Op::Assign),
-			Some(&Token::MultiplyAssign) => self.parse_expr_binary_assign(expr, Op::Multiply),
-			Some(&Token::DivideAssign) => self.parse_expr_binary_assign(expr, Op::Divide),
-			Some(&Token::ModulusAssign) => self.parse_expr_binary_assign(expr, Op::Modulus),
-			Some(&Token::PlusAssign) => self.parse_expr_binary_assign(expr, Op::Add),
-			Some(&Token::MinusAssign) => self.parse_expr_binary_assign(expr, Op::Subtract),
-			Some(&Token::LeftShiftArithmeticAssign) => self.parse_expr_binary_assign(expr, Op::LeftShiftArithmetic),
-			Some(&Token::RightShiftArithmeticAssign) => self.parse_expr_binary_assign(expr, Op::RightShiftArithmetic),
-			Some(&Token::RightShiftLogicalAssign) => self.parse_expr_binary_assign(expr, Op::RightShiftLogical),
-			Some(&Token::BitAndAssign) => self.parse_expr_binary_assign(expr, Op::BitAnd),
-			Some(&Token::BitXOrAssign) => self.parse_expr_binary_assign(expr, Op::BitXOr),
-			Some(&Token::BitOrAssign) => self.parse_expr_binary_assign(expr, Op::BitOr),
+		match try!(self.peek()) {
+			Some(Token::QuestionMark) => self.parse_expr_ternary(expr),
+			Some(Token::Assign) => self.parse_expr_binary_assign(expr, Op::Assign),
+			Some(Token::MultiplyAssign) => self.parse_expr_binary_assign(expr, Op::Multiply),
+			Some(Token::DivideAssign) => self.parse_expr_binary_assign(expr, Op::Divide),
+			Some(Token::ModulusAssign) => self.parse_expr_binary_assign(expr, Op::Modulus),
+			Some(Token::PlusAssign) => self.parse_expr_binary_assign(expr, Op::Add),
+			Some(Token::MinusAssign) => self.parse_expr_binary_assign(expr, Op::Subtract),
+			Some(Token::LeftShiftArithmeticAssign) => self.parse_expr_binary_assign(expr, Op::LeftShiftArithmetic),
+			Some(Token::RightShiftArithmeticAssign) => self.parse_expr_binary_assign(expr, Op::RightShiftArithmetic),
+			Some(Token::RightShiftLogicalAssign) => self.parse_expr_binary_assign(expr, Op::RightShiftLogical),
+			Some(Token::BitAndAssign) => self.parse_expr_binary_assign(expr, Op::BitAnd),
+			Some(Token::BitXOrAssign) => self.parse_expr_binary_assign(expr, Op::BitXOr),
+			Some(Token::BitOrAssign) => self.parse_expr_binary_assign(expr, Op::BitOr),
 			_ => return Ok(expr)
 		}
 	}
@@ -644,34 +652,34 @@ impl<'a> Parser<'a> {
 		let mut expr = try!(self.parse_expr_tail());
 		
 		loop {
-			let op = match self.peek() {
-				Some(&Token::Multiply) => Op::Multiply,
-				Some(&Token::Divide) => Op::Divide,
-				Some(&Token::Modulus) => Op::Modulus,
-				Some(&Token::Plus) => Op::Add,
-				Some(&Token::Minus) => Op::Subtract,
-				Some(&Token::LeftShiftArithmetic) => Op::LeftShiftArithmetic,
-				Some(&Token::RightShiftArithmetic) => Op::RightShiftArithmetic,
-				Some(&Token::RightShiftLogical) => Op::RightShiftLogical,
-				Some(&Token::LessThan) => Op::LessThan,
-				Some(&Token::GreaterThan) => Op::GreaterThan,
-				Some(&Token::LessThanEquals) => Op::LessThanEquals,
-				Some(&Token::GreaterThanEquals) => Op::GreaterThanEquals,
-				Some(&Token::Instanceof) => Op::InstanceOf,
-				Some(&Token::In) => Op::In,
-				Some(&Token::Equals) => Op::Equals,
-				Some(&Token::NotEquals) => Op::NotEquals,
-				Some(&Token::IdentityEquals) => Op::IdentityEquals,
-				Some(&Token::IdentityNotEquals) => Op::IdentityNotEquals,
-				Some(&Token::BitAnd) => Op::BitAnd,
-				Some(&Token::BitXOr) => Op::BitXOr,
-				Some(&Token::BitOr) => Op::BitOr,
-				Some(&Token::And) => Op::And,
-				Some(&Token::Or) => Op::Or,
+			let op = match try!(self.peek()) {
+				Some(Token::Multiply) => Op::Multiply,
+				Some(Token::Divide) => Op::Divide,
+				Some(Token::Modulus) => Op::Modulus,
+				Some(Token::Plus) => Op::Add,
+				Some(Token::Minus) => Op::Subtract,
+				Some(Token::LeftShiftArithmetic) => Op::LeftShiftArithmetic,
+				Some(Token::RightShiftArithmetic) => Op::RightShiftArithmetic,
+				Some(Token::RightShiftLogical) => Op::RightShiftLogical,
+				Some(Token::LessThan) => Op::LessThan,
+				Some(Token::GreaterThan) => Op::GreaterThan,
+				Some(Token::LessThanEquals) => Op::LessThanEquals,
+				Some(Token::GreaterThanEquals) => Op::GreaterThanEquals,
+				Some(Token::Instanceof) => Op::InstanceOf,
+				Some(Token::In) => Op::In,
+				Some(Token::Equals) => Op::Equals,
+				Some(Token::NotEquals) => Op::NotEquals,
+				Some(Token::IdentityEquals) => Op::IdentityEquals,
+				Some(Token::IdentityNotEquals) => Op::IdentityNotEquals,
+				Some(Token::BitAnd) => Op::BitAnd,
+				Some(Token::BitXOr) => Op::BitXOr,
+				Some(Token::BitOr) => Op::BitOr,
+				Some(Token::And) => Op::And,
+				Some(Token::Or) => Op::Or,
 				_ => break
 			};
 			
-			self.bump();
+			try!(self.bump());
 			
 			let right = try!(self.parse_expr_tail());
 			
@@ -704,31 +712,31 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr_tail(&mut self) -> JsResult<Expr> {
-		let mut expr = try!(match self.peek() {
-			Some(&Token::Function) => {
-				self.bump();
+		let mut expr = try!(match try!(self.peek()) {
+			Some(Token::Function) => {
+				try!(self.bump());
 				
 				Ok(Expr::Function(try!(self.parse_function())))
 			},
-			Some(&Token::New) => self.parse_expr_new(),
-			Some(&Token::Delete) => self.parse_expr_unary_pre(Op::Delete),
-			Some(&Token::Void) => self.parse_expr_unary_pre(Op::Void),
-			Some(&Token::Typeof) => self.parse_expr_unary_pre(Op::Typeof),
-			Some(&Token::This) => {
-				self.bump();
+			Some(Token::New) => self.parse_expr_new(),
+			Some(Token::Delete) => self.parse_expr_unary_pre(Op::Delete),
+			Some(Token::Void) => self.parse_expr_unary_pre(Op::Void),
+			Some(Token::Typeof) => self.parse_expr_unary_pre(Op::Typeof),
+			Some(Token::This) => {
+				try!(self.bump());
 				Ok(Expr::This)
 			},
-			Some(&Token::PlusPlus) => self.parse_expr_unary_pre(Op::PreIncr),
-			Some(&Token::MinusMinus) => self.parse_expr_unary_pre(Op::PreDecr),
-			Some(&Token::Plus) => self.parse_expr_unary_pre(Op::Positive),
-			Some(&Token::Minus) => self.parse_expr_unary_pre(Op::Negative),
-			Some(&Token::BitNot) => self.parse_expr_unary_pre(Op::BitNot),
-			Some(&Token::Not) => self.parse_expr_unary_pre(Op::Not),
-			Some(&Token::Identifier(..)) => self.parse_expr_ident(),
-			Some(&Token::Literal(..)) => self.parse_expr_literal(),
-			Some(&Token::OpenParen) => self.parse_expr_paren(),
-			Some(&Token::OpenBracket) => self.parse_expr_array_literal(),
-			Some(&Token::OpenBrace) => self.parse_expr_object_literal(),
+			Some(Token::PlusPlus) => self.parse_expr_unary_pre(Op::PreIncr),
+			Some(Token::MinusMinus) => self.parse_expr_unary_pre(Op::PreDecr),
+			Some(Token::Plus) => self.parse_expr_unary_pre(Op::Positive),
+			Some(Token::Minus) => self.parse_expr_unary_pre(Op::Negative),
+			Some(Token::BitNot) => self.parse_expr_unary_pre(Op::BitNot),
+			Some(Token::Not) => self.parse_expr_unary_pre(Op::Not),
+			Some(Token::Identifier(..)) => self.parse_expr_ident(),
+			Some(Token::Literal(..)) => self.parse_expr_literal(),
+			Some(Token::OpenParen) => self.parse_expr_paren(),
+			Some(Token::OpenBracket) => self.parse_expr_array_literal(),
+			Some(Token::OpenBrace) => self.parse_expr_object_literal(),
 			_ => {
 				let message = { format!("Cannot parse expression, got {:?}", self.peek()) };
 				
@@ -737,19 +745,19 @@ impl<'a> Parser<'a> {
 		});
 		
 		loop {
-			expr = try!(match self.peek() {
-				Some(&Token::OpenBracket) => self.parse_expr_member_index(expr),
-				Some(&Token::Dot) => self.parse_expr_member_dot(expr),
-				Some(&Token::OpenParen) => self.parse_expr_call(expr),
-				Some(&Token::PlusPlus) => {
-					match self.peek_any() {
-						Some(&Token::Newline) => return Ok(expr),
+			expr = try!(match try!(self.peek()) {
+				Some(Token::OpenBracket) => self.parse_expr_member_index(expr),
+				Some(Token::Dot) => self.parse_expr_member_dot(expr),
+				Some(Token::OpenParen) => self.parse_expr_call(expr),
+				Some(Token::PlusPlus) => {
+					match try!(self.peek_any()) {
+						Some(Token::Newline) => return Ok(expr),
 						_ => self.parse_expr_unary_post(expr, Op::PostIncr)
 					}
 				},
-				Some(&Token::MinusMinus) => {
-					match self.peek_any() {
-						Some(&Token::Newline) => return Ok(expr),
+				Some(Token::MinusMinus) => {
+					match try!(self.peek_any()) {
+						Some(Token::Newline) => return Ok(expr),
 						_ => self.parse_expr_unary_post(expr, Op::PostDecr)
 					}
 				},
@@ -759,17 +767,17 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr_member_index(&mut self, expr: Expr) -> JsResult<Expr> {
-		self.bump();
+		try!(self.bump());
 		
 		let index = try!(self.parse_expr_seq());
 		
-		try!(self.expect(&Token::CloseBracket));
+		try!(self.expect(Token::CloseBracket));
 		
 		Ok(Expr::MemberIndex(Box::new(expr), index))
 	}
 	
 	fn parse_expr_member_dot(&mut self, expr: Expr) -> JsResult<Expr> {
-		self.bump();
+		try!(self.bump());
 		
 		if let Some(name) = try!(self.parse_ident_name()) {
 			Ok(Expr::MemberDot(Box::new(expr), name))
@@ -785,7 +793,7 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr_binary_assign(&mut self, expr: Expr, op: Op) -> JsResult<Expr> {
-		self.bump();
+		try!(self.bump());
 		
 		let right = try!(self.parse_expr_seq());
 		
@@ -793,11 +801,11 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr_ternary(&mut self, expr: Expr) -> JsResult<Expr> {
-		self.bump();
+		try!(self.bump());
 		
 		let then = try!(self.parse_expr());
 		
-		try!(self.expect(&Token::Colon));
+		try!(self.expect(Token::Colon));
 		
 		let else_ = try!(self.parse_expr());
 		
@@ -805,13 +813,13 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr_new(&mut self) -> JsResult<Expr> {
-		self.bump();
+		try!(self.bump());
 		
 		Ok(Expr::New(Box::new(try!(self.parse_expr()))))
 	}
 	
 	fn parse_expr_unary_pre(&mut self, op: Op) -> JsResult<Expr> {
-		self.bump();
+		try!(self.bump());
 		
 		let expr = try!(self.parse_expr());
 		
@@ -830,15 +838,15 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr_unary_post(&mut self, expr: Expr, op: Op) -> JsResult<Expr> {
-		self.bump();
+		try!(self.bump());
 		
 		Ok(Expr::Unary(op, Box::new(expr)))
 	}
 	
 	fn parse_arguments(&mut self) -> JsResult<Vec<Expr>> {
-		try!(self.expect(&Token::OpenParen));
+		try!(self.expect(Token::OpenParen));
 		
-		if self.consume(&Token::CloseParen) {
+		if try!(self.consume(Token::CloseParen)) {
 			return Ok(Vec::new());
 		}
 		
@@ -847,11 +855,11 @@ impl<'a> Parser<'a> {
 		loop {
 			args.push(try!(self.parse_expr()));
 			
-			if self.consume(&Token::CloseParen) {
+			if try!(self.consume(Token::CloseParen)) {
 				return Ok(args);
 			}
 			
-			try!(self.expect(&Token::Comma));
+			try!(self.expect(Token::Comma));
 		}
 	}
 	
@@ -860,52 +868,52 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr_literal(&mut self) -> JsResult<Expr> {
-		if let &Token::Literal(ref lit) = self.next() {
-			return Ok(Expr::Literal(lit.clone()));
+		if let Token::Literal(lit) = try!(self.next()) {
+			return Ok(Expr::Literal(lit));
 		}
 		
 		self.fatal("Expected literal")
 	}
 	
 	fn parse_expr_paren(&mut self) -> JsResult<Expr> {
-		self.bump();
+		try!(self.bump());
 		
 		let exprs = try!(self.parse_expr_seq());
 		
-		try!(self.expect(&Token::CloseParen));
+		try!(self.expect(Token::CloseParen));
 		
 		Ok(Expr::Paren(exprs))
 	}
 	
 	fn parse_expr_array_literal(&mut self) -> JsResult<Expr> {
-		self.bump();
+		try!(self.bump());
 		
 		let mut elems = Vec::new();
 		
-		if !self.consume(&Token::CloseBracket) {
+		if !try!(self.consume(Token::CloseBracket)) {
 			loop {
 				// After an element is parsed, we check for a CloseBracket or Comma. This means
 				// that when we find a CloseBracket or Comma here, it means that we have
 				// an elision.
 				
-				match self.peek() {
-					Some(&Token::CloseBracket) => {
-						self.bump();
+				match try!(self.peek()) {
+					Some(Token::CloseBracket) => {
+						try!(self.bump());
 						elems.push(Expr::Missing);
 						break;
 					},
-					Some(&Token::Comma) => {
-						self.bump();
+					Some(Token::Comma) => {
+						try!(self.bump());
 						elems.push(Expr::Missing);
 						continue;
 					},
 					_ => {
 						elems.push(try!(self.parse_expr()));
 						
-						if self.consume(&Token::CloseBracket) {
+						if try!(self.consume(Token::CloseBracket)) {
 							break;
 						}
-						try!(self.expect(&Token::Comma));
+						try!(self.expect(Token::Comma));
 					}
 				}
 			}
@@ -915,26 +923,26 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr_object_literal(&mut self) -> JsResult<Expr> {
-		self.bump();
+		try!(self.bump());
 		
 		let mut props = Vec::new();
 		
 		// First try to match an empty object literal with a comma, i.e. "{,}".
 		
-		if !self.consume(&Token::CloseBrace) {
-			if self.consume(&Token::Comma) {
-				try!(self.expect(&Token::CloseBrace));
+		if !try!(self.consume(Token::CloseBrace)) {
+			if try!(self.consume(Token::Comma)) {
+				try!(self.expect(Token::CloseBrace));
 			} else {
 				loop {
 					props.push(try!(self.parse_expr_object_literal_prop()));
 					
 					// "}" or ",}" closes an object literal.
 					
-					if self.consume(&Token::CloseBrace) {
+					if try!(self.consume(Token::CloseBrace)) {
 						break;
 					}
-					try!(self.expect(&Token::Comma));
-					if self.consume(&Token::CloseBrace) {
+					try!(self.expect(Token::Comma));
+					if try!(self.consume(Token::CloseBrace)) {
 						break;
 					}
 				}
@@ -948,15 +956,15 @@ impl<'a> Parser<'a> {
 		if let Some(name) = try!(self.parse_ident_name()) {
 			let prop_ident = try!(self.parse_ident_name());
 			
-			if self.consume(&Token::OpenParen) {
+			if try!(self.consume(Token::OpenParen)) {
 				if name == name::GET {
-					try!(self.expect(&Token::CloseParen));
+					try!(self.expect(Token::CloseParen));
 					
-					let start = self.span();
+					let start = try!(self.lexer.span());
 					
 					let block = try!(self.parse_function_block(Vec::new()));
 					
-					let end = self.span_at(-1);
+					let end = self.lexer.last_span().unwrap();
 					
 					let function = Box::new(Function {
 						global: false,
@@ -973,13 +981,13 @@ impl<'a> Parser<'a> {
 				} else if name == name::SET {
 					let args = vec![try!(self.parse_name())];
 					
-					try!(self.expect(&Token::CloseParen));
+					try!(self.expect(Token::CloseParen));
 					
-					let start = self.span();
+					let start = try!(self.lexer.span());
 					
 					let block = try!(self.parse_function_block(args));
 					
-					let end = self.span_at(-1);
+					let end = self.lexer.last_span().unwrap();
 					
 					let function = Box::new(Function {
 						global: false,
@@ -1000,24 +1008,24 @@ impl<'a> Parser<'a> {
 				if prop_ident.is_some() {
 					self.fatal("Unexpected identifier")
 				} else {
-					self.consume(&Token::Colon);
+					try!(self.consume(Token::Colon));
 					
 					let expr = try!(self.parse_expr());
 					
 					Ok(Property::Assignment(PropertyKey::Ident(name), Box::new(expr)))
 				}
 			}
-		} else if let Some(&Token::Literal(..)) = self.peek() {
+		} else if let Some(Token::Literal(..)) = try!(self.peek()) {
 			let lit = try!(self.parse_lit());
 			
 			// Only strings and numbers are accepted as property keys.
 			
-			match *lit {
+			match lit {
 				Lit::Null | Lit::Boolean(..) | Lit::Regex(..) => return self.fatal("Expected property key literal"),
 				Lit::String(..) | Lit::Integer(..) | Lit::Long(..) | Lit::Double(..) => {}
 			}
 			
-			self.consume(&Token::Colon);
+			try!(self.consume(Token::Colon));
 			
 			let expr = try!(self.parse_expr());
 			
@@ -1030,17 +1038,17 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_if(&mut self) -> JsResult<Item> {
-		self.bump();
+		try!(self.bump());
 		
-		try!(self.expect(&Token::OpenParen));
+		try!(self.expect(Token::OpenParen));
 		
 		let expr = try!(self.parse_expr_seq());
 		
-		try!(self.expect(&Token::CloseParen));
+		try!(self.expect(Token::CloseParen));
 		
 		let then = try!(self.parse_stmt(None));
 		
-		let else_ = if self.consume(&Token::Else) {
+		let else_ = if try!(self.consume(Token::Else)) {
 			Some(Box::new(try!(self.parse_stmt(None))))
 		} else {
 			None
@@ -1054,7 +1062,7 @@ impl<'a> Parser<'a> {
 		
 		exprs.push(try!(self.parse_expr()));
 		
-		while self.consume(&Token::Comma) {
+		while try!(self.consume(Token::Comma)) {
 			exprs.push(try!(self.parse_expr()));
 		}
 		
@@ -1064,29 +1072,29 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_do(&mut self, label: Option<Label>) -> JsResult<Item> {
-		self.bump();
+		try!(self.bump());
 		
 		let stmt = try!(self.parse_stmt(None));
 		
-		try!(self.expect(&Token::While));
-		try!(self.expect(&Token::OpenParen));
+		try!(self.expect(Token::While));
+		try!(self.expect(Token::OpenParen));
 		
 		let expr = try!(self.parse_expr());
 		
-		try!(self.expect(&Token::CloseParen));
+		try!(self.expect(Token::CloseParen));
 		try!(self.expect_eos());
 		
 		Ok(Item::Do(label, Box::new(expr), Box::new(stmt)))
 	}
 	
 	fn parse_while(&mut self, label: Option<Label>) -> JsResult<Item> {
-		self.bump();
+		try!(self.bump());
 		
-		try!(self.expect(&Token::OpenParen));
+		try!(self.expect(Token::OpenParen));
 		
 		let expr = try!(self.parse_expr());
 		
-		try!(self.expect(&Token::CloseParen));
+		try!(self.expect(Token::CloseParen));
 		
 		let stmt = try!(self.parse_stmt(None));
 		
@@ -1094,16 +1102,16 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_for(&mut self, label: Option<Label>) -> JsResult<Item> {
-		self.bump();
+		try!(self.bump());
 		
-		try!(self.expect(&Token::OpenParen));
+		try!(self.expect(Token::OpenParen));
 		
-		if self.consume(&Token::Var) {
+		if try!(self.consume(Token::Var)) {
 			// Either ForVar or ForVarIn.
 			
 			let vars = try!(self.parse_var_decl());
 			
-			match *self.next() {
+			match try!(self.next()) {
 				Token::SemiColon => {
 					let (test, incr, stmt) = try!(self.parse_for_tail());
 					
@@ -1122,7 +1130,7 @@ impl<'a> Parser<'a> {
 					
 					let expr = try!(self.parse_expr_seq());
 					
-					try!(self.expect(&Token::CloseParen));
+					try!(self.expect(Token::CloseParen));
 					
 					let stmt = try!(self.parse_stmt(None));
 					
@@ -1133,7 +1141,7 @@ impl<'a> Parser<'a> {
 		} else {
 			// Either For or ForIn.
 			
-			if self.consume(&Token::SemiColon) {
+			if try!(self.consume(Token::SemiColon)) {
 				// A For without an initial expression.
 				
 				let (test, incr, stmt) = try!(self.parse_for_tail());
@@ -1145,7 +1153,7 @@ impl<'a> Parser<'a> {
 				// If the expression sequence is followed by a semi colon, we have a For.
 				// Otherwise we have a ForIn.
 				
-				if self.consume(&Token::SemiColon) {
+				if try!(self.consume(Token::SemiColon)) {
 					let (test, incr, stmt) = try!(self.parse_for_tail());
 					
 					Ok(Item::For(label, Some(expr), test, incr, Box::new(stmt)))
@@ -1162,7 +1170,7 @@ impl<'a> Parser<'a> {
 					
 					if let Expr::Binary(op, left, right) = expr {
 						if op == Op::In {
-							try!(self.expect(&Token::CloseParen));
+							try!(self.expect(Token::CloseParen));
 							
 							let stmt = try!(self.parse_stmt(None));
 							
@@ -1179,22 +1187,22 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_for_tail(&mut self) -> JsResult<(Option<ExprSeq>, Option<ExprSeq>, Item)> {
-		let test = if self.consume(&Token::SemiColon) {
+		let test = if try!(self.consume(Token::SemiColon)) {
 			None
 		} else {
 			let expr = try!(self.parse_expr_seq());
 			
-			try!(self.expect(&Token::SemiColon));
+			try!(self.expect(Token::SemiColon));
 			
 			Some(expr)
 		};
 		
-		let incr = if self.consume(&Token::CloseParen) {
+		let incr = if try!(self.consume(Token::CloseParen)) {
 			None
 		} else {
 			let expr = try!(self.parse_expr_seq());
 			
-			try!(self.expect(&Token::CloseParen));
+			try!(self.expect(Token::CloseParen));
 			
 			Some(expr)
 		};
@@ -1205,7 +1213,7 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_continue(&mut self) -> JsResult<Item> {
-		self.bump();
+		try!(self.bump());
 		
 		let label = if let Some(name) = try!(self.parse_opt_name()) {
 			Some(Label {
@@ -1221,7 +1229,7 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_break(&mut self) -> JsResult<Item> {
-		self.bump();
+		try!(self.bump());
 		
 		let label = if let Some(name) = try!(self.parse_opt_name()) {
 			Some(Label {
@@ -1237,9 +1245,9 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_return(&mut self) -> JsResult<Item> {
-		self.bump();
+		try!(self.bump());
 		
-		let expr = if self.is_eos() {
+		let expr = if try!(self.is_eos()) {
 			None
 		} else {
 			Some(try!(self.parse_expr_seq()))
@@ -1251,47 +1259,51 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_with(&mut self) -> JsResult<Item> {
-		self.bump();
+		if self.lexer.strict() {
+			return self.fatal("With is not allowed in strict mode");
+		}
 		
-		try!(self.expect(&Token::OpenParen));
+		try!(self.bump());
+		
+		try!(self.expect(Token::OpenParen));
 		
 		let expr = try!(self.parse_expr_seq());
 		
-		try!(self.expect(&Token::CloseParen));
+		try!(self.expect(Token::CloseParen));
 		
 		let stmt = try!(self.parse_stmt(None));
 		
-		Ok(Item::With(expr, Box::new(stmt)))
+		Ok(Item::With(expr, Box::new(stmt), Cell::new(None)))
 	}
 	
 	fn parse_switch(&mut self, label: Option<Label>) -> JsResult<Item> {
-		self.bump();
+		try!(self.bump());
 		
-		try!(self.expect(&Token::OpenParen));
+		try!(self.expect(Token::OpenParen));
 		
 		let expr = try!(self.parse_expr_seq());
 		
-		try!(self.expect(&Token::CloseParen));
+		try!(self.expect(Token::CloseParen));
 		
-		try!(self.expect(&Token::OpenBrace));
+		try!(self.expect(Token::OpenBrace));
 		
 		let mut cases: Vec<SwitchClause> = Vec::new();
 		let mut have_default = false;
 		
 		loop {
-			match *self.next() {
+			match try!(self.next()) {
 				Token::CloseBrace => break,
 				Token::Case => {
 					let case_expr = try!(self.parse_expr_seq());
 					
-					try!(self.expect(&Token::Colon));
+					try!(self.expect(Token::Colon));
 					
 					let stmts = try!(self.parse_stmt_list());
 					
 					cases.push(SwitchClause::Case(case_expr, stmts));
 				},
 				Token::Default => {
-					try!(self.expect(&Token::Colon));
+					try!(self.expect(Token::Colon));
 					
 					// Switch can only have a single default clause.
 					
@@ -1313,7 +1325,7 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_throw(&mut self) -> JsResult<Item> {
-		self.bump();
+		try!(self.bump());
 		
 		let expr = try!(self.parse_expr_seq());
 		
@@ -1323,20 +1335,20 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_try(&mut self) -> JsResult<Item> {
-		self.bump();
+		try!(self.bump());
 		
 		let try = try!(self.parse_block());
 		
-		let catch = if self.consume(&Token::Catch) {
+		let catch = if try!(self.consume(Token::Catch)) {
 			self.push_block_scope();
 			
-			try!(self.expect(&Token::OpenParen));
+			try!(self.expect(Token::OpenParen));
 			
 			let ident = try!(self.parse_ident());
 			
-			self.register_local(ident.name, true);
+			self.register_local(ident.name, true, false);
 			
-			try!(self.expect(&Token::CloseParen));
+			try!(self.expect(Token::CloseParen));
 			
 			let mut catch = try!(self.parse_block());
 			catch.locals = self.pop_block_scope();
@@ -1349,7 +1361,7 @@ impl<'a> Parser<'a> {
 			None
 		};
 		
-		let finally = if self.consume(&Token::Finally) {
+		let finally = if try!(self.consume(Token::Finally)) {
 			Some(try!(self.parse_block()))
 		} else {
 			None
@@ -1365,7 +1377,7 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_debugger(&mut self) -> JsResult<Item> {
-		self.bump();
+		try!(self.bump());
 		
 		try!(self.expect_eos());
 		
@@ -1377,7 +1389,7 @@ impl<'a> Parser<'a> {
 			name: try!(self.parse_name())
 		};
 		
-		self.bump();
+		try!(self.bump());
 		
 		self.parse_stmt(Some(label))
 	}

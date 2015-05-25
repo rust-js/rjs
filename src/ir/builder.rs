@@ -91,15 +91,23 @@ impl Block {
 				&Ir::BitOr => string.push_str("bit.or"),
 				&Ir::BitXOr => string.push_str("bit.xor"),
 				&Ir::Call(args) => { write!(string, "call {}", args).ok(); },
+				&Ir::CastObject => string.push_str("cast.object"),
 				&Ir::CurrentIter(local) => {
 					string.push_str("iter.cur ");
 					self.print_local(string, local, interner);
 				},
 				&Ir::Debugger => string.push_str("debug"),
+				&Ir::Delete => string.push_str("delete"),
 				&Ir::DeleteName(name) => {
 					string.push_str("delete.name ");
 					self.print_name(string, name, interner);
-				},
+				}
+				&Ir::DeleteNameJump(name, label) => {
+					string.push_str("delete.name.jmp ");
+					self.print_name(string, name, interner);
+					string.push_str(", ");
+					self.print_label(string, label);
+				}
 				&Ir::DeleteIndex => string.push_str("delete.index"),
 				&Ir::Divide => string.push_str("div"),
 				&Ir::Dup => string.push_str("dup"),
@@ -108,7 +116,6 @@ impl Block {
 					string.push_str("iter.end ");
 					self.print_local(string, local, interner);
 				},
-				&Ir::EnterWith => string.push_str("with.enter"),
 				&Ir::Eq => string.push_str("eq"),
 				&Ir::Ge => string.push_str("ge"),
 				&Ir::Gt => string.push_str("gt"),
@@ -139,7 +146,6 @@ impl Block {
 					string.push_str("leave ");
 					self.print_label(string, label);
 				},
-				&Ir::LeaveWith => string.push_str("with.leave"),
 				&Ir::LoadArguments => string.push_str("ld.arguments"),
 				&Ir::LoadException => string.push_str("ld.exception"),
 				&Ir::LoadF64(value) => { write!(string, "ld.f64 {}", value).ok(); },
@@ -166,18 +172,24 @@ impl Block {
 					string.push_str("ld.name ");
 					self.print_name(string, name, interner);
 				},
+				&Ir::LoadNameJump(name, label) => {
+					string.push_str("ld.name.jmp ");
+					self.print_name(string, name, interner);
+					string.push_str(", ");
+					self.print_label(string, label);
+				}
 				&Ir::LoadNameLit => string.push_str("ld.name.lit"),
 				&Ir::LoadNull => string.push_str("ld.null"),
 				&Ir::LoadParam(index) => { write!(string, "ld.arg {}", index).ok(); },
-				&Ir::LoadRegex(ref body, ref flags) => {
+				&Ir::LoadRegex(body, flags) => {
 					string.push_str("ld.regex ");
-					self.print_string(string, &body);
+					self.print_string(string, &*interner.get(body));
 					string.push_str(", ");
-					self.print_string(string, &flags);
+					self.print_string(string, &*interner.get(flags));
 				},
-				&Ir::LoadString(ref value) => {
+				&Ir::LoadString(value) => {
 					string.push_str("ld.str ");
-					self.print_string(string, &value);
+					self.print_string(string, &*interner.get(value));
 				},
 				&Ir::LoadThis => string.push_str("ld.this"),
 				&Ir::LoadTrue => string.push_str("ld.true"),
@@ -206,7 +218,11 @@ impl Block {
 				&Ir::RshZeroFill => string.push_str("rsh.zf"),
 				&Ir::StoreArguments => string.push_str("st.arguments"),
 				&Ir::StoreGetter(function) => { write!(string, "st.getter {}", function.usize()).ok(); },
-				&Ir::StoreNameGetter(name, function) => { write!(string, "st.getter.name {}, {}", name.value(), function.usize()).ok(); },
+				&Ir::StoreNameGetter(name, function) => {
+					string.push_str("st.getter.name ");
+					self.print_name(string, name, interner);
+					write!(string, ", {}", function.usize()).ok();
+				},
 				&Ir::StoreGlobal(name) => {
 					string.push_str("st.global ");
 					self.print_name(string, name, interner);
@@ -224,9 +240,19 @@ impl Block {
 					string.push_str("st.name ");
 					self.print_name(string, name, interner);
 				},
+				&Ir::StoreNameJump(name, label) => {
+					string.push_str("st.name.jmp ");
+					self.print_name(string, name, interner);
+					string.push_str(", ");
+					self.print_label(string, label);
+				}
 				&Ir::StoreParam(index) => { write!(string, "st.arg {}", index).ok(); },
 				&Ir::StoreSetter(function) => { write!(string, "st.setter {}", function.usize()).ok(); },
-				&Ir::StoreNameSetter(name, function) => { write!(string, "st.setter.name {}, {}", name.value(), function.usize()).ok(); },
+				&Ir::StoreNameSetter(name, function) => {
+					string.push_str("st.setter.name ");
+					self.print_name(string, name, interner);
+					write!(string, ", {}", function.usize()).ok();
+				},
 				&Ir::StrictEq => string.push_str("eq.strict"),
 				&Ir::StrictNe => string.push_str("ne.strict"),
 				&Ir::Subtract => string.push_str("sub"),
@@ -235,7 +261,16 @@ impl Block {
 				&Ir::ToBoolean => string.push_str("cast.bool"),
 				&Ir::Typeof => string.push_str("typeof"),
 				&Ir::TypeofIndex => string.push_str("typeof.index"),
-				&Ir::TypeofName(name) => { write!(string, "typeof.name {}", name.value()).ok(); }
+				&Ir::TypeofName(name) => {
+					string.push_str("typeof.name ");
+					self.print_name(string, name, interner);
+				}
+				&Ir::TypeofNameJump(name, label) => {
+					string.push_str("typeof.name.jmp ");
+					self.print_name(string, name, interner);
+					string.push_str(", ");
+					self.print_label(string, label);
+				}
 			}
 			
 			string.push('\n');
@@ -453,15 +488,17 @@ pub enum Ir {
 	BitOr,
 	BitXOr,
 	Call(u32),
+	CastObject,
 	CurrentIter(Local),
 	Debugger,
+	Delete,
 	DeleteName(Name),
+	DeleteNameJump(Name, Label),
 	DeleteIndex,
 	Divide,
 	Dup,
 	EndFinally,
 	EndIter(Local),
-	EnterWith,
 	Eq,
 	Ge,
 	Gt,
@@ -474,7 +511,6 @@ pub enum Ir {
 	JumpTrue(Label),
 	Le,
 	Leave(Label),
-	LeaveWith,
 	LoadArguments,
 	LoadException,
 	LoadF64(f64),
@@ -489,11 +525,12 @@ pub enum Ir {
 	LoadLocal(Local),
 	LoadMissing,
 	LoadName(Name),
+	LoadNameJump(Name, Label),
 	LoadNameLit,
 	LoadNull,
 	LoadParam(u32),
-	LoadRegex(String, String),
-	LoadString(String),
+	LoadRegex(Name, Name),
+	LoadString(Name),
 	LoadThis,
 	LoadTrue,
 	LoadUndefined,
@@ -520,6 +557,7 @@ pub enum Ir {
 	StoreLifted(u32, u32),
 	StoreLocal(Local),
 	StoreName(Name),
+	StoreNameJump(Name, Label),
 	StoreGetter(FunctionRef),
 	StoreNameGetter(Name, FunctionRef),
 	StoreSetter(FunctionRef),
@@ -533,7 +571,8 @@ pub enum Ir {
 	ToBoolean,
 	Typeof,
 	TypeofIndex,
-	TypeofName(Name)
+	TypeofName(Name),
+	TypeofNameJump(Name, Label)
 }
 
 impl Ir {
@@ -544,7 +583,11 @@ impl Ir {
 			&mut Ir::JumpFalse(ref mut target) |
 			&mut Ir::JumpTrue(ref mut target) |
 			&mut Ir::Leave(ref mut target) |
-			&mut Ir::NextIter(_, ref mut target)
+			&mut Ir::NextIter(_, ref mut target) |
+			&mut Ir::LoadNameJump(_, ref mut target) |
+			&mut Ir::StoreNameJump(_, ref mut target) |
+			&mut Ir::DeleteNameJump(_, ref mut target) |
+			&mut Ir::TypeofNameJump(_, ref mut target)
 				=> target.0 = labels[target.0].0,
 			_ => {}
 		}

@@ -10,12 +10,34 @@ pub struct LocalResolver<'a> {
 
 struct LocalResolverScope<'a> {
 	function_ref: FunctionRef,
-	blocks: Vec<&'a Block>,
+	function_ty: FunctionType,
+	blocks: Vec<LocalBlock<'a>>,
 	locals: &'a RefCell<Locals>,
 	had_arguments: bool,
 	build_scope: bool,
 	takes_scope: bool,
-	slot_count: u32
+	lifted_slot_count: usize
+}
+
+impl<'a> LocalResolverScope<'a> {
+	pub fn add_slot(&mut self, slot: Slot) -> SlotRef {
+		let locals = &mut *self.locals.borrow_mut();
+		let slot_ref = SlotRef(locals.slots.len());
+		locals.slots.push(slot);
+		slot_ref
+	}
+}
+
+#[derive(Copy, Clone, PartialEq)]
+enum FunctionType {
+	Program,
+	Function,
+	FunctionExpression
+}
+
+struct LocalBlock<'a> {
+	block: Option<&'a Block>,
+	with_local: Option<SlotRef>
 }
 
 impl<'a> LocalResolver<'a> {
@@ -27,24 +49,30 @@ impl<'a> LocalResolver<'a> {
 		
 		let program = &context.functions[program_ref.usize()];
 		
-		resolver.resolve_scope(&program.block, program_ref);
+		resolver.resolve_scope(&program.block, program_ref, FunctionType::Program);
 	}
 
-	fn resolve_function(&mut self, function_ref: FunctionRef) {
+	fn resolve_function(&mut self, function_ref: FunctionRef, function_ty: FunctionType) {
 		let function = &self.context.functions[function_ref.usize()];
 		
-		self.resolve_scope(&function.block, function_ref);
+		self.resolve_scope(&function.block, function_ref, function_ty);
 	}
 
-	fn resolve_scope(&mut self, block: &'a RootBlock, function_ref: FunctionRef) {
+	fn resolve_scope(&mut self, block: &'a RootBlock, function_ref: FunctionRef, function_ty: FunctionType) {
+		let local_block = LocalBlock {
+			block: Some(&block.block),
+			with_local: None
+		};
+		
 		self.scopes.push(LocalResolverScope {
 			function_ref: function_ref,
-			blocks: vec![&block.block],
+			function_ty: function_ty,
+			blocks: vec![local_block],
 			locals: &block.locals,
 			had_arguments: false,
 			build_scope: false,
 			takes_scope: false,
-			slot_count: 0
+			lifted_slot_count: 0
 		});
 		
 		self.visit_block(&block.block);
@@ -58,8 +86,13 @@ impl<'a> LocalResolver<'a> {
 			block.takes_scope.set(true);
 		}
 		if scope.build_scope {
-			block.scope.set(Some(scope.slot_count as u32));
+			block.scope.set(Some(scope.lifted_slot_count as u32));
 		}
+	}
+	
+	fn top_scope(&mut self) -> &mut LocalResolverScope<'a> {
+		let len = self.scopes.len();
+		&mut self.scopes[len - 1]
 	}
 
 	fn resolve_ident(&mut self, ident: &'a Ident) {
@@ -78,14 +111,14 @@ impl<'a> LocalResolver<'a> {
 		
 		if ident.name == name::ARGUMENTS {
 			ident.state.set(IdentState::Arguments);
-			let len = self.scopes.len();
-			self.scopes[len - 1].had_arguments = true;
+			self.top_scope().had_arguments = true;
 			return;
 		}
 		
 		// Walk over all scopes in reverse to find the scope the local is in.
 		
 		let scopes = self.scopes.len();
+		let mut allow_with = true;
 		
 		'outer: for i in (0..scopes).rev() {
 			let scope = &mut self.scopes[i];
@@ -100,51 +133,93 @@ impl<'a> LocalResolver<'a> {
 					break 'outer;
 				}
 				
-				// Otherwise, see whether we have the local at this block of this scope.
+				// See whether we have the local at this block of this scope.
 				
-				let locals = &blocks[j].locals;
+				if let Some(ref block) = blocks[j].block.as_ref() {
+					let locals = &block.locals;
+					
+					if let Some(local_slot_ref) = locals.get(&ident.name) {
+						// Calculate the depth of the stack frame and update the ident state.
+						
+						let depth = scopes - i - 1;
+						
+						ident.state.set(if depth == 0 {
+							IdentState::Slot(*local_slot_ref)
+						} else {
+							IdentState::LiftedSlot(FunctionSlotRef(scope.function_ref, *local_slot_ref, depth as u32))
+						});
+						
+						// If the depth is greater than zero, it's lifted and we need to update the block state.
+						
+						if depth > 0 {
+							scope.locals.borrow_mut().slots[local_slot_ref.usize()].lifted = Some(scope.lifted_slot_count as u32);
+							scope.lifted_slot_count += 1;
+						}
+						
+						break 'outer;
+					}
+				}
 				
-				if let Some(local_slot_ref) = locals.get(&ident.name) {
-					// Calculate the depth of the stack frame and update the ident state.
-					
-					let depth = scopes - i - 1;
-					
-					ident.state.set(if depth == 0 {
-						IdentState::Slot(*local_slot_ref)
-					} else {
-						IdentState::LiftedSlot(scope.function_ref, *local_slot_ref, depth as u32)
-					});
-					
-					// If the depth is greater than zero, it's lifted and we need to update the block state.
-					
-					if depth > 0 {
-						scope.locals.borrow_mut().slots[local_slot_ref.usize()].lifted = Some(scope.slot_count);
-						scope.slot_count += 1;
+				// See whether we have a with scope. This check only applies for the current
+				// function. With scopes are not lifted.
+				//
+				// If we find one, set the with local for the ident and continue resolving.
+				// The with scope 
+				
+				if allow_with {
+					if let Some(with_local) = blocks[j].with_local {
+						let depth = scopes - i - 1;
+						let slot_ref = FunctionSlotRef(scope.function_ref, with_local, depth as u32);
+						
+						let mut with_locals = ident.with_locals.borrow_mut();
+						if with_locals.is_none() {
+							*with_locals = Some(vec![slot_ref]);
+						} else {
+							with_locals.as_mut().unwrap().push(slot_ref);
+						}
+						
+						if depth > 0 {
+							scope.locals.borrow_mut().slots[slot_ref.slot().usize()].lifted = Some(scope.lifted_slot_count as u32);
+							scope.lifted_slot_count += 1;
+						}
 					}
 					
-					break 'outer;
+					// The with chain breaks if we pass a non-expression function.
+					
+					allow_with = scope.function_ty == FunctionType::FunctionExpression;
+				}
+			}
+		}
+		
+		if let Some(ref with_locals) = *ident.with_locals.borrow() {
+			for with_local in with_locals {
+				if with_local.depth() > 0 {
+					self.mark_build_slot(with_local.depth());
 				}
 			}
 		}
 		
 		match ident.state.get() {
 			IdentState::None => ident.state.set(IdentState::Global),
-			IdentState::LiftedSlot(_, _, depth) => self.mark_build_slot(depth),
+			IdentState::LiftedSlot(slot_ref) => self.mark_build_slot(slot_ref.depth()),
 			_ => {}
 		};
 	}
 	
 	fn mark_build_slot(&mut self, mut depth: u32) {
+		assert!(depth > 0);
+		
 		let mut offset = self.scopes.len() - 1;
 		self.scopes[offset].takes_scope = true;
-		offset -= 1;
+		
 		while depth > 0 {
+			offset -= 1;
+			depth -= 1;
+			
 			self.scopes[offset].build_scope = true;
-			if depth > 1 {
+			if depth > 0 {
 				self.scopes[offset].takes_scope = true;
 			}
-			depth -= 1;
-			offset -= 1;
 		}
 	}
 
@@ -179,36 +254,39 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 	fn visit_item_function(&mut self, item: &'a Item) {
 		if let &Item::Function(ref ident, function_ref) = item {
 			self.resolve_set_ident(ident);
-			self.resolve_function(function_ref);
+			self.resolve_function(function_ref, FunctionType::Function);
 		}
 	}
 	
 	fn visit_property_getter(&mut self, property: &'a Property) {
 		if let &Property::Getter(_, function_ref) = property {
-			self.resolve_function(function_ref);
+			self.resolve_function(function_ref, FunctionType::FunctionExpression);
 		}
 	}
 	
 	fn visit_property_setter(&mut self, property: &'a Property) {
 		if let &Property::Setter(_, function_ref) = property {
-			self.resolve_function(function_ref);
+			self.resolve_function(function_ref, FunctionType::FunctionExpression);
 		}
 	}
 	
 	fn visit_expr_function(&mut self, expr: &'a Expr) {
 		if let &Expr::Function(function_ref) = expr {
-			self.resolve_function(function_ref);
+			self.resolve_function(function_ref, FunctionType::FunctionExpression);
 		}
 	}
 	
 	fn visit_catch(&mut self, catch: &'a Catch) {
-		let len = self.scopes.len();
-		self.scopes[len - 1].blocks.push(&catch.block);
+		let local_block = LocalBlock {
+			block: Some(&catch.block),
+			with_local: None
+		};
+		self.top_scope().blocks.push(local_block);
 		
 		self.resolve_set_ident(&catch.ident);
 		self.visit_block(&catch.block);
 		
-		self.scopes[len - 1].blocks.pop();
+		self.top_scope().blocks.pop();
 	}
 	
 	fn visit_root_block(&mut self, _: &'a RootBlock) {
@@ -228,6 +306,35 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 		
 		if let &Some(ref expr) = &var.expr {
 			self.visit_expr(expr);
+		}
+	}
+	
+	fn visit_item_with(&mut self, item: &'a Item) {
+		if let &Item::With(ref exprs, ref stmt, ref with_local) = item {
+			self.visit_expr_seq(exprs);
+			
+			// Borrow scope.
+			{
+				let top_scope = self.top_scope();
+				let slot = Slot {
+					name: None,
+					arg: None,
+					lifted: None,
+					global: false
+				};
+				
+				let slot_ref = top_scope.add_slot(slot);
+				with_local.set(Some(slot_ref));
+				
+				top_scope.blocks.push(LocalBlock {
+					block: None,
+					with_local: Some(slot_ref)
+				});
+			}
+			
+			self.visit_item(stmt);
+		
+			self.top_scope().blocks.pop();
 		}
 	}
 }

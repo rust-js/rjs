@@ -72,13 +72,13 @@ impl JsEnv {
 			&JsFunction::Ir(function_ref) => {
 				let block = try!(self.ir.get_function_ir(function_ref));
 				
-				let function = self.ir.get_function_description(function_ref);
+				let function = self.ir.get_function(function_ref);
 				let name = if let Some(name) = function.name {
 					self.ir.interner().get(name).to_string()
 				} else {
 					"(anonymous)".to_string()
 				};
-				let location = format!("{}[{}:{}] {}", *function.span.file, function.span.start_line, function.span.start_col, name);
+				let location = format!("{}[{}:{}] {}", self.ir.interner().get(function.span.file), function.span.start_line, function.span.start_col, name);
 				
 				debugln!("ENTER {}", location);
 				
@@ -242,7 +242,7 @@ impl JsEnv {
 		let function_prototype = self.function_prototype.as_local(self);
 		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), function_prototype).as_value(self);
 		
-		if self.ir.get_function_description(function_ref).takes_scope {
+		if self.ir.get_function(function_ref).takes_scope {
 			result.set_scope(self, scope);
 		}
 		

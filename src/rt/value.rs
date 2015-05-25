@@ -271,8 +271,8 @@ impl JsItem for Local<JsValue> {
 		delegate!(self, env, is_callable(env))
 	}
 	
-	fn call(&self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>>  {
-		delegate!(self, env, call(env, this, args))
+	fn call(&self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>, strict: bool) -> JsResult<Local<JsValue>>  {
+		delegate!(self, env, call(env, this, args, strict))
 	}
 	
 	fn can_construct(&self, env: &JsEnv) -> bool  {
@@ -377,10 +377,10 @@ impl Local<JsValue> {
 			JsType::Number => self.get_number(),
 			JsType::String => {
 				let mut reader = StringReader::new("", &self.get_string().to_string());
-				if let Ok(lexer) = Lexer::new(&mut reader, env.ir.interner(), true) {
-					if let Some(token) = lexer.peek(0) {
-						if lexer.peek(1).is_none() {
-							if let Token::Literal(ref lit) = *token.token() {
+				if let Ok(mut lexer) = Lexer::new(&mut reader, env.ir.interner()) {
+					if let Some(token) = try!(lexer.peek(0)) {
+						if try!(lexer.peek(1)).is_none() {
+							if let Token::Literal(lit) = token.token {
 								if let Some(value) = lit.to_number() {
 									return Ok(value);
 								}

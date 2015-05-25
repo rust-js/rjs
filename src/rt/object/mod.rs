@@ -57,7 +57,7 @@ impl JsObject {
 		let args = match function {
 			JsFunction::Native(_, args, _, _) => args,
 			JsFunction::Ir(function_ref) => {
-				let function = env.ir.get_function_description(function_ref);
+				let function = env.ir.get_function(function_ref);
 				function.args
 			}
 		};

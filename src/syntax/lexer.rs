@@ -1,51 +1,211 @@
-use syntax::Span;
+use syntax::{Name, Span};
 use syntax::reader::Reader;
 use syntax::token::{Token, TokenAndSpan, Lit};
 use syntax::token::Token::*;
 use ::{JsResult, JsError};
 use util::interner::StrInterner;
 use std::{char, i32};
-use std::rc::Rc;
-	
-fn fatal<T>(reader: &Reader, message: &str) -> JsResult<T> {
-	let (line, col) = reader.pos();
-	
-	let message = format!("{}:{}: {}", line, col, message.to_string());
-	
-	// Panic here under debug to get a stack trace.
-	
-	if cfg!(not(ndebug)) {
-		panic!(message);
-	}
-	
-	Err(JsError::Lex(message))
+use std::collections::VecDeque;
+
+pub struct Lexer<'a> {
+	reader: &'a mut Reader,
+	interner: &'a StrInterner,
+	strict: bool,
+	look_ahead: VecDeque<TokenAndSpan>,
+	file: Name,
+	last_span: Option<Span>
 }
 
-fn parse(reader: &mut Reader, interner: &StrInterner, strict: bool, file: Rc<String>) -> JsResult<Vec<TokenAndSpan>> {
-	let mut tokens = Vec::new();
-	
-	while !reader.is_eof() {
-		let (start_line, start_col) = reader.pos();
+impl<'a> Lexer<'a> {
+	pub fn new(reader: &'a mut Reader, interner: &'a StrInterner) -> JsResult<Lexer<'a>> {
+		let file = interner.intern(&reader.file().to_string());
 		
-		let token = match reader.next() {
+		Ok(Lexer {
+			reader: reader,
+			interner: interner,
+			strict: false,
+			look_ahead: VecDeque::new(),
+			file: file,
+			last_span: None
+		})
+	}
+	
+	pub fn strict(&self) -> bool {
+		self.strict
+	}
+	
+	pub fn set_strict(&mut self, strict: bool) {
+		self.strict = strict;
+	}
+	
+	pub fn span(&mut self) -> JsResult<Span> {
+		self.span_at(0)
+	}
+	
+	pub fn span_at(&mut self, offset: usize) -> JsResult<Span> {
+		if let Some(token) = try!(self.peek(offset)) {
+			Ok(token.span)
+		} else {
+			panic!("end of stream");
+		}
+	}
+	
+	pub fn last_span(&self) -> Option<Span> {
+		self.last_span
+	}
+	
+	pub fn is_eof(&mut self) -> JsResult<bool> {
+		Ok(try!(self.peek(0)).is_none())
+	}
+	
+	fn is_any_eof(&mut self) -> JsResult<bool> {
+		Ok(try!(self.peek_any(0)).is_none())
+	}
+	
+	pub fn bump(&mut self) -> JsResult<()> {
+		loop {
+			let hidden = if let Some(token) = try!(self.peek_any(0)) {
+				token.token.is_hidden()
+			} else {
+				panic!("end of stream");
+			};
+			
+			try!(self.next_any());
+			
+			if !hidden {
+				break;
+			}
+		}
+		
+		Ok(())
+	}
+	
+	pub fn bump_any(&mut self) -> JsResult<()> {
+		if try!(self.is_any_eof()) {
+			panic!("end of stream");
+		}
+		
+		try!(self.next_any());
+		
+		Ok(())
+	}
+	
+	pub fn next(&mut self) -> JsResult<TokenAndSpan> {
+		loop {
+			let token = try!(self.next_any());
+			if !token.token.is_hidden() {
+				return Ok(token);
+			}
+		}
+	}
+	
+	pub fn next_any(&mut self) -> JsResult<TokenAndSpan> {
+		if let Some(token) = try!(self.peek_any(0)) {
+			self.look_ahead.pop_front();
+			
+			if !token.token.is_hidden() {
+				self.last_span = Some(token.span)
+			}
+			
+			Ok(token)
+		} else {
+			panic!("end of stream");
+		}
+	}
+	
+	pub fn peek(&mut self, index: usize) -> JsResult<Option<TokenAndSpan>> {
+		let mut offset = 0;
+		let mut index = index;
+		
+		loop {
+			if let Some(token) = try!(self.peek_any(offset)) {
+				if !token.token.is_hidden() {
+					if index == 0 {
+						return Ok(Some(token));
+					}
+					
+					index -= 1;
+				}
+			} else {
+				return Ok(None);
+			}
+			
+			offset += 1;
+		}
+	}
+	
+	pub fn peek_any(&mut self, index: usize) -> JsResult<Option<TokenAndSpan>> {
+		while self.look_ahead.len() < index + 1 {
+			if self.reader.is_eof() {
+				return Ok(None);
+			}
+			
+			// The allow_regexp function recurses back here. We detect
+			// this by checking whether the length changes. If so,
+			// we insert the parsed token into the right location.
+			
+			let index = self.look_ahead.len();
+			
+			let token = try!(self.parse());
+			
+			if index == self.look_ahead.len() {
+				self.look_ahead.push_back(token);
+			} else {
+				// TODO: Unstable.
+				// self.look_ahead.insert(index, token);
+				
+				let mut tokens = Vec::new();
+				while self.look_ahead.len() > index {
+					tokens.push(self.look_ahead.pop_back().unwrap());
+				}
+				
+				self.look_ahead.push_back(token);
+				
+				for token in tokens.into_iter().rev() {
+					self.look_ahead.push_back(token);
+				}
+			}
+		}
+		
+		Ok(Some(self.look_ahead[index]))
+	}
+
+	fn fatal<T>(&self, message: &str) -> JsResult<T> {
+		let (line, col) = self.reader.pos();
+		
+		let message = format!("{}:{}: {}", line, col, message.to_string());
+		
+		// Panic here under debug to get a stack trace.
+		
+		if cfg!(not(ndebug)) {
+			panic!(message);
+		}
+		
+		Err(JsError::Lex(message))
+	}
+	
+	fn parse(&mut self) -> JsResult<TokenAndSpan> {
+		let (start_line, start_col) = self.reader.pos();
+		
+		let token = match self.reader.next() {
 			'*' => {
-				if reader.consume('=') {
+				if self.reader.consume('=') {
 					MultiplyAssign
 				} else {
 					Multiply
 				}
 			},
 			'/' => {
-				if reader.consume('=') {
+				if self.reader.consume('=') {
 					DivideAssign
-				} else if reader.consume('*') {
-					parse_block_comment(reader);
+				} else if self.reader.consume('*') {
+					self.parse_block_comment();
 					Comment
-				} else if reader.consume('/') {
-					skip_while(reader, |c| c != '\n');
+				} else if self.reader.consume('/') {
+					self.skip_while(|c| c != '\n');
 					Comment
-				} else if allow_regex(&tokens) {
-					match parse_regex(reader) {
+				} else if try!(self.allow_regex()) {
+					match self.parse_regex() {
 						Some(token) => token,
 						_ => Divide
 					}
@@ -54,82 +214,82 @@ fn parse(reader: &mut Reader, interner: &StrInterner, strict: bool, file: Rc<Str
 				}
 			},
 			'%' => {
-				if reader.consume('=') {
+				if self.reader.consume('=') {
 					ModulusAssign
 				} else {
 					Modulus
 				}
 			},
 			'+' => {
-				if reader.consume('=') {
+				if self.reader.consume('=') {
 					PlusAssign
-				} else if reader.consume('+') {
+				} else if self.reader.consume('+') {
 					PlusPlus
 				} else {
 					Plus
 				}
 			},
 			'-' => {
-				if reader.consume('=') {
+				if self.reader.consume('=') {
 					MinusAssign
-				} else if reader.consume('-') {
+				} else if self.reader.consume('-') {
 					MinusMinus
 				} else {
 					Minus
 				}
 			},
 			'>' => {
-				if reader.consume('>') {
-					if reader.consume('>') {
-						if reader.consume('=') {
+				if self.reader.consume('>') {
+					if self.reader.consume('>') {
+						if self.reader.consume('=') {
 							RightShiftLogicalAssign
 						} else {
 							RightShiftLogical
 						}
-					} else if reader.consume('=') {
+					} else if self.reader.consume('=') {
 						RightShiftArithmeticAssign
 					} else {
 						RightShiftArithmetic
 					}
-				} else if reader.consume('=') {
+				} else if self.reader.consume('=') {
 					GreaterThanEquals
 				} else {
 					GreaterThan
 				}
 			},
 			'<' => {
-				if reader.consume('<') {
-					if reader.consume('=') {
+				if self.reader.consume('<') {
+					if self.reader.consume('=') {
 						LeftShiftArithmeticAssign
 					} else {
 						LeftShiftArithmetic
 					}
-				} else if reader.consume('=') {
+				} else if self.reader.consume('=') {
 					LessThanEquals
 				} else {
 					LessThan
 				}
 			},
 			'&' => {
-				if reader.consume('=') {
+				if self.reader.consume('=') {
 					BitAndAssign
-				} else if reader.consume('&') {
+				} else if self.reader.consume('&') {
 					And
 				} else {
 					BitAnd
 				}
 			},
 			'|' => {
-				if reader.consume('=') {
+				if self.reader.consume('=') {
 					BitOrAssign
-				} else if reader.consume('|') {
+				} else if self.reader.consume('|') {
 					Or
 				} else {
 					BitOr
 				}
 			},
 			'^' => {
-				if reader.consume('=') {
+				if self.reader.consume('=') {
 					BitXOrAssign
 				} else {
 					BitXOr
@@ -137,8 +297,8 @@ fn parse(reader: &mut Reader, interner: &StrInterner, strict: bool, file: Rc<Str
 			},
 			'~' => BitNot,
 			'=' => {
-				if reader.consume('=') {
-					if reader.consume('=') {
+				if self.reader.consume('=') {
+					if self.reader.consume('=') {
 						IdentityEquals
 					} else {
 						Equals
@@ -148,8 +308,8 @@ fn parse(reader: &mut Reader, interner: &StrInterner, strict: bool, file: Rc<Str
 				}
 			},
 			'!' => {
-				if reader.consume('=') {
-					if reader.consume('=') {
+				if self.reader.consume('=') {
+					if self.reader.consume('=') {
 						IdentityNotEquals
 					} else {
 						NotEquals
@@ -169,471 +329,461 @@ fn parse(reader: &mut Reader, interner: &StrInterner, strict: bool, file: Rc<Str
 			'?' => QuestionMark,
 			':' => Colon,
 			'.' => {
-				if is_digit(reader.peek()) {
-					try!(parse_decimal_tail(reader, ".".to_string()))
+				if is_digit(self.reader.peek()) {
+					try!(self.parse_decimal_tail(".".to_string()))
 				} else {
 					Dot
 				}
 			},
 			c @ '0' ... '9' => {
 				if c == '0' {
-					if reader.consume('x') || reader.consume('X') {
-						try!(parse_hex(reader))
-					} else if !strict && is_oct(reader.peek()) {
-						try!(parse_oct(reader))
-					} else if reader.consume('.') {
-						try!(parse_decimal_tail(reader, "0.".to_string()))
-					} else if reader.peek() == 'e' || reader.peek() == 'E' {
-						try!(parse_decimal_tail(reader, "0".to_string()))
+					if self.reader.consume('x') || self.reader.consume('X') {
+						try!(self.parse_hex())
+					} else if !self.strict && is_oct(self.reader.peek()) {
+						try!(self.parse_oct())
+					} else if self.reader.consume('.') {
+						try!(self.parse_decimal_tail("0.".to_string()))
+					} else if self.reader.peek() == 'e' || self.reader.peek() == 'E' {
+						try!(self.parse_decimal_tail("0".to_string()))
 					} else {
-						Literal(Rc::new(Lit::Integer(0)))
+						Literal(Lit::Integer(0))
 					}
 				} else {
-					try!(parse_decimal(reader, c.to_string()))
+					try!(self.parse_decimal(c.to_string()))
 				}
 			},
-			'"' => parse_string(reader, '"'),
-			'\'' => parse_string(reader, '\''),
+			'"' => self.parse_string('"'),
+			'\'' => self.parse_string('\''),
 			c @ _ if is_line_terminator(c) => Newline,
 			c @ _ if is_whitespace(c) => {
-				skip_while(reader, is_whitespace);
+				self.skip_while(is_whitespace);
 				Whitespace
 			},
 			_ => {
-				reader.skip(-1);
+				self.reader.skip(-1);
 				
-				if let Some(identifier) = parse_identifier(reader, true) {
-					token_from_identifier(identifier, interner, strict)
+				if let Some(identifier) = self.parse_identifier(true) {
+					self.token_from_identifier(identifier)
 				} else {
-					return fatal(reader, "Cannot parse");
+					return self.fatal("Cannot parse");
 				}
 			}
 		};
 		
-		let (end_line, end_col) = reader.last_pos();
-		let span = Span::new(start_line, start_col, end_line, end_col, file.clone());
+		let (end_line, end_col) = self.reader.last_pos();
+		let span = Span::new(start_line, start_col, end_line, end_col, self.file);
 		
-		tokens.push(TokenAndSpan::new(token, span))
+		Ok(TokenAndSpan::new(token, span))
 	}
 	
-	Ok(tokens)
-}
-
-fn token_from_identifier(identifier: String, interner: &StrInterner, strict: bool) -> Token {
-	match &identifier[..] {
-		"null" => Literal(Rc::new(Lit::Null)),
-		"true" => Literal(Rc::new(Lit::Boolean(true))),
-		"false" => Literal(Rc::new(Lit::Boolean(false))),
-		// 7.6.1.1 Keywords
-		"break" => Break,
-		"do" => Do,
-		"instanceof" => Instanceof,
-		"typeof" => Typeof,
-		"case" => Case,
-		"else" => Else,
-		"new" => New,
-		"var" => Var,
-		"catch" => Catch,
-		"finally" => Finally,
-		"return" => Return,
-		"void" => Void,
-		"continue" => Continue,
-		"for" => For,
-		"switch" => Switch,
-		"while" => While,
-		"debugger" => Debugger,
-		"function" => Function,
-		"this" => This,
-		"with" => With,
-		"default" => Default,
-		"if" => If,
-		"throw" => Throw,
-		"delete" => Delete,
-		"in" => In,
-		"try" => Try,
-		// 7.6.1.2 Future Reserved Words
-		"class" => Class,
-		"enum" => Enum,
-		"extends" => Extends,
-		"super" => Super,
-		"const" => Const,
-		"export" => Export,
-		"import" => Import,
-		// 7.6.1.2 Future Reserved Words in strict mode
-		"implements" if strict => Implements,
-		"let" if strict => Let,
-		"private" if strict => Private,
-		"public" if strict => Public,
-		"interface" if strict => Interface,
-		"package" if strict => Package,
-		"protected" if strict => Protected,
-		"static" if strict => Static,
-		"yield" if strict => Yield,
-		// 7.6 Identifier Names and Identifiers
-		str @ _ => Identifier(interner.intern(str))
-	}
-}
-
-fn parse_block_comment(reader: &mut Reader) {
-	while !reader.is_eof() {
-		if reader.next() == '*' && reader.consume('/') {
-			return;
+	fn token_from_identifier(&self, identifier: String) -> Token {
+		match &identifier[..] {
+			"null" => Literal(Lit::Null),
+			"true" => Literal(Lit::Boolean(true)),
+			"false" => Literal(Lit::Boolean(false)),
+			// 7.6.1.1 Keywords
+			"break" => Break,
+			"do" => Do,
+			"instanceof" => Instanceof,
+			"typeof" => Typeof,
+			"case" => Case,
+			"else" => Else,
+			"new" => New,
+			"var" => Var,
+			"catch" => Catch,
+			"finally" => Finally,
+			"return" => Return,
+			"void" => Void,
+			"continue" => Continue,
+			"for" => For,
+			"switch" => Switch,
+			"while" => While,
+			"debugger" => Debugger,
+			"function" => Function,
+			"this" => This,
+			"with" => With,
+			"default" => Default,
+			"if" => If,
+			"throw" => Throw,
+			"delete" => Delete,
+			"in" => In,
+			"try" => Try,
+			// 7.6.1.2 Future Reserved Words
+			"class" => Class,
+			"enum" => Enum,
+			"extends" => Extends,
+			"super" => Super,
+			"const" => Const,
+			"export" => Export,
+			"import" => Import,
+			// 7.6.1.2 Future Reserved Words in strict mode
+			"implements" if self.strict => Implements,
+			"let" if self.strict => Let,
+			"private" if self.strict => Private,
+			"public" if self.strict => Public,
+			"interface" if self.strict => Interface,
+			"package" if self.strict => Package,
+			"protected" if self.strict => Protected,
+			"static" if self.strict => Static,
+			"yield" if self.strict => Yield,
+			// 7.6 Identifier Names and Identifiers
+			str @ _ => Identifier(self.interner.intern(str))
 		}
 	}
-}
-
-fn consume_while<F: Fn(char) -> bool>(reader: &mut Reader, predicate: F) -> String {
-	let mut s = String::new();
 	
-	while !reader.is_eof() && predicate(reader.peek()) {
-		s.push(reader.next());
-	}
-	
-	s
-}
-
-fn skip_while<F: Fn(char) -> bool>(reader: &mut Reader, predicate: F) {
-	while !reader.is_eof() && predicate(reader.peek()) {
-		reader.next();
-	}
-}
-
-fn parse_str_number(value: &str, radix: u32) -> Option<Token> {
-	match i64::from_str_radix(value, radix) {
-		Ok(value) => {
-			if value >= i32::MIN as i64 && value <= i32::MAX as i64 {
-				Some(Literal(Rc::new(Lit::Integer(value as i32))))
-			} else {
-				Some(Literal(Rc::new(Lit::Long(value))))
+	fn parse_block_comment(&mut self) {
+		while !self.reader.is_eof() {
+			if self.reader.next() == '*' && self.reader.consume('/') {
+				return;
 			}
-		},
-		_ => None
+		}
 	}
-}
-
-fn parse_hex(reader: &mut Reader) -> JsResult<Token> {
-	let s = consume_while(reader, is_hex);
-	if s.len() == 0 {
-		fatal(reader, "Expected a hex digit")
-	} else if let Some(token) = parse_str_number(&s, 16) {
-		Ok(token)
-	} else {
-		fatal(reader, &format!("Cannot parse hex {:?}", s))
-	}
-}
-
-fn parse_oct(reader: &mut Reader) -> JsResult<Token> {
-	let s = consume_while(reader, is_oct);
-	if s.len() == 0 {
-		fatal(reader, "Expected a oct digit")
-	} else if let Some(token) = parse_str_number(&s, 8) {
-		Ok(token)
-	} else {
-		fatal(reader, &format!("Cannot parse octal {:?}", s))
-	}
-}
-
-fn parse_decimal(reader: &mut Reader, prefix: String) -> JsResult<Token> {
-	// This method parses a decimal without already having seen a dot. The decimal
-	// prefix is parsed here and the rest is handled  by parse_decimal_tail.
 	
-	let mut s = prefix;
+	fn consume_while<F: Fn(char) -> bool>(&mut self, predicate: F) -> String {
+		let mut s = String::new();
+		
+		while !self.reader.is_eof() && predicate(self.reader.peek()) {
+			s.push(self.reader.next());
+		}
+		
+		s
+	}
 	
-	while !reader.is_eof() {
-		let c = reader.peek();
-		if c == '.' || is_digit(c) {
-			s.push(reader.next());
-			
-			if c == '.' {
+	fn skip_while<F: Fn(char) -> bool>(&mut self, predicate: F) {
+		while !self.reader.is_eof() && predicate(self.reader.peek()) {
+			self.reader.next();
+		}
+	}
+	
+	fn parse_str_number(&self, value: &str, radix: u32) -> Option<Token> {
+		match i64::from_str_radix(value, radix) {
+			Ok(value) => {
+				if value >= i32::MIN as i64 && value <= i32::MAX as i64 {
+					Some(Literal(Lit::Integer(value as i32)))
+				} else {
+					Some(Literal(Lit::Long(value)))
+				}
+			},
+			_ => None
+		}
+	}
+	
+	fn parse_hex(&mut self) -> JsResult<Token> {
+		let s = self.consume_while(is_hex);
+		if s.len() == 0 {
+			self.fatal("Expected a hex digit")
+		} else if let Some(token) = self.parse_str_number(&s, 16) {
+			Ok(token)
+		} else {
+			self.fatal(&format!("Cannot parse hex {:?}", s))
+		}
+	}
+	
+	fn parse_oct(&mut self) -> JsResult<Token> {
+		let s = self.consume_while(is_oct);
+		if s.len() == 0 {
+			self.fatal("Expected a oct digit")
+		} else if let Some(token) = self.parse_str_number(&s, 8) {
+			Ok(token)
+		} else {
+			self.fatal(&format!("Cannot parse octal {:?}", s))
+		}
+	}
+	
+	fn parse_decimal(&mut self, prefix: String) -> JsResult<Token> {
+		// This method parses a decimal without already having seen a dot. The decimal
+		// prefix is parsed here and the rest is handled  by parse_decimal_tail.
+		
+		let mut s = prefix;
+		
+		while !self.reader.is_eof() {
+			let c = self.reader.peek();
+			if c == '.' || is_digit(c) {
+				s.push(self.reader.next());
+				
+				if c == '.' {
+					break;
+				}
+			} else {
 				break;
 			}
-		} else {
-			break;
 		}
+		
+		self.parse_decimal_tail(s)
 	}
 	
-	parse_decimal_tail(reader, s)
-}
-
-fn parse_decimal_tail(reader: &mut Reader, prefix: String) -> JsResult<Token> {
-	// This method parses decimal tails. The prefix contains what has already been
-	// parsed and may contain a dot. This method will not parse dots.
-	
-	let mut s = prefix;
-	
-	while !reader.is_eof() && is_digit(reader.peek()) {
-		s.push(reader.next());
-	}
-	
-	if !reader.is_eof() {
-		let c = reader.peek();
-		if c == 'e' || c == 'E' {
-			let mut index: usize = 1;
-			
-			if !reader.is_eof() {
-				let c1 = reader.peek_at(index);
-				if c1 == '+' || c1 == '-' {
-					index += 1;
-				}
-			}
-			
-			if !reader.is_eof() {
-				let c2 = reader.peek_at(index);
-				if is_digit(c2) {
-					while index > 0 {
-						s.push(reader.next());
-						index -= 1;
-					}
-					
-					while !reader.is_eof() && is_digit(reader.peek()) {
-						s.push(reader.next());
+	fn parse_decimal_tail(&mut self, prefix: String) -> JsResult<Token> {
+		// This method parses decimal tails. The prefix contains what has already been
+		// parsed and may contain a dot. This method will not parse dots.
+		
+		let mut s = prefix;
+		
+		while !self.reader.is_eof() && is_digit(self.reader.peek()) {
+			s.push(self.reader.next());
+		}
+		
+		if !self.reader.is_eof() {
+			let c = self.reader.peek();
+			if c == 'e' || c == 'E' {
+				let mut index: usize = 1;
+				
+				if !self.reader.is_eof() {
+					let c1 = self.reader.peek_at(index);
+					if c1 == '+' || c1 == '-' {
+						index += 1;
 					}
 				}
-			}
-		}
-	}
-	
-	if let Some(token) = parse_str_number(&s, 10) {
-		Ok(token)
-	} else {
-		match s.parse() {
-			Ok(value) => Ok(Literal(Rc::new(Lit::Double(value)))),
-			_ => fatal(reader, &format!("Cannot parse number {:?}", s))
-		}
-	}
-}
-
-fn parse_string(reader: &mut Reader, quote: char) -> Token {
-	let mut s = String::new();
-	
-	while !reader.is_eof() {
-		let c = reader.next();
-		if c == quote {
-			break;
-		} else if c == '\\' {
-			// Do we have a line terminator (i.e. line continuation)? Otherwise parse an escape.
-			
-			let c1 = reader.peek();
-			if is_line_terminator(c1) {
-				reader.next();
 				
-				if c1 == '\r' {
-					reader.consume('\n');
-				}
-			} else {
-				s.push_str(&parse_escape(reader))
-			}
-		} else {
-			s.push(c);
-		}
-	}
-	
-	Literal(Rc::new(Lit::String(s)))
-}
-
-fn parse_escape(reader: &mut Reader) -> String {
-	match reader.next() {
-		'\'' => "'".to_string(),
-		'"' => "\"".to_string(),
-		'b' => "\u{7}".to_string(),
-		'f' => "\u{C}".to_string(),
-		'n' => "\n".to_string(),
-		'r' => "\r".to_string(),
-		't' => "\t".to_string(),
-		'v' => "\u{B}".to_string(),
-		'x' => parse_escape_hex(reader, 2).to_string(),
-		'u' => parse_escape_hex(reader, 4).to_string(),
-		c @ _ => {
-			// TODO: Is this OK? We're just pushing back the original contents.
-			
-			let mut s = "\\".to_string();
-			s.push(c);
-			s
-		}
-	}
-}
-
-fn parse_escape_hex(reader: &mut Reader, length: i32) -> char {
-	let mut value : u32 = 0;
-	
-	for _ in 0..length {
-		let c = reader.next();
-		let digit;
-		
-		if c >= '0' && c <= '9' {
-			digit = (c as u32) - ('0' as u32);
-		} else if c >= 'a' && c <= 'f' {
-			digit = (c as u32) - ('a' as u32) + 10u32;
-		} else if c >= 'A' && c <= 'F' {
-			digit = (c as u32) - ('A' as u32) + 10u32;
-		} else {
-			// TODO: Is this OK? We're just parsing what we can; even when it's too short.
-			
-			break;
-		}
-		
-		value <<= 4;
-		value |= digit;
-	}
-	
-	if let Some(c) = char::from_u32(value) {
-		c
-	} else {
-		// TODO: What to do when we get an invalid unicode code point?
-		'?'
-	}
-}
-
-fn parse_identifier(reader: &mut Reader, require_start: bool) -> Option<String> {
-	let mut s = String::new();
-	let mut had_one = !require_start;
-	
-	while !reader.is_eof() && is_identifier_letter(reader, !had_one) {
-		if reader.peek() == '\\' {
-			reader.next();
-			reader.next();
-			
-			// TODO: Invalid unicode sequences will be parsed incorrectly.
-			
-			s.push(parse_escape_hex(reader, 4));
-		} else {
-			s.push(reader.next());
-		}
-		
-		had_one = true;
-	}
-	
-	if s.is_empty() {
-		None
-	} else {
-		Some(s)
-	}
-}
-
-fn is_identifier_letter(reader: &mut Reader, start: bool) -> bool {
-	match reader.peek() {
-		'$' | '_' => true,
-		'\\' => reader.peek_at(1) == 'u',
-		c @ _ => {
-			if is_unicode_letter(c) {
-				true
-			} else if !start && (
-				is_unicode_combining(c) ||
-				is_unicode_digit(c) ||
-				is_unicode_connector_punctuation(c) ||
-				is_unicode_zwnj(c) ||
-				is_unicode_zwj(c)
-			) {
-				true
-			} else {
-				false
-			}
-		}
-	}
-}
-
-fn last_token(tokens: &Vec<TokenAndSpan>) -> Option<&TokenAndSpan> {
-	for token in tokens.iter().rev() {
-		if !token.token().is_hidden() {
-			return Some(token);
-		}
-	}
-	
-	None
-}
-
-fn allow_regex(tokens: &Vec<TokenAndSpan>) -> bool {
-	match last_token(tokens) {
-		Some(token) => {
-			match *token.token() {
-				Identifier(..) | Literal(..) | This | CloseBracket | CloseParen => false,
-				_ => true
-			} 
-		},
-		_ => true
-	}
-}
-
-fn parse_regex(reader: &mut Reader) -> Option<Token> {
-	let pos = reader.offset();
-	
-	let expression = match parse_regex_expression(reader) {
-		Some(expression) => expression,
-		None => {
-			// Regular expressions are parsed by attempt. If parsing fails, reset the
-			// reader to the previous position and try something else.
-			
-			reader.seek(pos);
-			
-			return None;
-		}
-	};
-	
-	let flags = parse_regex_flags(reader);
-	
-	Some(Literal(Rc::new(Lit::Regex(expression, flags))))
-}
-
-fn parse_regex_expression(reader: &mut Reader) -> Option<String> {
-	let mut s = String::new();
-	
-	while !reader.is_eof() {
-		match reader.next() {
-			'/' => return Some(s),
-			'\\' => {
-				if is_line_terminator(reader.peek()) {
-					return None;
-				}
-				
-				s.push_str(&parse_escape(reader));
-			},
-			'[' => {
-				s.push('[');
-				
-				while !reader.is_eof() {
-					match reader.next() {
-						']' => {
-							s.push(']');
-							break;
-						},
-						'\\' => {
-							if is_line_terminator(reader.peek()) {
-								return None;
-							}
-							
-							s.push_str(&parse_escape(reader));
-						},
-						c @ _ => {
-							if is_line_terminator(c) {
-								return None;
-							}
-							
-							s.push(c);
+				if !self.reader.is_eof() {
+					let c2 = self.reader.peek_at(index);
+					if is_digit(c2) {
+						while index > 0 {
+							s.push(self.reader.next());
+							index -= 1;
+						}
+						
+						while !self.reader.is_eof() && is_digit(self.reader.peek()) {
+							s.push(self.reader.next());
 						}
 					}
 				}
-			},
-			c @ _ => {
-				if is_line_terminator(c) {
-					return None;
-				}
-				
-				s.push(c);
+			}
+		}
+		
+		if let Some(token) = self.parse_str_number(&s, 10) {
+			Ok(token)
+		} else {
+			match s.parse() {
+				Ok(value) => Ok(Literal(Lit::Double(value))),
+				_ => self.fatal(&format!("Cannot parse number {:?}", s))
 			}
 		}
 	}
 	
-	None
-}
-
-fn parse_regex_flags(reader: &mut Reader) -> String {
-	if let Some(flags) = parse_identifier(reader, false) {
-		flags
-	} else {
-		"".to_string()
+	fn parse_string(&mut self, quote: char) -> Token {
+		let mut s = String::new();
+		
+		while !self.reader.is_eof() {
+			let c = self.reader.next();
+			if c == quote {
+				break;
+			} else if c == '\\' {
+				// Do we have a line terminator (i.e. line continuation)? Otherwise parse an escape.
+				
+				let c1 = self.reader.peek();
+				if is_line_terminator(c1) {
+					self.reader.next();
+					
+					if c1 == '\r' {
+						self.reader.consume('\n');
+					}
+				} else {
+					s.push_str(&self.parse_escape())
+				}
+			} else {
+				s.push(c);
+			}
+		}
+		
+		Literal(Lit::String(self.interner.intern(&s)))
+	}
+	
+	fn parse_escape(&mut self) -> String {
+		match self.reader.next() {
+			'\'' => "'".to_string(),
+			'"' => "\"".to_string(),
+			'b' => "\u{7}".to_string(),
+			'f' => "\u{C}".to_string(),
+			'n' => "\n".to_string(),
+			'r' => "\r".to_string(),
+			't' => "\t".to_string(),
+			'v' => "\u{B}".to_string(),
+			'x' => self.parse_escape_hex(2).to_string(),
+			'u' => self.parse_escape_hex(4).to_string(),
+			c @ _ => {
+				// TODO: Is this OK? We're just pushing back the original contents.
+				
+				let mut s = "\\".to_string();
+				s.push(c);
+				s
+			}
+		}
+	}
+	
+	fn parse_escape_hex(&mut self, length: i32) -> char {
+		let mut value : u32 = 0;
+		
+		for _ in 0..length {
+			let c = self.reader.next();
+			let digit;
+			
+			if c >= '0' && c <= '9' {
+				digit = (c as u32) - ('0' as u32);
+			} else if c >= 'a' && c <= 'f' {
+				digit = (c as u32) - ('a' as u32) + 10u32;
+			} else if c >= 'A' && c <= 'F' {
+				digit = (c as u32) - ('A' as u32) + 10u32;
+			} else {
+				// TODO: Is this OK? We're just parsing what we can; even when it's too short.
+				
+				break;
+			}
+			
+			value <<= 4;
+			value |= digit;
+		}
+		
+		if let Some(c) = char::from_u32(value) {
+			c
+		} else {
+			// TODO: What to do when we get an invalid unicode code point?
+			'?'
+		}
+	}
+	
+	fn parse_identifier(&mut self, require_start: bool) -> Option<String> {
+		let mut s = String::new();
+		let mut had_one = !require_start;
+		
+		while !self.reader.is_eof() && self.is_identifier_letter(!had_one) {
+			if self.reader.peek() == '\\' {
+				self.reader.next();
+				self.reader.next();
+				
+				// TODO: Invalid unicode sequences will be parsed incorrectly.
+				
+				s.push(self.parse_escape_hex(4));
+			} else {
+				s.push(self.reader.next());
+			}
+			
+			had_one = true;
+		}
+		
+		if s.is_empty() {
+			None
+		} else {
+			Some(s)
+		}
+	}
+	
+	fn is_identifier_letter(&mut self, start: bool) -> bool {
+		match self.reader.peek() {
+			'$' | '_' => true,
+			'\\' => self.reader.peek_at(1) == 'u',
+			c @ _ => {
+				if is_unicode_letter(c) {
+					true
+				} else if !start && (
+					is_unicode_combining(c) ||
+					is_unicode_digit(c) ||
+					is_unicode_connector_punctuation(c) ||
+					is_unicode_zwnj(c) ||
+					is_unicode_zwj(c)
+				) {
+					true
+				} else {
+					false
+				}
+			}
+		}
+	}
+	
+	fn allow_regex(&mut self) -> JsResult<bool> {
+		if let Some(token) = try!(self.peek(0)) {
+			match token.token {
+				Identifier(..) | Literal(..) | This | CloseBracket | CloseParen => Ok(false),
+				_ => Ok(true)
+			}
+		} else {
+			Ok(true)
+		}
+	}
+	
+	fn parse_regex(&mut self) -> Option<Token> {
+		let pos = self.reader.offset();
+		
+		let expression = match self.parse_regex_expression() {
+			Some(expression) => expression,
+			None => {
+				// Regular expressions are parsed by attempt. If parsing fails, reset the
+				// reader to the previous position and try something else.
+				
+				self.reader.seek(pos);
+				
+				return None;
+			}
+		};
+		
+		let flags = self.parse_regex_flags();
+		
+		let expression = self.interner.intern(&expression);
+		let flags = self.interner.intern(&flags);
+		
+		Some(Literal(Lit::Regex(expression, flags)))
+	}
+	
+	fn parse_regex_expression(&mut self) -> Option<String> {
+		let mut s = String::new();
+		
+		while !self.reader.is_eof() {
+			match self.reader.next() {
+				'/' => return Some(s),
+				'\\' => {
+					if is_line_terminator(self.reader.peek()) {
+						return None;
+					}
+					
+					s.push_str(&self.parse_escape());
+				},
+				'[' => {
+					s.push('[');
+					
+					while !self.reader.is_eof() {
+						match self.reader.next() {
+							']' => {
+								s.push(']');
+								break;
+							},
+							'\\' => {
+								if is_line_terminator(self.reader.peek()) {
+									return None;
+								}
+								
+								s.push_str(&self.parse_escape());
+							},
+							c @ _ => {
+								if is_line_terminator(c) {
+									return None;
+								}
+								
+								s.push(c);
+							}
+						}
+					}
+				},
+				c @ _ => {
+					if is_line_terminator(c) {
+						return None;
+					}
+					
+					s.push(c);
+				}
+			}
+		}
+		
+		None
+	}
+	
+	fn parse_regex_flags(&mut self) -> String {
+		if let Some(flags) = self.parse_identifier(false) {
+			flags
+		} else {
+			"".to_string()
+		}
 	}
 }
-
+	
 fn is_hex(c: char) -> bool {
 	match c {
 		'0' ... '9' | 'a' ... 'f' | 'A' ... 'F' => true,
@@ -1087,139 +1237,6 @@ fn is_unicode_zwnj(c: char) -> bool {
 
 fn is_unicode_zwj(c: char) -> bool {
 	c == '\u{200D}'
-}
-
-pub struct Lexer {
-	offset: usize,
-	tokens: Vec<TokenAndSpan>
-}
-
-impl Lexer {
-	pub fn new(reader: &mut Reader, interner: &StrInterner, strict: bool) -> JsResult<Lexer> {
-		let file = Rc::new(reader.file().to_string());
-		
-		Ok(Lexer {
-			offset: 0,
-			tokens: try!(parse(reader, interner, strict, file))
-		})
-	}
-	
-	pub fn span(&self) -> &Span {
-		self.tokens[self.offset].span()
-	}
-	
-	pub fn span_at(&self, offset: isize) -> &Span {
-		self.tokens[(self.offset as isize + offset) as usize].span()
-	}
-	
-	pub fn is_eof(&self) -> bool {
-		let mut offset = self.offset;
-		let len = self.tokens.len();
-		
-		while offset < len {
-			let token = &self.tokens[offset];
-			
-			if !token.token().is_hidden() {
-				return false;
-			}
-
-			offset += 1;
-		}
-		
-		true
-	}
-	
-	fn is_any_eof(&self) -> bool {
-		self.offset >= self.tokens.len()
-	}
-	
-	pub fn bump(&mut self) {
-		while !self.is_any_eof() {
-			let token = &self.tokens[self.offset];
-			self.offset += 1;
-			
-			if !token.token().is_hidden() {
-				return;
-			}
-		}
-		
-		panic!("No more tokens");
-	}
-	
-	pub fn bump_any(&mut self) {
-		if self.is_any_eof() {
-			panic!("No more tokens");
-		}
-		
-		self.offset += 1;
-	}
-	
-	pub fn next(&mut self) -> &TokenAndSpan {
-		while !self.is_any_eof() {
-			let token = &self.tokens[self.offset];
-			self.offset += 1;
-			
-			if !token.token().is_hidden() {
-				return token;
-			}
-		}
-		
-		panic!("No more tokens");
-	}
-	
-	pub fn next_any(&mut self) -> &TokenAndSpan {
-		if self.is_any_eof() {
-			panic!("No more tokens");
-		}
-		
-		let token = &self.tokens[self.offset];
-		self.offset += 1;
-		
-		token
-	}
-	
-	pub fn peek(&self, index: usize) -> Option<&TokenAndSpan> {
-		let mut offset = self.offset;
-		let mut i = index;
-		
-		while offset < self.tokens.len() {
-			if !self.tokens[offset].token().is_hidden() {
-				if i == 0 {
-					break;
-				}
-				
-				i -= 1;
-			}
-			
-			offset += 1;
-		}
-		
-		if offset >= self.tokens.len() {
-			None
-		} else {
-			Some(&self.tokens[offset])
-		}
-	}
-	
-	pub fn peek_any(&self, index: usize) -> Option<&TokenAndSpan> {
-		let mut offset = self.offset;
-		let mut i = index;
-		
-		while offset < self.tokens.len() {
-			if i == 0 {
-				break;
-			}
-			
-			i -= 1;
-			offset += 1;
-		}
-		
-		if offset >= self.tokens.len() {
-			None
-		} else {
-			Some(&self.tokens[offset])
-		}
-	}
 }
 
 #[cfg(test)]

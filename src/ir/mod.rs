@@ -16,6 +16,77 @@ use std::rc::Rc;
 use std::fmt::Write;
 use std::io::Read;
 
+// Typeof and delete have special rules regarding references. With with statements in the
+// mix this becomes very complex. However, they are very similar and to limit code
+// duplication a macro implements both.
+macro_rules! typeof_delete {
+	( $generator:expr , $expr:expr , $leave:expr , $on_expr:ident , $on_name:ident , $on_jump:ident , $on_index:ident ) => {
+		if let &Expr::Ident(ref ident) = $expr {
+			if ident.state.get() == IdentState::Global {
+				let label = if let Some(with_locals) = ident.with_locals.borrow().as_ref() {
+					let label = $generator.ir.label();
+					
+					for with_local in with_locals {
+						$generator.emit_load_lifted_slot(*with_local);
+						$generator.ir.emit(Ir::$on_jump(ident.name, label));
+					}
+					
+					Some(label)
+				} else {
+					None
+				};
+				
+				$generator.ir.emit(Ir::LoadGlobalThis);
+				$generator.ir.emit(Ir::$on_name(ident.name));
+				
+				if let Some(label) = label {
+					$generator.ir.mark(label);
+				}
+				
+				if !$leave {
+					$generator.ir.emit(Ir::Pop);
+				}
+				
+				return Ok(());
+			}
+		}
+		
+		match $expr {
+			&Expr::MemberDot(ref expr, name) => {
+				try!($generator.emit_expr(expr, true));
+				$generator.ir.emit(Ir::$on_name(name))
+			}
+			&Expr::MemberIndex(ref expr, ref index) => {
+				try!($generator.emit_expr(expr, true));
+				try!($generator.emit_exprs(index, true));
+				$generator.ir.emit(Ir::$on_index);
+			}
+			expr @ _ => {
+				let mut matched = false;
+				
+				if let &Expr::Ident(ref ident) = expr {
+					if ident.state.get() == IdentState::Global {
+						$generator.ir.emit(Ir::LoadGlobalThis);
+						$generator.ir.emit(Ir::$on_name(ident.name));
+						matched = true;
+					}
+				}
+				
+				if !matched {
+					try!($generator.emit_expr(expr, true));
+					$generator.ir.emit(Ir::$on_expr);
+				}
+			}
+		}
+		
+		if !$leave {
+			$generator.ir.emit(Ir::Pop);
+		}
+		
+		return Ok(());
+	}
+}
+
 #[derive(Copy, Clone)]
 struct NamedLabel {
 	name: Option<Name>,
@@ -62,7 +133,7 @@ impl IrContext {
 		&self.interner
 	}
 	
-	pub fn parse_file(&mut self, file_name: &str) -> JsResult<FunctionRef> {
+	pub fn parse_file(&mut self, file_name: &str, strict: bool) -> JsResult<FunctionRef> {
 		let mut js = String::new();
 		let mut file = match File::open(file_name) {
 			Ok(ok) => ok,
@@ -72,11 +143,11 @@ impl IrContext {
 			return Err(JsError::Io(err));
 		}
 		
-		self.build_ir(&mut StringReader::new(file_name, &js))
+		self.build_ir(&mut StringReader::new(file_name, &js), strict)
 	}
 	
-	pub fn parse_string(&mut self, js: &str) -> JsResult<FunctionRef> {
-		self.build_ir(&mut StringReader::new("(global)", js))
+	pub fn parse_string(&mut self, js: &str, strict: bool) -> JsResult<FunctionRef> {
+		self.build_ir(&mut StringReader::new("(global)", js), strict)
 	}
 	
 	pub fn get_function_ir(&mut self, function_ref: FunctionRef) -> JsResult<Rc<builder::Block>> {
@@ -85,11 +156,18 @@ impl IrContext {
 		Ok(self.functions[function_ref.usize()].as_ref().unwrap().clone())
 	}
 	
-	fn build_ir(&mut self, reader: &mut StringReader) -> JsResult<FunctionRef> {
+	fn build_ir(&mut self, reader: &mut StringReader, strict: bool) -> JsResult<FunctionRef> {
 		let offset = self.ast.functions.len();
 		
-		let mut lexer = try!(Lexer::new(reader, &mut self.interner, false));
-		let program = try!(Parser::parse_program(&mut self.ast, &mut lexer));
+		let program = {
+			let mut lexer = try!(Lexer::new(reader, &self.interner));
+			
+			if strict {
+				lexer.set_strict(true);
+			}
+			
+			try!(Parser::parse_program(&mut self.ast, &mut lexer, &self.interner))
+		};
 		
 		// Append the new functions to our functions.
 		
@@ -111,7 +189,7 @@ impl IrContext {
 		
 		let block = {
 			let block_locals = &function.block.locals.borrow();
-			let mut generator = IrGenerator::new(self, block_locals);
+			let mut generator = IrGenerator::new(self, block_locals, function.global);
 			
 			generator.push_local_scope(&function.block.block);
 			
@@ -127,7 +205,7 @@ impl IrContext {
 		Ok(())
 	}
 	
-	pub fn get_function_description(&self, function_ref: FunctionRef) -> IrFunction {
+	pub fn get_function(&self, function_ref: FunctionRef) -> IrFunction {
 		let function = &self.ast.functions[function_ref.usize()];
 		
 		IrFunction {
@@ -137,7 +215,7 @@ impl IrContext {
 			has_arguments: function.block.has_arguments.get(),
 			scope: function.block.scope.get(),
 			takes_scope: function.block.takes_scope.get(),
-			span: function.span.clone()
+			span: function.span
 		}
 	}
 	
@@ -148,7 +226,7 @@ impl IrContext {
 			let function = &self.ast.functions[i];
 			
 			ir.push_str("\n");
-			ir.push_str(&*function.span.file);
+			ir.push_str(&*self.interner.get(function.span.file));
 			write!(ir, "[{}:{}]", function.span.start_line, function.span.start_col).ok();
 			ir.push_str(" ");
 			
@@ -171,15 +249,16 @@ impl IrContext {
 		Ok(())
 	}
 	
-	fn get_slot(&self, function_ref: FunctionRef, slot_ref: SlotRef) -> Slot {
-		let function = &self.ast.functions[function_ref.usize()];
-		function.block.locals.borrow().slots[slot_ref.usize()]
+	fn get_slot(&self, slot_ref: FunctionSlotRef) -> Slot {
+		let function = &self.ast.functions[slot_ref.function().usize()];
+		function.block.locals.borrow().slots[slot_ref.slot().usize()]
 	}
 }
 
 struct IrGenerator<'a> {
 	ctx: &'a IrContext,
 	block_locals: &'a Locals,
+	global: bool,
 	ir: builder::IrBuilder,
 	break_targets: Vec<NamedLabel>,
 	continue_targets: Vec<NamedLabel>,
@@ -190,10 +269,11 @@ struct IrGenerator<'a> {
 }
 
 impl<'a> IrGenerator<'a> {
-	fn new(ctx: &'a IrContext, locals: &'a Locals) -> IrGenerator<'a> {
+	fn new(ctx: &'a IrContext, locals: &'a Locals, global: bool) -> IrGenerator<'a> {
 		let mut generator = IrGenerator {
 			ctx: ctx,
 			block_locals: locals,
+			global: global,
 			ir: builder::IrBuilder::new(),
 			break_targets: Vec::new(),
 			continue_targets: Vec::new(),
@@ -205,22 +285,32 @@ impl<'a> IrGenerator<'a> {
 		
 		for slot in &locals.slots {
 			generator.locals.push(
-				if slot.arg.is_none() && slot.lifted.is_none() {
-					Some(generator.ir.local(Some(slot.name)))
+				if slot.arg.is_none() && slot.lifted.is_none() && !slot.global {
+					Some(generator.ir.local(slot.name))
 				} else {
 					None
 				}
 			);
 		}
 		
-		// Build the prolog to move the arguments into the scope.
+		// Build the prolog to move the arguments into the scope and to
+		// declare variables with undefined.
 		
 		for i in 0..locals.slots.len() {
 			let slot = &locals.slots[i];
-			if let Some(index) = slot.lifted {
-				if let Some(arg) = slot.arg {
+			if let Some(arg) = slot.arg {
+				if let Some(index) = slot.lifted {
 					generator.ir.emit(Ir::LoadParam(arg));
 					generator.ir.emit(Ir::StoreLifted(index, 0));
+				}
+			} else {
+				generator.ir.emit(Ir::LoadUndefined);
+				if slot.global {
+					generator.ir.emit(Ir::StoreGlobal(slot.name.unwrap()))
+				} else if let Some(index) = slot.lifted {
+					generator.ir.emit(Ir::StoreLifted(index, 0));
+				} else {
+					generator.ir.emit(Ir::StoreLocal(generator.locals[i].unwrap()));
 				}
 			}
 		}
@@ -367,7 +457,7 @@ impl<'a> IrGenerator<'a> {
 			&Item::Try(ref try, ref catch, ref finally) => self.emit_try(try, catch, finally),
 			&Item::VarDecl(ref vars) => self.emit_var_decl(vars),
 			&Item::While(ref label, ref expr, ref stmt) => self.emit_while(label, expr, stmt),
-			&Item::With(ref exprs, ref stmt) => self.emit_with(exprs, stmt)
+			&Item::With(ref exprs, ref stmt, ref with_local) => self.emit_with(exprs, stmt, with_local.get().unwrap())
 		}
 	}
 	
@@ -544,9 +634,13 @@ impl<'a> IrGenerator<'a> {
 		
 		self.ir.emit(Ir::NextIter(iter, next_label));
 		
+		self.ir.emit(Ir::Leave(break_target.label));
+		
 		self.ir.start_finally();
 		
 		self.ir.emit(Ir::EndIter(iter));
+		
+		self.ir.emit(Ir::EndFinally);
 		
 		self.ir.end_exception_block();
 		
@@ -732,11 +826,8 @@ impl<'a> IrGenerator<'a> {
 		for var in vars {
 			if let Some(ref expr) = var.expr {
 				try!(self.emit_expr(expr, true));
-			} else {
-				self.ir.emit(Ir::LoadUndefined);
+				self.emit_store(&var.ident);
 			}
-			
-			self.emit_store(&var.ident);
 		}
 		
 		Ok(())
@@ -768,11 +859,21 @@ impl<'a> IrGenerator<'a> {
 		Ok(())
 	}
 	
-	fn emit_with(&mut self, exprs: &'a ExprSeq, stmt: &'a Item) -> JsResult<()> {
+	fn emit_with(&mut self, exprs: &'a ExprSeq, stmt: &'a Item, with_local: SlotRef) -> JsResult<()> {
 		try!(self.emit_exprs(exprs, true));
-		self.ir.emit(Ir::EnterWith);
+		self.ir.emit(Ir::CastObject);
+		self.emit_store_slot(with_local);
+		
 		try!(self.emit_stmt(stmt));
-		self.ir.emit(Ir::LeaveWith);
+		
+		// Clear the local to allow the garbage collector to collect the value.
+		// We can only do this if it's not a lifted slot though.
+		
+		let slot = &self.block_locals.slots[with_local.usize()];
+		if slot.lifted.is_none() {
+			self.ir.emit(Ir::LoadUndefined);
+			self.emit_store_slot(with_local);
+		}
 		
 		Ok(())
 	}
@@ -1070,11 +1171,11 @@ impl<'a> IrGenerator<'a> {
 			match lit {
 				&Lit::Null => self.ir.emit(Ir::LoadNull),
 				&Lit::Boolean(value) => self.ir.emit(if value { Ir::LoadTrue } else { Ir::LoadFalse }),
-				&Lit::String(ref value) => self.ir.emit(Ir::LoadString(value.clone())),
+				&Lit::String(value) => self.ir.emit(Ir::LoadString(value)),
 				&Lit::Integer(value) => self.ir.emit(Ir::LoadI32(value)),
 				&Lit::Long(value) => self.ir.emit(Ir::LoadI64(value)),
 				&Lit::Double(value) => self.ir.emit(Ir::LoadF64(value)),
-				&Lit::Regex(ref body, ref flags) => self.ir.emit(Ir::LoadRegex(body.clone(), flags.clone()))
+				&Lit::Regex(body, flags) => self.ir.emit(Ir::LoadRegex(body, flags))
 			}
 		}
 		
@@ -1198,7 +1299,11 @@ impl<'a> IrGenerator<'a> {
 	
 	fn emit_expr_this(&mut self, leave: bool) -> JsResult<()> {
 		if leave {
-			self.ir.emit(Ir::LoadThis);
+			if self.global {
+				self.ir.emit(Ir::LoadGlobalThis);
+			} else {
+				self.ir.emit(Ir::LoadThis);
+			}
 		}
 		
 		Ok(())
@@ -1256,70 +1361,9 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_expr_unary(&mut self, op: Op, expr: &'a Expr, leave: bool) -> JsResult<()> {
-		enum Reference {
-			Index,
-			Name(Name),
-			None
-		}
-		
-		fn emit_reference<'a, 'b>(generator: &'a mut IrGenerator<'b>, expr: &'b Expr) -> JsResult<Reference> {
-			match expr {
-				&Expr::MemberDot(ref expr, ident) => {
-					try!(generator.emit_expr(expr, true));
-					Ok(Reference::Name(ident))
-				}
-				&Expr::MemberIndex(ref expr, ref index) => {
-					try!(generator.emit_expr(expr, true));
-					try!(generator.emit_exprs(index, true));
-					Ok(Reference::Index)
-				}
-				expr @ _ => {
-					if let &Expr::Ident(ref ident) = expr {
-						if ident.state.get() == IdentState::Global {
-							generator.ir.emit(Ir::LoadGlobalThis);
-							return Ok(Reference::Name(ident.name));
-						}
-					}
-					
-					try!(generator.emit_expr(expr, true));
-					Ok(Reference::None)
-				}
-			}
-		}
-		
 		match op {
-			Op::Delete => {
-				match try!(emit_reference(self, expr)) {
-					Reference::Index => self.ir.emit(Ir::DeleteIndex),
-					Reference::Name(name) => self.ir.emit(Ir::DeleteName(name)),
-					Reference::None => {
-						self.ir.emit(Ir::Pop);
-						if leave {
-							self.ir.emit(Ir::LoadTrue);
-							return Ok(());
-						}
-					}
-				}
-				
-				if !leave {
-					self.ir.emit(Ir::Pop);
-				}
-				
-				return Ok(());
-			}
-			Op::Typeof => {
-				match try!(emit_reference(self, expr)) {
-					Reference::Index => self.ir.emit(Ir::TypeofIndex),
-					Reference::Name(name) => self.ir.emit(Ir::TypeofName(name)),
-					Reference::None => self.ir.emit(Ir::Typeof)
-				}
-				
-				if !leave {
-					self.ir.emit(Ir::Pop);
-				}
-				
-				return Ok(());
-			}
+			Op::Delete => { typeof_delete!(self, expr, leave, Delete, DeleteName, DeleteNameJump, DeleteIndex); },
+			Op::Typeof => { typeof_delete!(self, expr, leave, Typeof, TypeofName, TypeofNameJump, TypeofIndex); },
 			Op::PostDecr => {
 				let lhs_ref = try!(self.emit_lhs_load(expr));
 				
@@ -1430,46 +1474,106 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_load(&mut self, ident: &'a Ident) {
+		let label = if let Some(with_locals) = ident.with_locals.borrow().as_ref() {
+			let label = self.ir.label();
+			
+			for with_local in with_locals {
+				self.emit_load_lifted_slot(*with_local);
+				self.ir.emit(Ir::LoadNameJump(ident.name, label));
+			}
+			
+			Some(label)
+		} else {
+			None
+		};
+		
 		match ident.state.get() {
 			IdentState::Global => self.ir.emit(Ir::LoadGlobal(ident.name)),
 			IdentState::Scoped => unimplemented!(),
 			IdentState::Arguments => self.ir.emit(Ir::LoadArguments),
-			IdentState::Slot(slot_ref) => {
-				let slot = &self.block_locals.slots[slot_ref.usize()];
-				if let Some(index) = slot.lifted {
-					self.ir.emit(Ir::LoadLifted(index, 0));
-				} else if let Some(arg) = slot.arg {
-					self.ir.emit(Ir::LoadParam(arg));
-				} else {
-					self.ir.emit(Ir::LoadLocal(self.locals[slot_ref.usize()].unwrap()));
-				}
-			}
-			IdentState::LiftedSlot(function_ref, slot_ref, depth) => {
-				self.ir.emit(Ir::LoadLifted(self.ctx.get_slot(function_ref, slot_ref).lifted.unwrap(), depth));
-			}
+			IdentState::Slot(slot_ref) => self.emit_load_slot(slot_ref),
+			IdentState::LiftedSlot(slot_ref) => self.emit_load_lifted_slot(slot_ref),
 			_ => panic!()
+		}
+		
+		if let Some(label) = label {
+			self.ir.mark(label);
+		}
+	}
+	
+	fn emit_load_slot(&mut self, slot_ref: SlotRef) {
+		let slot = &self.block_locals.slots[slot_ref.usize()];
+		if let Some(index) = slot.lifted {
+			self.ir.emit(Ir::LoadLifted(index, 0));
+		} else if let Some(arg) = slot.arg {
+			self.ir.emit(Ir::LoadParam(arg));
+		} else {
+			self.ir.emit(Ir::LoadLocal(self.locals[slot_ref.usize()].unwrap()));
+		}
+	}
+	
+	fn emit_load_lifted_slot(&mut self, slot_ref: FunctionSlotRef) {
+		if slot_ref.depth() == 0 {
+			self.emit_load_slot(slot_ref.slot());
+		} else {
+			self.ir.emit(Ir::LoadLifted(self.ctx.get_slot(slot_ref).lifted.unwrap(), slot_ref.depth()));
 		}
 	}
 	
 	fn emit_store(&mut self, ident: &'a Ident) {
+		let label = if let Some(with_locals) = ident.with_locals.borrow().as_ref() {
+			let label = self.ir.label();
+			
+			for with_local in with_locals {
+				self.emit_load_lifted_slot(*with_local);
+				self.ir.emit(Ir::Pick(1));
+				self.ir.emit(Ir::StoreNameJump(ident.name, label));
+			}
+			
+			Some(label)
+		} else {
+			None
+		};
+		
 		match ident.state.get() {
 			IdentState::Global => self.ir.emit(Ir::StoreGlobal(ident.name)),
 			IdentState::Scoped => panic!("Not yet implemented"),
 			IdentState::Arguments => self.ir.emit(Ir::StoreArguments),
-			IdentState::Slot(slot_ref) => {
-				let slot = &self.block_locals.slots[slot_ref.usize()];
-				if let Some(index) = slot.lifted {
-					self.ir.emit(Ir::StoreLifted(index, 0));
-				} else if let Some(arg) = slot.arg {
-					self.ir.emit(Ir::StoreParam(arg));
-				} else {
-					self.ir.emit(Ir::StoreLocal(self.locals[slot_ref.usize()].unwrap()));
-				}
-			}
-			IdentState::LiftedSlot(function_ref, slot_ref, depth) => {
-				self.ir.emit(Ir::StoreLifted(self.ctx.get_slot(function_ref, slot_ref).lifted.unwrap(), depth));
-			}
+			IdentState::Slot(slot_ref) => self.emit_store_slot(slot_ref),
+			IdentState::LiftedSlot(slot_ref) => self.emit_store_lifted_slot(slot_ref),
 			_ => panic!()
+		}
+		
+		if let Some(label) = label {
+			// If we get here from the normal store, the value will have
+			// been popped of the stack, so we can jump over this.
+			// Otherwise we got here because of a StoreNameJump. In that case
+			// we still need to clean up the value.
+			
+			let after_label = self.ir.label();
+			self.ir.emit(Ir::Jump(after_label));
+			self.ir.mark(label);
+			self.ir.emit(Ir::Pop);
+			self.ir.mark(after_label);
+		}
+	}
+	
+	fn emit_store_slot(&mut self, slot_ref: SlotRef) {
+		let slot = &self.block_locals.slots[slot_ref.usize()];
+		if let Some(index) = slot.lifted {
+			self.ir.emit(Ir::StoreLifted(index, 0));
+		} else if let Some(arg) = slot.arg {
+			self.ir.emit(Ir::StoreParam(arg));
+		} else {
+			self.ir.emit(Ir::StoreLocal(self.locals[slot_ref.usize()].unwrap()));
+		}
+	}
+	
+	fn emit_store_lifted_slot(&mut self, slot_ref: FunctionSlotRef) {
+		if slot_ref.depth() == 0 {
+			self.emit_store_slot(slot_ref.slot());
+		} else {
+			self.ir.emit(Ir::StoreLifted(self.ctx.get_slot(slot_ref).lifted.unwrap(), slot_ref.depth()));
 		}
 	}
 }

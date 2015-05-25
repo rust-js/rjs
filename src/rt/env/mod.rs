@@ -101,6 +101,10 @@ fn setup_global(env: &mut JsEnv) {
 	
 	function!(global, name::ESCAPE, Global_escape, 1, &function_prototype, env);
 	function!(global, name::UNESCAPE, Global_unescape, 1, &function_prototype, env);
+	function!(global, name::PARSE_INT, Global_parseInt, 1, &function_prototype, env);
+	function!(global, name::PARSE_FLOAT, Global_parseFloat, 1, &function_prototype, env);
+	function!(global, name::IS_NAN, Global_isNaN, 1, &function_prototype, env);
+	function!(global, name::IS_FINITE, Global_isFinite, 1, &function_prototype, env);
 	function!(global, name::EVAL, Global_eval, 1, &function_prototype, env);
 	
 	value!(global, name::NAN, JsValue::new_number(f64::NAN), false, false, false, env);
@@ -211,6 +215,8 @@ fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototyp
 
 	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
 	
+	env.date_prototype = Root::from_local(&env.heap, prototype);
+	
 	function!(&mut prototype, name::GET_YEAR, Date_getYear, 0, function_prototype, env);
 	function!(&mut prototype, name::SET_YEAR, Date_setYear, 1, function_prototype, env);
 	function!(&mut prototype, name::TO_GMT_STRING, Date_toGMTString, 0, function_prototype, env);
@@ -228,6 +234,8 @@ fn setup_number<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	property!(global, name::NUMBER_CLASS, class, true, false, true, env);
 
 	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
+	
+	env.number_prototype = Root::from_local(&env.heap, prototype);
 
 	function!(&mut prototype, name::VALUE_OF, Number_valueOf, 0, function_prototype, env);
 	function!(&mut prototype, name::TO_STRING, Number_toString, 0, function_prototype, env);
@@ -237,6 +245,10 @@ fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_proto
 	let class = new_function(env, Some(name::BOOLEAN_CLASS), 0, &Boolean_constructor, &function_prototype);
 	
 	property!(global, name::BOOLEAN_CLASS, class, true, false, true, env);
+	
+	let prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
+	
+	env.boolean_prototype = Root::from_local(&env.heap, prototype);
 }
 
 fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: &Local<JsObject>) {
@@ -251,6 +263,10 @@ fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	let class = new_function(env, Some(name::REGEXP_CLASS), 0, &RegExp_constructor, &function_prototype);
 	
 	property!(global, name::REGEXP_CLASS, class, true, false, true, env);
+	
+	let prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
+	
+	env.regexp_prototype = Root::from_local(&env.heap, prototype);
 }
 
 fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: &Local<JsObject>) {

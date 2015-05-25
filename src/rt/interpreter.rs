@@ -64,6 +64,8 @@ impl JsEnv {
 		};
 		
 		let scope = if let Some(size) = function.scope {
+			let _scope = self.heap.new_local_scope();
+			
 			let scope = JsScope::new_local(self, size as usize, scope).as_value(self);
 			self.stack.push(*scope);
 			locals += 1;
@@ -377,9 +379,19 @@ impl<'a> Frame<'a> {
 				let function = frame.get(1).as_local(self.env);
 				let function = self.env.get_value(function);
 				
-				let result = local_try!(function.call(self.env, this, args));
+				let result = local_try!(function.call(self.env, this, args, self.strict));
 				
 				self.env.stack.drop_frame(frame);
+				self.env.stack.push(*result);
+			}
+			&Ir::CastObject => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(1);
+				let arg = frame.get(0).as_local(self.env);
+				let result = local_try!(arg.to_object(self.env));
+				self.env.stack.drop_frame(frame);
+				
 				self.env.stack.push(*result);
 			}
 			&Ir::CurrentIter(local) => {
@@ -397,6 +409,14 @@ impl<'a> Frame<'a> {
 				self.env.stack.push(*result);
 			},
 			&Ir::Debugger => { unimplemented!(); },
+			&Ir::Delete => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(1);
+				self.env.stack.drop_frame(frame);
+				
+				self.env.stack.push(JsValue::new_true());
+			}
 			&Ir::DeleteIndex => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -408,6 +428,7 @@ impl<'a> Frame<'a> {
 				let result = local_try!(frame.get(0).as_local(self.env).delete(self.env, index, true));
 				
 				self.env.stack.drop_frame(frame);
+				
 				self.env.stack.push(JsValue::new_bool(result));
 			}
 			&Ir::DeleteName(name) => {
@@ -420,6 +441,25 @@ impl<'a> Frame<'a> {
 				self.env.stack.drop_frame(frame);
 				self.env.stack.push(JsValue::new_bool(result));
 			}
+			&Ir::DeleteNameJump(name, label) => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(1);
+				
+				let mut object = frame.get(0).as_local(self.env);
+				
+				if object.has_property(self.env, name) {
+					let result = local_try!(object.delete(self.env, name, true));
+					
+					self.env.stack.drop_frame(frame);
+					self.env.stack.push(JsValue::new_bool(result));
+					
+					self.ip = label.offset();
+					return Next::Next;
+				}
+				
+				self.env.stack.drop_frame(frame);
+			}
 			&Ir::Divide => { unimplemented!(); },
 			&Ir::Dup => {
 				let frame = self.env.stack.create_frame(1);
@@ -427,7 +467,6 @@ impl<'a> Frame<'a> {
 			}
 			&Ir::EndFinally => return Next::EndFinally,
 			&Ir::EndIter(local) => { /* no-op */ },
-			&Ir::EnterWith => { unimplemented!(); },
 			&Ir::Eq => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -516,7 +555,6 @@ impl<'a> Frame<'a> {
 				self.env.stack.push(JsValue::new_bool(result));
 			}
 			&Ir::Leave(label) => return Next::Leave(label.offset()),
-			&Ir::LeaveWith => { unimplemented!(); },
 			&Ir::LoadArguments => self.env.stack.push(self.locals.get(self.arguments.unwrap())),
 			&Ir::LoadException => {
 				if let Some(ref exception) = self.thrown {
@@ -582,7 +620,9 @@ impl<'a> Frame<'a> {
 				let result = scope.get(self.env, index as usize);
 				self.env.stack.push(*result);
 			},
-			&Ir::LoadLocal(local) => self.env.stack.push(self.locals.get(local.offset())),
+			&Ir::LoadLocal(local) => {
+				self.env.stack.push(self.locals.get(local.offset()));
+			},
 			&Ir::LoadMissing => { unimplemented!(); },
 			&Ir::LoadName(name) => {
 				let _scope = self.env.heap.new_local_scope();
@@ -591,6 +631,22 @@ impl<'a> Frame<'a> {
 				let result = local_try!(frame.get(0).as_local(self.env).get(self.env, name));
 				self.env.stack.drop_frame(frame);
 				self.env.stack.push(*result);
+			}
+			&Ir::LoadNameJump(name, label) => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(1);
+				let object = frame.get(0).as_local(self.env);
+				
+				if object.has_property(self.env, name) {
+					let result = local_try!(object.get(self.env, name));
+					self.env.stack.drop_frame(frame);
+					self.env.stack.push(*result);
+					self.ip = label.offset();
+					return Next::Next;
+				}
+				
+				self.env.stack.drop_frame(frame);
 			}
 			&Ir::LoadNameLit => { unimplemented!(); },
 			&Ir::LoadNull => self.env.stack.push(JsValue::new_null()),
@@ -602,10 +658,10 @@ impl<'a> Frame<'a> {
 				}
 			}
 			&Ir::LoadRegex(ref pattern, ref modifiers) => { unimplemented!(); },
-			&Ir::LoadString(ref string) => {
+			&Ir::LoadString(string) => {
 				let _scope = self.env.heap.new_local_scope();
 				
-				let result = JsString::from_str(self.env, &string).as_value(self.env);
+				let result = JsString::from_str(self.env, &*self.env.ir.interner().get(string)).as_value(self.env);
 				self.env.stack.push(*result);
 			}
 			&Ir::LoadThis => {
@@ -698,7 +754,10 @@ impl<'a> Frame<'a> {
 				self.env.stack.drop_frame(frame);
 				self.env.stack.push(*result);
 			},
-			&Ir::Pick(depth) => { unimplemented!(); },
+			&Ir::Pick(depth) => {
+				let frame = self.env.stack.create_frame(depth as usize + 1);
+				self.env.stack.push(frame.get(0));
+			},
 			&Ir::Pop => {
 				let frame = self.env.stack.create_frame(1);
 				self.env.stack.drop_frame(frame);
@@ -755,6 +814,22 @@ impl<'a> Frame<'a> {
 				let frame = self.env.stack.create_frame(2);
 				let value = frame.get(1).as_local(self.env);
 				local_try!(frame.get(0).as_local(self.env).put(self.env, name, value, self.strict));
+				self.env.stack.drop_frame(frame);
+			}
+			&Ir::StoreNameJump(name, label) => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(2);
+				let mut object = frame.get(0).as_local(self.env);
+				
+				if object.has_property(self.env, name) {
+					let value = frame.get(1).as_local(self.env);
+					local_try!(object.put(self.env, name, value, self.strict));
+					self.env.stack.drop_frame(frame);
+					self.ip = label.offset();
+					return Next::Next;
+				}
+				
 				self.env.stack.drop_frame(frame);
 			}
 			&Ir::StoreGetter(function) => { unimplemented!(); },
@@ -840,6 +915,26 @@ impl<'a> Frame<'a> {
 				self.env.stack.drop_frame(frame);
 				
 				self.env.stack.push(JsValue::new_string(result.as_ptr()));
+			}
+			&Ir::TypeofNameJump(name, label) => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(1);
+				let object = frame.get(0).as_local(self.env);
+				
+				if object.has_property(self.env, name) {
+					let arg = local_try!(object.get(self.env, name));
+					let result = self.env.type_of(arg);
+					
+					self.env.stack.drop_frame(frame);
+					
+					self.env.stack.push(JsValue::new_string(result.as_ptr()));
+					
+					self.ip = label.offset();
+					return Next::Next;
+				}
+				
+				self.env.stack.drop_frame(frame);
 			}
 			&Ir::TypeofIndex => {
 				let _scope = self.env.heap.new_local_scope();
