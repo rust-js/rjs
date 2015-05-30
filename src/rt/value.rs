@@ -208,15 +208,15 @@ impl JsValue {
 	}
 	
 	pub fn as_scope(&self, env: &JsEnv) -> Local<JsScope> {
-		Local::from_ptr(self.get_scope(), &env.heap)
+		self.get_scope().as_local(&env)
 	}
 }
 
 macro_rules! delegate {
 	( $target:expr, $env:expr, $method:ident ( $( $arg:expr ),* ) ) => {
 		match $target.ty() {
-			JsType::Undefined => JsUndefined::new().$method( $( $arg ),* ),
-			JsType::Null => JsNull::new().$method( $( $arg ),* ),
+			JsType::Undefined => JsUndefined.$method( $( $arg ),* ),
+			JsType::Null => JsNull.$method( $( $arg ),* ),
 			JsType::Number => JsNumber::new($target.get_number()).$method( $( $arg ),* ),
 			JsType::Boolean => JsBoolean::new($target.get_bool()).$method( $( $arg ),* ),
 			JsType::Object => $target.as_object($env).$method( $( $arg ),* ),
@@ -315,11 +315,11 @@ impl JsItem for Local<JsValue> {
 		delegate!(self, env, has_instance(env, object))
 	}
 	
-	fn scope(&self, env: &JsEnv) -> Option<Local<JsValue>>  {
+	fn scope(&self, env: &JsEnv) -> Option<Local<JsScope>>  {
 		delegate!(self, env, scope(env))
 	}
 	
-	fn set_scope(&mut self, env: &JsEnv, scope: Option<Local<JsValue>>) {
+	fn set_scope(&mut self, env: &JsEnv, scope: Option<Local<JsScope>>) {
 		delegate!(self, env, set_scope(env, scope))
 	}
 	

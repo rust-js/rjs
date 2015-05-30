@@ -196,7 +196,15 @@ impl Local<JsObject> {
 				if !can_write(env, &current, &descriptor) {
 					if throw { Err(JsError::new_type(env, ::errors::TYPE_CANNOT_WRITE)) } else { Ok(false) }
 				} else {
+					let descriptor = JsDescriptor {
+						writable: Some(descriptor.writable.unwrap_or(current.is_writable())),
+						enumerable: Some(descriptor.enumerable.unwrap_or(current.is_enumerable())),
+						configurable: Some(descriptor.configurable.unwrap_or(current.is_configurable())),
+						..descriptor
+					};
+
 					self.store.replace(env, property, &descriptor);
+					
 					Ok(true)
 				}
 			}
@@ -475,17 +483,17 @@ impl JsItem for Local<JsObject> {
 		}
 	}
 	
-	fn scope(&self, env: &JsEnv) -> Option<Local<JsValue>> {
+	fn scope(&self, env: &JsEnv) -> Option<Local<JsScope>> {
 		if self.scope.is_null() {
 			None
 		} else {
-			Some(JsValue::new_scope(self.scope).as_local(env))
+			Some(JsValue::new_scope(self.scope).get_scope().as_local(env))
 		}
 	}
 	
-	fn set_scope(&mut self, _: &JsEnv, scope: Option<Local<JsValue>>) {
+	fn set_scope(&mut self, _: &JsEnv, scope: Option<Local<JsScope>>) {
 		if let Some(scope) = scope {
-			self.scope = scope.get_scope();
+			self.scope = scope.as_ptr();
 		} else {
 			self.scope = Ptr::null();
 		}
@@ -525,7 +533,7 @@ trait Store {
 }
 
 pub enum JsStoreKey {
-	Key(Name),
+	Key(Name, bool),
 	Missing,
 	End
 }

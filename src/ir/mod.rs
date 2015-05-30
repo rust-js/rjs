@@ -20,37 +20,7 @@ use std::io::Read;
 // mix this becomes very complex. However, they are very similar and to limit code
 // duplication a macro implements both.
 macro_rules! typeof_delete {
-	( $generator:expr , $expr:expr , $leave:expr , $on_expr:ident , $on_name:ident , $on_jump:ident , $on_index:ident ) => {
-		if let &Expr::Ident(ref ident) = $expr {
-			if ident.state.get() == IdentState::Global {
-				let label = if let Some(with_locals) = ident.with_locals.borrow().as_ref() {
-					let label = $generator.ir.label();
-					
-					for with_local in with_locals {
-						$generator.emit_load_lifted_slot(*with_local);
-						$generator.ir.emit(Ir::$on_jump(ident.name, label));
-					}
-					
-					Some(label)
-				} else {
-					None
-				};
-				
-				$generator.ir.emit(Ir::LoadGlobalThis);
-				$generator.ir.emit(Ir::$on_name(ident.name));
-				
-				if let Some(label) = label {
-					$generator.ir.mark(label);
-				}
-				
-				if !$leave {
-					$generator.ir.emit(Ir::Pop);
-				}
-				
-				return Ok(());
-			}
-		}
-		
+	( $generator:expr , $expr:expr , $leave:expr , $on_expr:ident , $on_name:ident , $on_index:ident ) => {
 		match $expr {
 			&Expr::MemberDot(ref expr, name) => {
 				try!($generator.emit_expr(expr, true));
@@ -62,15 +32,23 @@ macro_rules! typeof_delete {
 				$generator.ir.emit(Ir::$on_index);
 			}
 			expr @ _ => {
-				let mut matched = false;
-				
-				if let &Expr::Ident(ref ident) = expr {
-					if ident.state.get() == IdentState::Global {
-						$generator.ir.emit(Ir::LoadGlobalThis);
-						$generator.ir.emit(Ir::$on_name(ident.name));
-						matched = true;
+				let matched = if let Some(ident) = $generator.unwrap_ident(expr) {
+					match ident.state.get() {
+						IdentState::Scoped | IdentState::Global => {
+							$generator.ir.emit(Ir::LoadEnvObjectFor(ident.name));
+							$generator.ir.emit(Ir::$on_name(ident.name));
+							true
+						}
+						IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
+							$generator.emit_load_arguments(ident.state.get());
+							$generator.ir.emit(Ir::$on_name(Name::from_index(index as usize)));
+							true
+						}
+						_ => false
 					}
-				}
+				} else {
+					false
+				};
 				
 				if !matched {
 					try!($generator.emit_expr(expr, true));
@@ -110,9 +88,8 @@ pub struct IrFunction {
 	pub name: Option<Name>,
 	pub args: u32,
 	pub strict: bool,
-	pub has_arguments: bool,
-	pub scope: Option<u32>,
-	pub takes_scope: bool,
+	pub build_scope: ScopeType,
+	pub take_scope: bool,
 	pub span: Span
 }
 
@@ -143,23 +120,23 @@ impl IrContext {
 			return Err(JsError::Io(err));
 		}
 		
-		self.build_ir(&mut StringReader::new(file_name, &js), strict)
+		self.build_ir(&mut StringReader::new(file_name, &js), strict, false, false)
 	}
 	
-	pub fn parse_string(&mut self, js: &str, strict: bool) -> JsResult<FunctionRef> {
-		self.build_ir(&mut StringReader::new("(global)", js), strict)
+	pub fn parse_string(&mut self, js: &str, strict: bool, direct_eval: bool) -> JsResult<FunctionRef> {
+		self.build_ir(&mut StringReader::new("(global)", js), strict, true, direct_eval)
 	}
 	
 	pub fn get_function_ir(&mut self, function_ref: FunctionRef) -> JsResult<Rc<builder::Block>> {
-		try!(self.build_function_ir(function_ref));
+		try!(self.build_function_ir(function_ref, false));
 		
 		Ok(self.functions[function_ref.usize()].as_ref().unwrap().clone())
 	}
 	
-	fn build_ir(&mut self, reader: &mut StringReader, strict: bool) -> JsResult<FunctionRef> {
+	fn build_ir(&mut self, reader: &mut StringReader, strict: bool, eval: bool, direct_eval: bool) -> JsResult<FunctionRef> {
 		let offset = self.ast.functions.len();
 		
-		let program = {
+		let program_ref = {
 			let mut lexer = try!(Lexer::new(reader, &self.interner));
 			
 			if strict {
@@ -169,18 +146,32 @@ impl IrContext {
 			try!(Parser::parse_program(&mut self.ast, &mut lexer, &self.interner))
 		};
 		
+		// Strict eval programs need to build a thick scope to isolate
+		// their environment.
+		
+		// Borrow scope.
+		{
+			let block = &self.ast.functions[program_ref.usize()].block;
+			
+			block.state.borrow_mut().build_scope = if (strict || block.strict) && eval {
+				ScopeType::Thick
+			} else {
+				ScopeType::None
+			};
+		}
+		
 		// Append the new functions to our functions.
 		
 		for _ in offset..self.ast.functions.len() {
 			self.functions.push(None);
 		}
 		
-		try!(self.build_function_ir(program));
+		try!(self.build_function_ir(program_ref, direct_eval));
 		
-		Ok(program)
+		Ok(program_ref)
 	}
 	
-	fn build_function_ir(&mut self, function_ref: FunctionRef) -> JsResult<()> {
+	fn build_function_ir(&mut self, function_ref: FunctionRef, direct_eval: bool) -> JsResult<()> {
 		if self.functions[function_ref.usize()].is_some() {
 			return Ok(());
 		}
@@ -188,14 +179,78 @@ impl IrContext {
 		let function = &self.ast.functions[function_ref.usize()];
 		
 		let block = {
-			let block_locals = &function.block.locals.borrow();
-			let mut generator = IrGenerator::new(self, block_locals, function.global);
+			let block_state = &function.block.state.borrow();
+			let mut generator = IrGenerator::new(self, block_state, function.block.strict, direct_eval);
+			
+			// Build the prolog to move the arguments into the scope and to
+			// declare variables with undefined.
+			
+			for i in 0..block_state.slots.len() {
+				let slot = &block_state.slots[i];
+				if let Some(arg) = slot.arg {
+					match slot.state {
+						SlotState::Scoped => {
+							generator.ir.emit(Ir::LoadEnvObject);
+							generator.ir.emit(Ir::LoadParam(arg));
+							generator.ir.emit(Ir::StoreName(slot.name));
+						}
+						SlotState::Lifted(index) => {
+							generator.ir.emit(Ir::LoadParam(arg));
+							generator.ir.emit(Ir::StoreLifted(index, 0));
+						}
+						_ => {}
+					}
+				} else if function.block.block.locals.contains_key(&slot.name) {
+					let is_arguments = slot.name == name::ARGUMENTS;
+					
+					let init = if is_arguments {
+						Ir::NewArguments
+					} else {
+						Ir::LoadUndefined
+					};
+					
+					match slot.state {
+						SlotState::Scoped => {
+							if is_arguments {
+								generator.ir.emit(init);
+								generator.ir.emit(Ir::StoreEnvArguments);
+							} else {
+								generator.ir.emit(Ir::LoadEnvObject);
+								generator.ir.emit(init);
+								generator.ir.emit(Ir::StoreName(slot.name));
+							}
+						}
+						SlotState::Lifted(index) => {
+							generator.ir.emit(init);
+							generator.ir.emit(Ir::StoreLifted(index, 0));
+						}
+						SlotState::Local => {
+							generator.ir.emit(init);
+							generator.ir.emit(Ir::StoreLocal(generator.locals[i].unwrap()));
+						}
+					}
+				}
+			}
 			
 			generator.push_local_scope(&function.block.block);
 			
 			try!(generator.emit_functions(&function.block.block));
 			
-			try!(generator.emit_block(&function.block.block, true));
+			try!(generator.emit_block(&function.block.block));
+			
+			// Build the return statement. We always have a return undefined
+			// for when the function does not exit explicitly. If
+			// we returned from a try block, we have a return target and
+			// need to return from that.
+			
+			generator.ir.emit(Ir::LoadUndefined);
+			generator.ir.emit(Ir::Return);
+			
+			if let Some(return_target) = generator.return_target {
+				generator.ir.mark(return_target.label);
+				generator.ir.emit(Ir::LoadLocal(return_target.local));
+				generator.ir.emit(Ir::Return);
+			}
 			
 			generator.ir.build()
 		};
@@ -208,20 +263,21 @@ impl IrContext {
 	pub fn get_function(&self, function_ref: FunctionRef) -> IrFunction {
 		let function = &self.ast.functions[function_ref.usize()];
 		
+		let state = function.block.state.borrow();
+		
 		IrFunction {
 			name: function.name,
 			args: function.args,
 			strict: function.block.strict,
-			has_arguments: function.block.has_arguments.get(),
-			scope: function.block.scope.get(),
-			takes_scope: function.block.takes_scope.get(),
+			build_scope: state.build_scope,
+			take_scope: state.take_scope,
 			span: function.span
 		}
 	}
 	
 	pub fn print_ir(&mut self, ir: &mut String) -> JsResult<()> {
 		for i in 0..self.functions.len() {
-			try!(self.build_function_ir(FunctionRef(i as u32)));
+			try!(self.build_function_ir(FunctionRef(i as u32), false));
 			
 			let function = &self.ast.functions[i];
 			
@@ -238,8 +294,22 @@ impl IrContext {
 					None => "(anonymous)"
 				};
 				
-				ir.push_str("function ");
+				ir.push_str("function '");
 				ir.push_str(name);
+				ir.push_str("'");
+				
+				let block_state = function.block.state.borrow();
+				
+				match block_state.build_scope {
+					ScopeType::Thick => ir.push_str(" .thick_scope"),
+					ScopeType::Thin(size) => { write!(ir, " .thin_scope({})", size).ok(); }
+					_ => {} 
+				}
+				
+				if block_state.take_scope {
+					ir.push_str(" .take_scope");
+				}
+				
 				ir.push_str(":\n\n");
 			}
 			
@@ -251,68 +321,50 @@ impl IrContext {
 	
 	fn get_slot(&self, slot_ref: FunctionSlotRef) -> Slot {
 		let function = &self.ast.functions[slot_ref.function().usize()];
-		function.block.locals.borrow().slots[slot_ref.slot().usize()]
+		function.block.state.borrow().slots[slot_ref.slot().usize()]
 	}
 }
 
 struct IrGenerator<'a> {
 	ctx: &'a IrContext,
-	block_locals: &'a Locals,
-	global: bool,
+	block_state: &'a RootBlockState,
 	ir: builder::IrBuilder,
 	break_targets: Vec<NamedLabel>,
 	continue_targets: Vec<NamedLabel>,
 	scopes: Vec<&'a Block>,
 	locals: Vec<Option<builder::Local>>,
 	try_catch_depth: i32,
-	return_target: Option<ReturnTarget>
+	return_target: Option<ReturnTarget>,
+	strict: bool,
+	env_count: usize
 }
 
 impl<'a> IrGenerator<'a> {
-	fn new(ctx: &'a IrContext, locals: &'a Locals, global: bool) -> IrGenerator<'a> {
+	fn new(ctx: &'a IrContext, block_state: &'a RootBlockState, strict: bool, direct_eval: bool) -> IrGenerator<'a> {
 		let mut generator = IrGenerator {
 			ctx: ctx,
-			block_locals: locals,
-			global: global,
+			block_state: block_state,
 			ir: builder::IrBuilder::new(),
 			break_targets: Vec::new(),
 			continue_targets: Vec::new(),
 			scopes: Vec::new(),
 			locals: Vec::new(),
 			try_catch_depth: 0,
-			return_target: None
+			return_target: None,
+			strict: strict,
+			env_count: if direct_eval || block_state.build_scope == ScopeType::Thick { 1 } else { 0 }
 		};
 		
-		for slot in &locals.slots {
+		// Create locals for all local slots.
+		
+		for slot in &block_state.slots {
 			generator.locals.push(
-				if slot.arg.is_none() && slot.lifted.is_none() && !slot.global {
-					Some(generator.ir.local(slot.name))
+				if slot.arg.is_none() && slot.state == SlotState::Local {
+					Some(generator.ir.local(Some(slot.name)))
 				} else {
 					None
 				}
 			);
-		}
-		
-		// Build the prolog to move the arguments into the scope and to
-		// declare variables with undefined.
-		
-		for i in 0..locals.slots.len() {
-			let slot = &locals.slots[i];
-			if let Some(arg) = slot.arg {
-				if let Some(index) = slot.lifted {
-					generator.ir.emit(Ir::LoadParam(arg));
-					generator.ir.emit(Ir::StoreLifted(index, 0));
-				}
-			} else {
-				generator.ir.emit(Ir::LoadUndefined);
-				if slot.global {
-					generator.ir.emit(Ir::StoreGlobal(slot.name.unwrap()))
-				} else if let Some(index) = slot.lifted {
-					generator.ir.emit(Ir::StoreLifted(index, 0));
-				} else {
-					generator.ir.emit(Ir::StoreLocal(generator.locals[i].unwrap()));
-				}
-			}
 		}
 		
 		generator
@@ -372,6 +424,16 @@ impl<'a> IrGenerator<'a> {
 		self.scopes.pop();
 	}
 	
+	fn unwrap_ident(&self, mut expr: &'a Expr) -> Option<&'a Ident> {
+		loop {
+			match expr {
+				&Expr::Ident(ref ident) => return Some(ident),
+				&Expr::Paren(ref exprs) => expr = &exprs.exprs[exprs.exprs.len() - 1],
+				_ => return None
+			}
+		}
+	}
+	
 	fn emit_labeled_block(&mut self, label: &'a Option<Label>, block: &'a Block) -> JsResult<()> {
 		let break_target = if label.is_some() {
 			let break_target = self.named_label(label);
@@ -409,20 +471,9 @@ impl<'a> IrGenerator<'a> {
 		Ok(())
 	}
 	
-	fn emit_block(&mut self, block: &'a Block, outer: bool) -> JsResult<()> {
+	fn emit_block(&mut self, block: &'a Block) -> JsResult<()> {
 		for stmt in &block.stmts {
 			try!(self.emit_stmt(&stmt));
-		}
-		
-		if outer {
-			self.ir.emit(Ir::LoadUndefined);
-			self.ir.emit(Ir::Return);
-			
-			if let Some(return_target) = self.return_target {
-				self.ir.mark(return_target.label);
-				self.ir.emit(Ir::LoadLocal(return_target.local));
-				self.ir.emit(Ir::Return);
-			}
 		}
 		
 		Ok(())
@@ -457,7 +508,7 @@ impl<'a> IrGenerator<'a> {
 			&Item::Try(ref try, ref catch, ref finally) => self.emit_try(try, catch, finally),
 			&Item::VarDecl(ref vars) => self.emit_var_decl(vars),
 			&Item::While(ref label, ref expr, ref stmt) => self.emit_while(label, expr, stmt),
-			&Item::With(ref exprs, ref stmt, ref with_local) => self.emit_with(exprs, stmt, with_local.get().unwrap())
+			&Item::With(ref exprs, ref stmt) => self.emit_with(exprs, stmt)
 		}
 	}
 	
@@ -786,7 +837,7 @@ impl<'a> IrGenerator<'a> {
 		
 		self.ir.start_exception_block();
 		
-		try!(self.emit_block(try, false));
+		try!(self.emit_block(try));
 		
 		self.ir.emit(Ir::Leave(after_label));
 		
@@ -795,10 +846,40 @@ impl<'a> IrGenerator<'a> {
 			
 			self.push_local_scope(&catch.block);
 			
-			self.ir.emit(Ir::LoadException);
-			self.emit_store(&catch.ident);
+			// Build the catch block. In deopt, we're entering a scope.
+			// Otherwise we can just emit the statements.
 			
-			try!(self.emit_block(&catch.block, false));
+			let deopt = self.block_state.build_scope == ScopeType::Thick;
+			
+			if deopt {
+				self.try_catch_depth += 1;
+	
+				self.ir.emit(Ir::EnterEnv);
+				self.env_count += 1;
+				self.ir.start_exception_block();
+				
+				self.ir.emit(Ir::LoadEnvObject);
+				self.ir.emit(Ir::LoadException);
+				self.ir.emit(Ir::StoreName(catch.ident.name));
+				
+				try!(self.emit_block(&catch.block));
+				
+				let label = self.ir.label();
+				self.ir.emit(Ir::Leave(label));
+				self.ir.start_finally();
+				self.env_count -= 1;
+				self.ir.emit(Ir::LeaveEnv);
+				self.ir.emit(Ir::EndFinally);
+				self.ir.end_exception_block();
+				self.ir.mark(label);
+	
+				self.try_catch_depth -= 1;
+			} else {
+				self.ir.emit(Ir::LoadException);
+				self.emit_store(&catch.ident);
+				
+				try!(self.emit_block(&catch.block));
+			}
 			
 			self.pop_local_scope();
 			
@@ -808,7 +889,7 @@ impl<'a> IrGenerator<'a> {
 		if let &Some(ref finally) = finally {
 			self.ir.start_finally();
 			
-			try!(self.emit_block(finally, false));
+			try!(self.emit_block(finally));
 			
 			self.ir.emit(Ir::EndFinally);
 		}
@@ -859,21 +940,26 @@ impl<'a> IrGenerator<'a> {
 		Ok(())
 	}
 	
-	fn emit_with(&mut self, exprs: &'a ExprSeq, stmt: &'a Item, with_local: SlotRef) -> JsResult<()> {
+	fn emit_with(&mut self, exprs: &'a ExprSeq, stmt: &'a Item) -> JsResult<()> {
+		self.try_catch_depth += 1;
+		
 		try!(self.emit_exprs(exprs, true));
-		self.ir.emit(Ir::CastObject);
-		self.emit_store_slot(with_local);
+		self.ir.emit(Ir::EnterWithEnv);
+		self.env_count += 1;
+		self.ir.start_exception_block();
 		
 		try!(self.emit_stmt(stmt));
 		
-		// Clear the local to allow the garbage collector to collect the value.
-		// We can only do this if it's not a lifted slot though.
-		
-		let slot = &self.block_locals.slots[with_local.usize()];
-		if slot.lifted.is_none() {
-			self.ir.emit(Ir::LoadUndefined);
-			self.emit_store_slot(with_local);
-		}
+		let label = self.ir.label();
+		self.ir.emit(Ir::Leave(label));
+		self.ir.start_finally();
+		self.env_count -= 1;
+		self.ir.emit(Ir::LeaveEnv);
+		self.ir.emit(Ir::EndFinally);
+		self.ir.end_exception_block();
+		self.ir.mark(label);
+
+		self.try_catch_depth -= 1;
 		
 		Ok(())
 	}
@@ -1043,13 +1129,30 @@ impl<'a> IrGenerator<'a> {
 		
 		match self.unwrap_paren(lhs) {
 			&Expr::Ident(ref ident) => {
-				try!(load(self));
-				
-				if leave {
-					self.ir.emit(Ir::Dup);
+				match ident.state.get() {
+					IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
+						if leave {
+							try!(load(self));
+							self.ir.emit(Ir::Dup);
+							self.emit_load_arguments(ident.state.get());
+							self.ir.emit(Ir::Swap);
+						} else {
+							self.emit_load_arguments(ident.state.get());
+							try!(load(self));
+						}
+						
+						self.ir.emit(Ir::StoreName(Name::from_index(index as usize)));
+					}
+					_ => {
+						try!(load(self));
+						
+						if leave {
+							self.ir.emit(Ir::Dup);
+						}
+						
+						self.emit_store(ident);
+					}
 				}
-				
-				self.emit_store(ident);
 			},
 			&Expr::MemberDot(ref expr, ident) => {
 				if leave {
@@ -1130,7 +1233,7 @@ impl<'a> IrGenerator<'a> {
 			self.ir.emit(Ir::Dup);
 			self.ir.emit(Ir::LoadName(ident));
 		} else {
-			self.ir.emit(Ir::LoadGlobalThis);
+			self.ir.emit(Ir::LoadGlobalObject);
 			try!(self.emit_expr(expr, true));
 		}
 		
@@ -1138,7 +1241,19 @@ impl<'a> IrGenerator<'a> {
 			try!(self.emit_expr(arg, true));
 		}
 		
-		self.ir.emit(Ir::Call(args.len() as u32));
+		let is_eval = if self.strict {
+			false
+		} else if let &Expr::Ident(ref ident) = expr {
+			ident.name == name::EVAL
+		} else {
+			false
+		};
+		
+		if is_eval {
+			self.ir.emit(Ir::CallEnv(args.len() as u32));
+		} else {
+			self.ir.emit(Ir::Call(args.len() as u32));
+		}
 		
 		if !leave {
 			self.ir.emit(Ir::Pop);
@@ -1183,21 +1298,23 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_expr_member_dot(&mut self, expr: &'a Expr, ident: Name, leave: bool) -> JsResult<()> {
-		try!(self.emit_expr(expr, leave));
+		try!(self.emit_expr(expr, true));
+		self.ir.emit(Ir::LoadName(ident));
 		
-		if leave {
-			self.ir.emit(Ir::LoadName(ident));
+		if !leave {
+			self.ir.emit(Ir::Pop);
 		}
 		
 		Ok(())
 	}
 	
 	fn emit_expr_member_index(&mut self, expr: &'a Expr, index: &'a ExprSeq, leave: bool) -> JsResult<()> {
-		try!(self.emit_expr(expr, leave));
-		try!(self.emit_exprs(index, leave));
+		try!(self.emit_expr(expr, true));
+		try!(self.emit_exprs(index, true));
+		self.ir.emit(Ir::LoadIndex);
 		
-		if leave {
-			self.ir.emit(Ir::LoadIndex);
+		if !leave {
+			self.ir.emit(Ir::Pop);
 		}
 		
 		Ok(())
@@ -1299,11 +1416,7 @@ impl<'a> IrGenerator<'a> {
 	
 	fn emit_expr_this(&mut self, leave: bool) -> JsResult<()> {
 		if leave {
-			if self.global {
-				self.ir.emit(Ir::LoadGlobalThis);
-			} else {
-				self.ir.emit(Ir::LoadThis);
-			}
+			self.ir.emit(Ir::LoadThis);
 		}
 		
 		Ok(())
@@ -1314,7 +1427,16 @@ impl<'a> IrGenerator<'a> {
 		
 		match expr {
 			&Expr::Ident(ref ident) => {
-				self.emit_load(ident);
+				match ident.state.get() {
+					IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
+						self.emit_load_arguments(ident.state.get());
+						self.ir.emit(Ir::Dup);
+						self.ir.emit(Ir::LoadName(Name::from_index(index as usize)));
+					}
+					_ => {
+						self.emit_load(ident);
+					}
+				}
 			}
 			&Expr::MemberDot(ref expr, ident) => {
 				try!(self.emit_expr(expr, true));
@@ -1322,15 +1444,10 @@ impl<'a> IrGenerator<'a> {
 				self.ir.emit(Ir::LoadName(ident));
 			}
 			&Expr::MemberIndex(ref expr, ref index) => {
-				try!(self.emit_exprs(index, true));
-				self.ir.emit(Ir::Dup);
 				try!(self.emit_expr(expr, true));
-				self.ir.emit(Ir::Dup);
-				
-				// The stack now is: index, index, expr, expr. We pick 2 to move the
-				// second index to the top so we get: index, expr, expr, index.
-				
-				self.ir.emit(Ir::Pick(2));
+				try!(self.emit_exprs(index, true));
+				self.ir.emit(Ir::Pick(1));
+				self.ir.emit(Ir::Pick(1));
 				self.ir.emit(Ir::LoadIndex);
 			}
 			_ => panic!()
@@ -1344,16 +1461,19 @@ impl<'a> IrGenerator<'a> {
 	fn emit_lhs_store(&mut self, lhs_ref: LhsRef<'a>) {
 		match lhs_ref.expr {
 			&Expr::Ident(ref ident) => {
-				self.emit_store(ident);
+				match ident.state.get() {
+					IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
+						self.ir.emit(Ir::StoreName(Name::from_index(index as usize)));
+					}
+					_ => {
+						self.emit_store(ident);
+					}
+				}
 			}
 			&Expr::MemberDot(_, ident) => {
 				self.ir.emit(Ir::StoreName(ident));
 			}
 			&Expr::MemberIndex(..) => {
-				// The stack now is: index, expr. Swap the top elements to get:
-				// expr, index.
-
-				self.ir.emit(Ir::Swap);
 				self.ir.emit(Ir::StoreIndex);
 			}
 			_ => panic!()
@@ -1362,8 +1482,8 @@ impl<'a> IrGenerator<'a> {
 	
 	fn emit_expr_unary(&mut self, op: Op, expr: &'a Expr, leave: bool) -> JsResult<()> {
 		match op {
-			Op::Delete => { typeof_delete!(self, expr, leave, Delete, DeleteName, DeleteNameJump, DeleteIndex); },
-			Op::Typeof => { typeof_delete!(self, expr, leave, Typeof, TypeofName, TypeofNameJump, TypeofIndex); },
+			Op::Delete => { typeof_delete!(self, expr, leave, Delete, DeleteName, DeleteIndex); },
+			Op::Typeof => { typeof_delete!(self, expr, leave, Typeof, TypeofName, TypeofIndex); },
 			Op::PostDecr => {
 				let lhs_ref = try!(self.emit_lhs_load(expr));
 				
@@ -1474,36 +1594,34 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_load(&mut self, ident: &'a Ident) {
-		let label = if let Some(with_locals) = ident.with_locals.borrow().as_ref() {
-			let label = self.ir.label();
-			
-			for with_local in with_locals {
-				self.emit_load_lifted_slot(*with_local);
-				self.ir.emit(Ir::LoadNameJump(ident.name, label));
-			}
-			
-			Some(label)
-		} else {
-			None
-		};
-		
 		match ident.state.get() {
-			IdentState::Global => self.ir.emit(Ir::LoadGlobal(ident.name)),
-			IdentState::Scoped => unimplemented!(),
-			IdentState::Arguments => self.ir.emit(Ir::LoadArguments),
+			IdentState::Scoped | IdentState::Global => {
+				if self.env_count > 0 {
+					if
+						ident.name == name::ARGUMENTS &&
+						self.block_state.build_scope == ScopeType::Thick
+					{
+						self.ir.emit(Ir::LoadEnvArguments(0));
+					} else {
+						self.ir.emit(Ir::LoadEnv(ident.name));
+					}
+				} else {
+					self.ir.emit(Ir::LoadGlobal(ident.name));
+				}
+			}
 			IdentState::Slot(slot_ref) => self.emit_load_slot(slot_ref),
 			IdentState::LiftedSlot(slot_ref) => self.emit_load_lifted_slot(slot_ref),
-			_ => panic!()
-		}
-		
-		if let Some(label) = label {
-			self.ir.mark(label);
+			IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
+				self.emit_load_arguments(ident.state.get());
+				self.ir.emit(Ir::LoadName(Name::from_index(index as usize)));
+			}
+			IdentState::None => panic!()
 		}
 	}
 	
 	fn emit_load_slot(&mut self, slot_ref: SlotRef) {
-		let slot = &self.block_locals.slots[slot_ref.usize()];
-		if let Some(index) = slot.lifted {
+		let slot = &self.block_state.slots[slot_ref.usize()];
+		if let SlotState::Lifted(index) = slot.state {
 			self.ir.emit(Ir::LoadLifted(index, 0));
 		} else if let Some(arg) = slot.arg {
 			self.ir.emit(Ir::LoadParam(arg));
@@ -1515,52 +1633,44 @@ impl<'a> IrGenerator<'a> {
 	fn emit_load_lifted_slot(&mut self, slot_ref: FunctionSlotRef) {
 		if slot_ref.depth() == 0 {
 			self.emit_load_slot(slot_ref.slot());
+		} else if let SlotState::Lifted(index) = self.ctx.get_slot(slot_ref).state {
+			self.ir.emit(Ir::LoadLifted(index, slot_ref.depth()));
 		} else {
-			self.ir.emit(Ir::LoadLifted(self.ctx.get_slot(slot_ref).lifted.unwrap(), slot_ref.depth()));
+			panic!();
 		}
 	}
 	
 	fn emit_store(&mut self, ident: &'a Ident) {
-		let label = if let Some(with_locals) = ident.with_locals.borrow().as_ref() {
-			let label = self.ir.label();
-			
-			for with_local in with_locals {
-				self.emit_load_lifted_slot(*with_local);
-				self.ir.emit(Ir::Pick(1));
-				self.ir.emit(Ir::StoreNameJump(ident.name, label));
-			}
-			
-			Some(label)
-		} else {
-			None
-		};
-		
 		match ident.state.get() {
-			IdentState::Global => self.ir.emit(Ir::StoreGlobal(ident.name)),
-			IdentState::Scoped => panic!("Not yet implemented"),
-			IdentState::Arguments => self.ir.emit(Ir::StoreArguments),
+			IdentState::Scoped | IdentState::Global => {
+				if self.env_count > 0 {
+					self.ir.emit(Ir::StoreEnv(ident.name));
+				} else {
+					self.ir.emit(Ir::StoreGlobal(ident.name));
+				}
+			}
 			IdentState::Slot(slot_ref) => self.emit_store_slot(slot_ref),
 			IdentState::LiftedSlot(slot_ref) => self.emit_store_lifted_slot(slot_ref),
-			_ => panic!()
+			IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
+				self.emit_load_arguments(ident.state.get());
+				self.ir.emit(Ir::StoreName(Name::from_index(index as usize)));
+			}
+			IdentState::None => panic!()
 		}
-		
-		if let Some(label) = label {
-			// If we get here from the normal store, the value will have
-			// been popped of the stack, so we can jump over this.
-			// Otherwise we got here because of a StoreNameJump. In that case
-			// we still need to clean up the value.
-			
-			let after_label = self.ir.label();
-			self.ir.emit(Ir::Jump(after_label));
-			self.ir.mark(label);
-			self.ir.emit(Ir::Pop);
-			self.ir.mark(after_label);
+	}
+	
+	fn emit_load_arguments(&mut self, state: IdentState) {
+		match state {
+			IdentState::Arg(slot_ref, _) => self.emit_load_slot(slot_ref),
+			IdentState::LiftedArg(slot_ref, _) => self.emit_load_lifted_slot(slot_ref),
+			IdentState::ScopedArg(depth, _) => self.ir.emit(Ir::LoadEnvArguments(depth)),
+			_ => panic!()
 		}
 	}
 	
 	fn emit_store_slot(&mut self, slot_ref: SlotRef) {
-		let slot = &self.block_locals.slots[slot_ref.usize()];
-		if let Some(index) = slot.lifted {
+		let slot = &self.block_state.slots[slot_ref.usize()];
+		if let SlotState::Lifted(index) = slot.state {
 			self.ir.emit(Ir::StoreLifted(index, 0));
 		} else if let Some(arg) = slot.arg {
 			self.ir.emit(Ir::StoreParam(arg));
@@ -1572,8 +1682,10 @@ impl<'a> IrGenerator<'a> {
 	fn emit_store_lifted_slot(&mut self, slot_ref: FunctionSlotRef) {
 		if slot_ref.depth() == 0 {
 			self.emit_store_slot(slot_ref.slot());
+		} else if let SlotState::Lifted(index) = self.ctx.get_slot(slot_ref).state {
+			self.ir.emit(Ir::StoreLifted(index, slot_ref.depth()));
 		} else {
-			self.ir.emit(Ir::StoreLifted(self.ctx.get_slot(slot_ref).lifted.unwrap(), slot_ref.depth()));
+			panic!();
 		}
 	}
 }

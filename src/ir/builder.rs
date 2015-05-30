@@ -2,6 +2,7 @@ use syntax::Name;
 use syntax::ast::FunctionRef;
 use util::interner::StrInterner;
 use std::fmt::Write;
+use std::cmp::Ordering;
 
 pub struct Block {
 	pub ir: Vec<Ir>,
@@ -90,23 +91,17 @@ impl Block {
 				&Ir::BitNot => string.push_str("bit.not"),
 				&Ir::BitOr => string.push_str("bit.or"),
 				&Ir::BitXOr => string.push_str("bit.xor"),
-				&Ir::Call(args) => { write!(string, "call {}", args).ok(); },
-				&Ir::CastObject => string.push_str("cast.object"),
+				&Ir::Call(args) => { write!(string, "call {}", args).ok(); }
+				&Ir::CallEnv(args) => { write!(string, "call.env {}", args).ok(); } 
 				&Ir::CurrentIter(local) => {
 					string.push_str("iter.cur ");
 					self.print_local(string, local, interner);
-				},
+				}
 				&Ir::Debugger => string.push_str("debug"),
 				&Ir::Delete => string.push_str("delete"),
 				&Ir::DeleteName(name) => {
 					string.push_str("delete.name ");
 					self.print_name(string, name, interner);
-				}
-				&Ir::DeleteNameJump(name, label) => {
-					string.push_str("delete.name.jmp ");
-					self.print_name(string, name, interner);
-					string.push_str(", ");
-					self.print_label(string, label);
 				}
 				&Ir::DeleteIndex => string.push_str("delete.index"),
 				&Ir::Divide => string.push_str("div"),
@@ -115,7 +110,9 @@ impl Block {
 				&Ir::EndIter(local) => {
 					string.push_str("iter.end ");
 					self.print_local(string, local, interner);
-				},
+				}
+				&Ir::EnterEnv => string.push_str("env.enter"),
+				&Ir::EnterWithEnv => string.push_str("env.enter.with"),
 				&Ir::Eq => string.push_str("eq"),
 				&Ir::Ge => string.push_str("ge"),
 				&Ir::Gt => string.push_str("gt"),
@@ -124,73 +121,78 @@ impl Block {
 				&Ir::IntoIter(local) => {
 					string.push_str("iter.into ");
 					self.print_local(string, local, interner);
-				},
+				}
 				&Ir::Jump(label) => {
 					string.push_str("jmp ");
 					self.print_label(string, label);
-				},
+				}
 				&Ir::JumpEq(label) => {
 					string.push_str("jmp.eq ");
 					self.print_label(string, label);
-				},
+				}
 				&Ir::JumpFalse(label) => {
 					string.push_str("jmp.f ");
 					self.print_label(string, label);
-				},
+				}
 				&Ir::JumpTrue(label) => {
 					string.push_str("jmp.t ");
 					self.print_label(string, label);
-				},
+				}
 				&Ir::Le => string.push_str("le"),
 				&Ir::Leave(label) => {
 					string.push_str("leave ");
 					self.print_label(string, label);
-				},
+				}
+				&Ir::LeaveEnv => string.push_str("env.leave"),
 				&Ir::LoadArguments => string.push_str("ld.arguments"),
-				&Ir::LoadException => string.push_str("ld.exception"),
-				&Ir::LoadF64(value) => { write!(string, "ld.f64 {}", value).ok(); },
-				&Ir::LoadFalse => string.push_str("ld.false"),
-				&Ir::LoadFunction(index) => { write!(string, "ld.func {}", index.usize()).ok(); },
+				&Ir::LoadEnv(name) => {
+					string.push_str("ld.env ");
+					self.print_name(string, name, interner);
+				}
+				&Ir::LoadEnvArguments(depth) => { write!(string, "ld.env.args {}", depth).ok(); },
+				&Ir::LoadEnvObject => string.push_str("ld.env.obj"),
+				&Ir::LoadEnvObjectFor(name) => {
+					string.push_str("ld.env.obj.for ");
+					self.print_name(string, name, interner);
+				}
 				&Ir::LoadGlobal(name) => {
 					string.push_str("ld.global ");
 					self.print_name(string, name, interner);
-				},
-				&Ir::LoadGlobalThis => string.push_str("ld.global.this"),
-				&Ir::LoadI32(value) => { write!(string, "ld.i32 {}", value).ok(); },
-				&Ir::LoadI64(value) => { write!(string, "ld.i64 {}", value).ok(); },
+				}
+				&Ir::LoadGlobalObject => string.push_str("ld.global.obj"),
+				&Ir::LoadException => string.push_str("ld.exception"),
+				&Ir::LoadF64(value) => { write!(string, "ld.f64 {}", value).ok(); }
+				&Ir::LoadFalse => string.push_str("ld.false"),
+				&Ir::LoadFunction(index) => { write!(string, "ld.func {}", index.usize()).ok(); }
+				&Ir::LoadI32(value) => { write!(string, "ld.i32 {}", value).ok(); }
+				&Ir::LoadI64(value) => { write!(string, "ld.i64 {}", value).ok(); }
 				&Ir::LoadIndex => string.push_str("ld.idx"),
 				&Ir::LoadLifted(index, depth) => {
 					string.push_str("ld.lifted ");
-					write!(string, "{}, {}", index, depth).ok();
-				},
+					write!(string, "{} {}", index, depth).ok();
+				}
 				&Ir::LoadLocal(local) => {
 					string.push_str("ld.local ");
 					self.print_local(string, local, interner);
-				},
+				}
 				&Ir::LoadMissing => string.push_str("ld.missing"),
 				&Ir::LoadName(name) => {
 					string.push_str("ld.name ");
 					self.print_name(string, name, interner);
-				},
-				&Ir::LoadNameJump(name, label) => {
-					string.push_str("ld.name.jmp ");
-					self.print_name(string, name, interner);
-					string.push_str(", ");
-					self.print_label(string, label);
 				}
 				&Ir::LoadNameLit => string.push_str("ld.name.lit"),
 				&Ir::LoadNull => string.push_str("ld.null"),
-				&Ir::LoadParam(index) => { write!(string, "ld.arg {}", index).ok(); },
+				&Ir::LoadParam(index) => { write!(string, "ld.arg {}", index).ok(); }
 				&Ir::LoadRegex(body, flags) => {
 					string.push_str("ld.regex ");
 					self.print_string(string, &*interner.get(body));
 					string.push_str(", ");
 					self.print_string(string, &*interner.get(flags));
-				},
+				}
 				&Ir::LoadString(value) => {
 					string.push_str("ld.str ");
 					self.print_string(string, &*interner.get(value));
-				},
+				}
 				&Ir::LoadThis => string.push_str("ld.this"),
 				&Ir::LoadTrue => string.push_str("ld.true"),
 				&Ir::LoadUndefined => string.push_str("ld.undefined"),
@@ -200,7 +202,8 @@ impl Block {
 				&Ir::Multiply => string.push_str("mul"),
 				&Ir::Ne => string.push_str("ne"),
 				&Ir::Negative => string.push_str("neg"),
-				&Ir::New(args) => { write!(string, "new {}", args).ok(); },
+				&Ir::New(args) => { write!(string, "new {}", args).ok(); }
+				&Ir::NewArguments => string.push_str("new.args"),
 				&Ir::NewArray => string.push_str("new.array"),
 				&Ir::NewObject => string.push_str("new.object"),
 				&Ir::NextIter(local, label) => {
@@ -208,51 +211,49 @@ impl Block {
 					self.print_local(string, local, interner);
 					string.push_str(", ");
 					self.print_label(string, label);
-				},
+				}
 				&Ir::Not => string.push_str("not"),
-				&Ir::Pick(offset) => { write!(string, "pick {}", offset).ok(); },
+				&Ir::Pick(offset) => { write!(string, "pick {}", offset).ok(); }
 				&Ir::Pop => string.push_str("pop"),
 				&Ir::Positive => string.push_str("pos"),
 				&Ir::Return => string.push_str("ret"),
 				&Ir::Rsh => string.push_str("rsh"),
 				&Ir::RshZeroFill => string.push_str("rsh.zf"),
-				&Ir::StoreArguments => string.push_str("st.arguments"),
-				&Ir::StoreGetter(function) => { write!(string, "st.getter {}", function.usize()).ok(); },
+				&Ir::StoreGetter(function) => { write!(string, "st.getter {}", function.usize()).ok(); }
+				&Ir::StoreGlobal(name) => {
+					string.push_str("st.global ");
+					self.print_name(string, name, interner);
+				}
 				&Ir::StoreNameGetter(name, function) => {
 					string.push_str("st.getter.name ");
 					self.print_name(string, name, interner);
 					write!(string, ", {}", function.usize()).ok();
-				},
-				&Ir::StoreGlobal(name) => {
-					string.push_str("st.global ");
-					self.print_name(string, name, interner);
-				},
-				&Ir::StoreIndex => string.push_str("st.index"),
+				}
+				&Ir::StoreIndex => string.push_str("st.idx"),
 				&Ir::StoreLifted(index, depth) => {
 					string.push_str("st.lifted ");
-					write!(string, "{}, {}", index, depth).ok();
-				},
+					write!(string, "{} {}", index, depth).ok();
+				}
 				&Ir::StoreLocal(local) => {
 					string.push_str("st.local ");
 					self.print_local(string, local, interner);
-				},
+				}
 				&Ir::StoreName(name) => {
 					string.push_str("st.name ");
 					self.print_name(string, name, interner);
-				},
-				&Ir::StoreNameJump(name, label) => {
-					string.push_str("st.name.jmp ");
-					self.print_name(string, name, interner);
-					string.push_str(", ");
-					self.print_label(string, label);
 				}
-				&Ir::StoreParam(index) => { write!(string, "st.arg {}", index).ok(); },
-				&Ir::StoreSetter(function) => { write!(string, "st.setter {}", function.usize()).ok(); },
+				&Ir::StoreParam(index) => { write!(string, "st.arg {}", index).ok(); }
+				&Ir::StoreEnv(name) => {
+					string.push_str("st.env ");
+					self.print_name(string, name, interner);
+				}
+				&Ir::StoreEnvArguments => string.push_str("st.env.args"),
+				&Ir::StoreSetter(function) => { write!(string, "st.setter {}", function.usize()).ok(); }
 				&Ir::StoreNameSetter(name, function) => {
 					string.push_str("st.setter.name ");
 					self.print_name(string, name, interner);
 					write!(string, ", {}", function.usize()).ok();
-				},
+				}
 				&Ir::StrictEq => string.push_str("eq.strict"),
 				&Ir::StrictNe => string.push_str("ne.strict"),
 				&Ir::Subtract => string.push_str("sub"),
@@ -264,12 +265,6 @@ impl Block {
 				&Ir::TypeofName(name) => {
 					string.push_str("typeof.name ");
 					self.print_name(string, name, interner);
-				}
-				&Ir::TypeofNameJump(name, label) => {
-					string.push_str("typeof.name.jmp ");
-					self.print_name(string, name, interner);
-					string.push_str(", ");
-					self.print_label(string, label);
 				}
 			}
 			
@@ -416,6 +411,32 @@ impl IrBuilder {
 			panic!("There are unclosed try/catch blocks");
 		}
 		
+		// Ensure the sort order of the try/catch blocks. Try/catches need
+		// to be sorted in reverse order for the execution engine to map
+		// them correctly to IR instructions.
+		
+		self.try_catches.sort_by(|x, y| {
+			let x_start = x.try.start().offset();
+			let y_start = y.try.start().offset();
+			
+			if x_start > y_start {
+				Ordering::Less
+			} else if x_start < y_start {
+				Ordering::Greater
+			} else {
+				let x_end = x.try.end().offset();
+				let y_end = y.try.end().offset();
+				
+				if x_end < y_end {
+					Ordering::Less
+				} else if x_end > y_end {
+					Ordering::Greater
+				} else {
+					panic!("did not expect two try blocks with same start and end");
+				}
+			}
+		});
+		
 		// Try cach blocks are stored in reverse because that's the order
 		// in which they need to be matched.
 		
@@ -488,17 +509,17 @@ pub enum Ir {
 	BitOr,
 	BitXOr,
 	Call(u32),
-	CastObject,
 	CurrentIter(Local),
 	Debugger,
 	Delete,
-	DeleteName(Name),
-	DeleteNameJump(Name, Label),
 	DeleteIndex,
+	DeleteName(Name),
 	Divide,
 	Dup,
 	EndFinally,
 	EndIter(Local),
+	EnterEnv,
+	EnterWithEnv,
 	Eq,
 	Ge,
 	Gt,
@@ -511,13 +532,12 @@ pub enum Ir {
 	JumpTrue(Label),
 	Le,
 	Leave(Label),
+	LeaveEnv,
 	LoadArguments,
 	LoadException,
 	LoadF64(f64),
 	LoadFalse,
 	LoadFunction(FunctionRef),
-	LoadGlobal(Name),
-	LoadGlobalThis,
 	LoadI32(i32),
 	LoadI64(i64),
 	LoadIndex,
@@ -525,11 +545,16 @@ pub enum Ir {
 	LoadLocal(Local),
 	LoadMissing,
 	LoadName(Name),
-	LoadNameJump(Name, Label),
 	LoadNameLit,
 	LoadNull,
 	LoadParam(u32),
 	LoadRegex(Name, Name),
+	LoadEnv(Name),
+	LoadEnvObject,
+	LoadEnvObjectFor(Name),
+	LoadGlobal(Name),
+	LoadGlobalObject,
+	LoadEnvArguments(u32),
 	LoadString(Name),
 	LoadThis,
 	LoadTrue,
@@ -541,6 +566,7 @@ pub enum Ir {
 	Ne,
 	Negative,
 	New(u32),
+	NewArguments,
 	NewArray,
 	NewObject,
 	NextIter(Local, Label),
@@ -551,18 +577,19 @@ pub enum Ir {
 	Return,
 	Rsh,
 	RshZeroFill,
-	StoreArguments,
+	CallEnv(u32),
+	StoreGetter(FunctionRef),
 	StoreGlobal(Name),
 	StoreIndex,
 	StoreLifted(u32, u32),
 	StoreLocal(Local),
 	StoreName(Name),
-	StoreNameJump(Name, Label),
-	StoreGetter(FunctionRef),
 	StoreNameGetter(Name, FunctionRef),
-	StoreSetter(FunctionRef),
 	StoreNameSetter(Name, FunctionRef),
 	StoreParam(u32),
+	StoreEnv(Name),
+	StoreEnvArguments,
+	StoreSetter(FunctionRef),
 	StrictEq,
 	StrictNe,
 	Subtract,
@@ -571,8 +598,7 @@ pub enum Ir {
 	ToBoolean,
 	Typeof,
 	TypeofIndex,
-	TypeofName(Name),
-	TypeofNameJump(Name, Label)
+	TypeofName(Name)
 }
 
 impl Ir {
@@ -583,11 +609,7 @@ impl Ir {
 			&mut Ir::JumpFalse(ref mut target) |
 			&mut Ir::JumpTrue(ref mut target) |
 			&mut Ir::Leave(ref mut target) |
-			&mut Ir::NextIter(_, ref mut target) |
-			&mut Ir::LoadNameJump(_, ref mut target) |
-			&mut Ir::StoreNameJump(_, ref mut target) |
-			&mut Ir::DeleteNameJump(_, ref mut target) |
-			&mut Ir::TypeofNameJump(_, ref mut target)
+			&mut Ir::NextIter(_, ref mut target)
 				=> target.0 = labels[target.0].0,
 			_ => {}
 		}

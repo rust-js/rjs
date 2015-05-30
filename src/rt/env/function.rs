@@ -38,7 +38,7 @@ pub fn Function_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 	source.push_str(&body.to_string());
 	source.push_str(" }");
 	
-	let function_ref = try!(env.ir.parse_string(&source, args.strict));
+	let function_ref = try!(env.ir.parse_string(&source, args.strict, false));
 	// The function returned is the program, but we need the function. The program
 	// function is created last so we need the last but one.
 	

@@ -12,3 +12,5 @@ pub static TYPE_CANNOT_DELETE : &'static str = "Property cannot be deleted";
 pub static TYPE_NOT_A_CONSTRUCTOR : &'static str = "Not a constructor";
 pub static TYPE_UNDEFINED : &'static str = "Invalid operation on undefined";
 pub static TYPE_NULL : &'static str = "Invalid operation on null";
+pub static TYPE_IN_RHS_NOT_OBJECT : &'static str = "Target of in must be an object";
+pub static TYPE_CANNOT_ACCESS_ARGUMENTS_PROPERTY : &'static str = "Cannot access caller or callee of arguments";

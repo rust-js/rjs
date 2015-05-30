@@ -37,7 +37,8 @@ mod scope;
 const GC_OBJECT : u32 = 1;
 const GC_ENTRY : u32 = 2;
 const GC_STRING : u32 = 3;
-const GC_CHAR : u32 = 4;
+const GC_U16 : u32 = 2;
+const GC_U32 : u32 = 4;
 const GC_VALUE : u32 = 5;
 const GC_HASH_STORE : u32 = 6;
 const GC_ARRAY_STORE : u32 = 7;
@@ -71,7 +72,7 @@ pub struct JsEnv {
 
 impl JsEnv {
 	pub fn new() -> JsResult<JsEnv> {
-		let heap = GcHeap::new(Box::new(Walker::new()), GcOpts::default());
+		let heap = GcHeap::new(Box::new(Walker), GcOpts::default());
 		
 		let global = heap.alloc_root::<JsObject>(GC_OBJECT);
 		let object_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
@@ -114,24 +115,37 @@ impl JsEnv {
 		try!(self.ir.print_ir(&mut ir));
 		debugln!("{}", ir);
 		
-		self.call(function_ref)
+		let _scope = self.heap.new_local_scope();
+		
+		let scope = self.build_global_scope();
+		
+		self.call(function_ref, scope)
 	}
 	
 	pub fn eval(&mut self, js: &str) -> JsResult<Root<JsValue>> {
-		self.eval_strict(js, false)
+		let _scope = self.heap.new_local_scope();
+		
+		let scope = self.build_global_scope();
+		
+		self.eval_scoped(js, false, scope, false)
 	}
 	
-	pub fn eval_strict(&mut self, js: &str, strict: bool) -> JsResult<Root<JsValue>> {
-		let function_ref = try!(self.ir.parse_string(js, strict));
+	fn build_global_scope(&self) -> Local<JsScope> {
+		let global = self.global.as_local(self);
+		JsScope::new_local_thick(self, global, None)
+	}
+	
+	fn eval_scoped(&mut self, js: &str, strict: bool, scope: Local<JsScope>, direct_eval: bool) -> JsResult<Root<JsValue>> {
+		let function_ref = try!(self.ir.parse_string(js, strict, direct_eval));
 		
 		let mut ir = String::new();
 		try!(self.ir.print_ir(&mut ir));
 		debugln!("{}", ir);
 		
-		self.call(function_ref)
+		self.call(function_ref, scope)
 	}
 	
-	fn call(&mut self, function_ref: FunctionRef) -> JsResult<Root<JsValue>> {
+	fn call(&mut self, function_ref: FunctionRef, scope: Local<JsScope>) -> JsResult<Root<JsValue>> {
 		let function = self.ir.get_function(function_ref);
 		let name = if let Some(name) = function.name {
 			self.ir.interner().get(name).to_string()
@@ -144,8 +158,18 @@ impl JsEnv {
 		
 		let block = try!(self.ir.get_function_ir(function_ref));
 		
+		// TODO: Validate. Function is just coerced to undefined because
+		// we don't have it here.
+		let args = JsArgs {
+			function: JsValue::new_undefined().as_local(self),
+			this: self.global.as_value(self),
+			args: Vec::new(),
+			strict: function.strict,
+			mode: JsFnMode::Call
+		};
+		
 		let mut result = self.heap.alloc_root::<JsValue>(GC_VALUE);
-		*result = try!(self.call_block(block, None, Vec::new(), &function, None));
+		*result = try!(self.call_block(block, args, &function, scope));
 		
 		debugln!("EXIT {}", location);
 		
@@ -176,15 +200,23 @@ impl JsEnv {
 		let index = try!(value.to_string(self));
 		Ok(self.intern(&index.to_string()))
 	}
+	
+	fn new_native_function<'a>(&mut self, name: Option<Name>, args: u32, function: &JsFn, prototype: Local<JsObject>) -> Local<JsValue> {
+		let mut proto = JsObject::new_local(self, JsStoreType::Hash);
+		
+		proto.set_class(self, Some(name::OBJECT_CLASS));
+		
+		let mut result = JsObject::new_function(self, JsFunction::Native(name, args, function as *const JsFn, true), prototype).as_value(self);
+		
+		let value = proto.as_value(self);
+		result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false).ok();
+		proto.define_own_property(self, name::CONSTRUCTOR, JsDescriptor::new_value(result, true, false, true), false).ok();
+		
+		result
+	}
 }
 
 struct Walker;
-
-impl Walker {
-	fn new() -> Walker {
-		Walker
-	}
-}
 
 impl GcWalker for Walker {
 	fn walk(&self, _ty: u32, _ptr: *const libc::c_void, _index: u32) -> GcWalk {
@@ -471,11 +503,11 @@ pub trait JsItem {
 		Err(JsError::new_type(env, ::errors::TYPE_CANNOT_HAS_INSTANCE))
 	}
 	
-	fn scope(&self, env: &JsEnv) -> Option<Local<JsValue>> {
+	fn scope(&self, env: &JsEnv) -> Option<Local<JsScope>> {
 		panic!("scope not supported");
 	}
 	
-	fn set_scope(&mut self, env: &JsEnv, scope: Option<Local<JsValue>>) {
+	fn set_scope(&mut self, env: &JsEnv, scope: Option<Local<JsScope>>) {
 		panic!("scope not supported");
 	}
 	

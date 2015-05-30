@@ -376,6 +376,7 @@ test!(language_eval_code_10_4_2_2_c_1, "language/eval-code/10.4.2-2-c-1.js");
 test!(language_eval_code_10_4_2_2_s, "language/eval-code/10.4.2-2-s.js");
 test!(language_eval_code_10_4_2_3_c_1_s, "language/eval-code/10.4.2-3-c-1-s.js");
 test!(language_eval_code_10_4_2_3_c_2_s, "language/eval-code/10.4.2-3-c-2-s.js");
+test!(language_eval_code_10_4_2_3_c_3_s, "language/eval-code/10.4.2-3-c-3-s.js");
 test!(language_eval_code_10_4_2_1_1gs, "language/eval-code/10.4.2.1-1gs.js");
 test!(language_eval_code_10_4_2_1_2_s, "language/eval-code/10.4.2.1-2-s.js");
 test!(language_eval_code_10_4_2_1_4_s, "language/eval-code/10.4.2.1-4-s.js");

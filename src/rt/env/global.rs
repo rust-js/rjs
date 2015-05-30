@@ -32,13 +32,14 @@ pub fn Global_isFinite(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>
 // 15.1.2.1 eval (x)
 // TODO: Execution context has not yet been implemented.
 pub fn Global_eval(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let x = args.arg(env, 0);
+	let arg = args.arg(env, 0);
 	
-	if x.ty() != JsType::String {
-		Ok(x)
+	if arg.ty() != JsType::String {
+		Ok(arg)
 	} else {
-		let x = x.as_string(env).to_string();
+		let arg = arg.as_string(env).to_string();
+		let scope = env.build_global_scope();
 		
-		env.eval_strict(&x, args.strict).map(|result| Local::from_root(result, env.heap()))
+		env.eval_scoped(&arg, args.strict, scope, false).map(|result| Local::from_root(result, env.heap()))
 	}
 }

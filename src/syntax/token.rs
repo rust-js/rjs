@@ -293,4 +293,6 @@ declare_idents! {
 	( "parseFloat", PARSE_FLOAT, 118 );
 	( "isNaN", IS_NAN, 119 );
 	( "isFinite", IS_FINITE, 120 );
+	( "callee", CALLEE, 121 );
+	( "caller", CALLER, 122 );
 }

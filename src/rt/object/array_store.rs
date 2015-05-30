@@ -139,8 +139,8 @@ impl Store for ArrayStore {
 			JsStoreKey::End
 		} else {
 			let entry = self.items[offset];
-			if entry.is_valid() && entry.is_enumerable() {
-				JsStoreKey::Key(Name::from_index(offset))
+			if entry.is_valid() {
+				JsStoreKey::Key(Name::from_index(offset), entry.is_enumerable())
 			} else {
 				JsStoreKey::Missing
 			}

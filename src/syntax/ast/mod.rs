@@ -34,33 +34,22 @@ pub struct Function {
 	pub span: Span
 }
 
-#[derive(Debug)]
-pub struct Locals {
-	pub slots: Vec<Slot>,
-	/// Whether to de-optimize this function. This applies when there is an eval
-	/// somewhere in the stack.
-	pub deopt: bool
-}
-
-impl Locals {
-	pub fn new(slots: Vec<Slot>) -> Locals {
-		Locals {
-			slots: slots,
-			deopt: false
-		}
-	}
-}
-
 /// A local slot is a declaration of a local that is known within the current
 /// scope (function). This only applies to functions and when optimizations are
 /// enabled. When optimizations are disabled (i.e. when there is an eval
 /// somewhere in the stack), local slots are not tracked.
 #[derive(Copy, Clone, Debug)]
 pub struct Slot {
-	pub name: Option<Name>,
+	pub name: Name,
 	pub arg: Option<u32>,
-	pub lifted: Option<u32>,
-	pub global: bool
+	pub state: SlotState
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum SlotState {
+	Local,
+	Scoped,
+	Lifted(u32)
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -93,11 +82,22 @@ impl FunctionSlotRef {
 pub struct RootBlock {
 	pub args: Vec<Name>,
 	pub block: Block,
-	pub locals: RefCell<Locals>,
-	pub scope: Cell<Option<u32>>,
-	pub takes_scope: Cell<bool>,
-	pub strict: bool,
-	pub has_arguments: Cell<bool>
+	pub state: RefCell<RootBlockState>,
+	pub strict: bool
+}
+
+#[derive(Debug)]
+pub struct RootBlockState {
+	pub slots: Vec<Slot>,
+	pub take_scope: bool,
+	pub build_scope: ScopeType,
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum ScopeType {
+	None,
+	Thin(u32),
+	Thick
 }
 
 #[derive(Debug)]
@@ -127,7 +127,7 @@ pub enum Item {
 	Try(Block, Option<Catch>, Option<Block>),
 	VarDecl(Vec<Var>),
 	While(Option<Label>, Box<Expr>, Box<Item>),
-	With(ExprSeq, Box<Item>, Cell<Option<SlotRef>>)
+	With(ExprSeq, Box<Item>)
 }
 
 #[derive(Debug)]
@@ -138,8 +138,7 @@ pub struct Label {
 #[derive(Debug)]
 pub struct Ident {
 	pub name: Name,
-	pub state: Cell<IdentState>,
-	pub with_locals: RefCell<Option<Vec<FunctionSlotRef>>>
+	pub state: Cell<IdentState>
 }
 
 /// Resolve state of an identifier. Variables can:
@@ -158,9 +157,11 @@ pub enum IdentState {
 	None,
 	Global,
 	Scoped,
-	Arguments,
 	Slot(SlotRef),
-	LiftedSlot(FunctionSlotRef)
+	LiftedSlot(FunctionSlotRef),
+	ScopedArg(u32, u32),
+	Arg(SlotRef, u32),
+	LiftedArg(FunctionSlotRef, u32)
 }
 
 impl IdentState {

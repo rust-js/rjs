@@ -251,8 +251,8 @@ impl Store for HashStore {
 			JsStoreKey::End
 		} else {
 			let entry = self.entries[offset];
-			if entry.is_valid() && entry.is_enumerable() {
-				JsStoreKey::Key(entry.name)
+			if entry.is_valid() {
+				JsStoreKey::Key(entry.name, entry.is_enumerable())
 			} else {
 				JsStoreKey::Missing
 			}

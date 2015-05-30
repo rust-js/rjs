@@ -1,12 +1,16 @@
-use super::{JsItem, JsEnv, JsValue, JsType, JsObject, GC_ITERATOR};
+use super::{JsItem, JsEnv, JsValue, JsType, JsObject, GC_ITERATOR, GC_U32};
 use super::object::JsStoreKey;
-use gc::{Local, Ptr};
+use gc::{Local, Ptr, Array, ArrayLocal};
 use syntax::Name;
+
+const INITIAL_SEEN : usize = 8;
 
 pub struct JsIterator {
 	target: Ptr<JsObject>,
 	name: Option<Name>,
-	offset: usize
+	offset: usize,
+	seen: Array<Name>,
+	len: usize
 }
 
 impl JsIterator {
@@ -21,10 +25,14 @@ impl JsIterator {
 			Ptr::null()
 		};
 		
+		let seen = env.heap.alloc_array_local::<Name>(GC_U32, INITIAL_SEEN);
+		
 		*result = JsIterator {
 			target: target,
 			name: None,
-			offset: 0
+			offset: 0,
+			seen: seen.as_ptr(),
+			len: 0
 		};
 		
 		result
@@ -45,11 +53,14 @@ impl Local<JsIterator> {
 		
 		loop {
 			match target.get_key(env, self.offset) {
-				JsStoreKey::Key(name) => {
+				JsStoreKey::Key(name, enumerable) => {
 					self.offset += 1;
-					self.name = Some(name);
 					
-					return true;
+					if self.add(env, name) && enumerable { 
+						self.name = Some(name);
+						
+						return true;
+					}
 				}
 				JsStoreKey::Missing => {
 					self.offset += 1;
@@ -70,6 +81,32 @@ impl Local<JsIterator> {
 				}
 			}
 		}
+	}
+	
+	fn add(&mut self, env: &JsEnv, name: Name) -> bool {
+		let mut seen =  ArrayLocal::from_ptr(self.seen, &env.heap);
+		
+		for i in 0..self.len {
+			if seen[i] == name {
+				return false;
+			}
+		}
+		
+		if self.len == seen.len() {
+			let mut new_seen = env.heap.alloc_array_local::<Name>(GC_U32, seen.len() * 2);
+			
+			for i in 0..self.len {
+				new_seen[i] = seen[i];
+			}
+			
+			self.seen = new_seen.as_ptr();
+			seen = new_seen;
+		}
+		
+		seen[self.len] = name;
+		self.len += 1;
+		
+		true
 	}
 	
 	pub fn current(&self) -> Name {

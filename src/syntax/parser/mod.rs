@@ -21,11 +21,34 @@ pub struct Parser<'a> {
 
 struct Scope {
 	slots: Vec<Slot>,
-	blocks: Vec<BlockScope>
+	blocks: Vec<BlockScope>,
+	has_arguments: bool,
+	deopt: bool
 }
 
 struct BlockScope {
 	locals: HashMap<Name, SlotRef>
+}
+
+impl RootBlock {
+	fn new(stmts: Vec<Item>, args: Vec<Name>, strict: bool, scope: Scope, locals: HashMap<Name, SlotRef>) -> RootBlock {
+		// When the scope is deopt, the scope builds a tick scope. This implies the scope taking
+		// a scope (which is a thick scope too).
+		
+		RootBlock {
+			block: Block {
+				stmts: stmts,
+				locals: locals
+			},
+			args: args,
+			strict: strict,
+			state: RefCell::new(RootBlockState {
+				take_scope: scope.deopt,
+				build_scope: if scope.deopt { ScopeType::Thick } else { ScopeType::None },
+				slots: scope.slots
+			})
+		}
+	}
 }
 
 impl<'a> Parser<'a> {
@@ -36,24 +59,29 @@ impl<'a> Parser<'a> {
 	fn push_scope(&mut self) {
 		self.scopes.push(Scope {
 			slots: Vec::new(),
-			blocks: Vec::new()
+			blocks: Vec::new(),
+			has_arguments: false,
+			deopt: false
 		})
 	}
 	
-	fn pop_scope(&mut self) -> Vec<Slot> {
-		self.scopes.pop().unwrap().slots
+	fn top_scope(&mut self) -> &mut Scope {
+		let len = self.scopes.len();
+		&mut self.scopes[len - 1]
+	}
+	
+	fn pop_scope(&mut self) -> Scope {
+		self.scopes.pop().unwrap()
 	}
 	
 	fn push_block_scope(&mut self) {
-		let len = self.scopes.len();
-		self.scopes[len - 1].blocks.push(BlockScope {
+		self.top_scope().blocks.push(BlockScope {
 			locals: HashMap::new()
 		});
 	}
 	
-	fn pop_block_scope(&mut self) -> HashMap<Name, SlotRef> {
-		let len = self.scopes.len();
-		self.scopes[len - 1].blocks.pop().unwrap().locals
+	fn pop_block_scope(&mut self) -> BlockScope {
+		self.top_scope().blocks.pop().unwrap()
 	}
 	
 	fn register_local(&mut self, name: Name, throwarg: bool, global: bool) {
@@ -64,14 +92,14 @@ impl<'a> Parser<'a> {
 		// of deduplicating then. It's already pushing the locals into a HashMap so that isn't
 		// a problem.
 				
-		let len = self.scopes.len();
-		let scope = &mut self.scopes[len - 1];
+		let scope = self.top_scope();
 		
 		let block = if name == name::ARGUMENTS {
-			// If this is the arguments variable, we can just drop it.
-			
-			return;
-		} else if !throwarg {
+			&mut scope.blocks[0]
+		} else if throwarg {
+			let len = scope.blocks.len();
+			&mut scope.blocks[len - 1]
+		} else {
 			// Has this local already been declared?
 			
 			for block in &scope.blocks {
@@ -81,18 +109,14 @@ impl<'a> Parser<'a> {
 			}
 			
 			&mut scope.blocks[0]
-		} else {
-			let len = scope.blocks.len();
-			&mut scope.blocks[len - 1]
 		};
 		
 		// We need to declare a new variable. Create a slot for it.
 		
 		let slot = Slot {
-			name: Some(name),
+			name: name,
 			arg: None,
-			lifted: None,
-			global: global
+			state: if global { SlotState::Scoped } else { SlotState::Local }
 		};
 		
 		let local_slot_ref = SlotRef(scope.slots.len());
@@ -252,26 +276,26 @@ impl<'a> Parser<'a> {
 			items.push(try!(parser.parse_stmt(None)));
 		}
 		
+		// If the last statement is an expression, turn it into a return.
+		
+		let len = items.len();
+		if len > 0 {
+			if let Item::ExprStmt(..) = items[len - 1] {
+				if let Item::ExprStmt(exprs) = items.pop().unwrap() {
+					items.push(Item::Return(Some(exprs)));
+				}
+			}
+		}
+		
 		let end = parser.lexer.last_span().unwrap();
 		
-		let locals = parser.pop_block_scope();
-		let slots = parser.pop_scope();
-
+		let block = parser.pop_block_scope();
+		let scope = parser.pop_scope();
+		
 		let program = Box::new(Function {
 			name: None,
 			global: true,
-			block: RootBlock {
-				block: Block {
-					stmts: items,
-					locals: locals
-				},
-				locals: RefCell::new(Locals::new(slots)),
-				args: Vec::new(),
-				scope: Cell::new(None),
-				takes_scope: Cell::new(false),
-				strict: parser.lexer.strict(),
-				has_arguments: Cell::new(false)
-			},
+			block: RootBlock::new(items, Vec::new(), parser.lexer.strict(), scope, block.locals),
 			args: 0,
 			span: Span::from_range(start, end)
 		});
@@ -279,7 +303,7 @@ impl<'a> Parser<'a> {
 		let program_ref = FunctionRef(parser.context.functions.len() as u32);
 		parser.context.functions.push(program);
 		
-		locals::LocalResolver::resolve(parser.context, program_ref);
+		try!(locals::LocalResolver::resolve(parser.context, program_ref));
 		
 		Ok(program_ref)
 	}
@@ -345,26 +369,14 @@ impl<'a> Parser<'a> {
 		
 		self.lexer.set_strict(was_strict);
 		
-		let locals = self.pop_block_scope();
-		let slots = self.pop_scope();
+		let block = self.pop_block_scope();
+		let scope = self.pop_scope();
 		
-		Ok(RootBlock {
-			block: Block {
-				stmts: stmts,
-				locals: locals
-			},
-			locals: RefCell::new(Locals::new(slots)),
-			args: args,
-			scope: Cell::new(None),
-			takes_scope: Cell::new(false),
-			strict: strict,
-			has_arguments: Cell::new(false)
-		})
+		Ok(RootBlock::new(stmts, args, strict, scope, block.locals))
 	}
 	
 	fn register_function_args(&mut self, args: &Vec<Name>) {
-		let len = self.scopes.len();
-		let scope = &mut self.scopes[len - 1];
+		let scope = self.top_scope();
 		
 		for i in 0..args.len() {
 			let name = args[i];
@@ -372,10 +384,9 @@ impl<'a> Parser<'a> {
 			// Create a slot for the parameter.
 		
 			let slot = Slot {
-				name: Some(name),
+				name: name,
 				arg: Some(i as u32),
-				lifted: None,
-				global: false
+				state: SlotState::Local
 			};
 			
 			let local_slot_ref = SlotRef(scope.slots.len());
@@ -429,10 +440,18 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_ident(&mut self) -> JsResult<Ident> {
+		let name = try!(self.parse_name());
+		
+		if name == name::ARGUMENTS && !self.top_scope().has_arguments {
+			self.top_scope().has_arguments = true;
+			
+			let at_global = self.at_global();
+			self.register_local(name, false, at_global);
+		}
+		
 		Ok(Ident {
-			name: try!(self.parse_name()),
-			state: Cell::new(IdentState::None),
-			with_locals: RefCell::new(None)
+			name: name,
+			state: Cell::new(IdentState::None)
 		})
 	}
 	
@@ -534,8 +553,7 @@ impl<'a> Parser<'a> {
 				
 				let ident = Ident {
 					name: name,
-					state: Cell::new(IdentState::None),
-					with_locals: RefCell::new(None)
+					state: Cell::new(IdentState::None)
 				};
 				
 				return Ok(Item::Function(ident, function_ref));
@@ -789,7 +807,19 @@ impl<'a> Parser<'a> {
 	fn parse_expr_call(&mut self, expr: Expr) -> JsResult<Expr> {
 		let args = try!(self.parse_arguments());
 		
+		if let Expr::Ident(Ident { name, .. }) = expr {
+			if name == name::EVAL {
+				self.mark_deopt();
+			}
+		}
+		
 		Ok(Expr::Call(Box::new(expr), args))
+	}
+	
+	fn mark_deopt(&mut self) {
+		for scope in &mut self.scopes {
+			scope.deopt = true;
+		}
 	}
 	
 	fn parse_expr_binary_assign(&mut self, expr: Expr, op: Op) -> JsResult<Expr> {
@@ -1263,6 +1293,8 @@ impl<'a> Parser<'a> {
 			return self.fatal("With is not allowed in strict mode");
 		}
 		
+		self.mark_deopt();
+		
 		try!(self.bump());
 		
 		try!(self.expect(Token::OpenParen));
@@ -1273,7 +1305,7 @@ impl<'a> Parser<'a> {
 		
 		let stmt = try!(self.parse_stmt(None));
 		
-		Ok(Item::With(expr, Box::new(stmt), Cell::new(None)))
+		Ok(Item::With(expr, Box::new(stmt)))
 	}
 	
 	fn parse_switch(&mut self, label: Option<Label>) -> JsResult<Item> {
@@ -1351,7 +1383,8 @@ impl<'a> Parser<'a> {
 			try!(self.expect(Token::CloseParen));
 			
 			let mut catch = try!(self.parse_block());
-			catch.locals = self.pop_block_scope();
+			let block = self.pop_block_scope();
+			catch.locals = block.locals;
 			
 			Some(Catch {
 				ident: ident,

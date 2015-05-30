@@ -82,9 +82,9 @@ impl JsEnv {
 				
 				debugln!("ENTER {}", location);
 				
-				let scope = args.function.scope(self);
+				let scope = args.function.scope(self).unwrap_or_else(|| self.build_global_scope());
 				
-				let result = try!(self.call_block(block, Some(args.this), args.args, &function, scope)).as_local(self);
+				let result = try!(self.call_block(block, args, &function, scope)).as_local(self);
 				
 				debugln!("EXIT {}", location);
 				
@@ -234,7 +234,7 @@ impl JsEnv {
 		})
 	}
 	
-	pub fn new_function(&mut self, function_ref: FunctionRef, scope: Option<Local<JsValue>>) -> JsResult<Local<JsValue>> {
+	pub fn new_function(&mut self, function_ref: FunctionRef, scope: Option<Local<JsScope>>) -> JsResult<Local<JsValue>> {
 		let mut proto = JsObject::new_local(self, JsStoreType::Hash);
 	
 		proto.set_class(self, Some(name::OBJECT_CLASS));
@@ -242,7 +242,7 @@ impl JsEnv {
 		let function_prototype = self.function_prototype.as_local(self);
 		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), function_prototype).as_value(self);
 		
-		if self.ir.get_function(function_ref).takes_scope {
+		if self.ir.get_function(function_ref).take_scope {
 			result.set_scope(self, scope);
 		}
 		
@@ -432,18 +432,46 @@ impl JsEnv {
 	
 	// 10.6 Arguments Object
 	// TODO: Incomplete.
-	pub fn new_arguments(&mut self, args: &Vec<Local<JsValue>>) -> JsResult<Local<JsValue>> {
+	pub fn new_arguments(&mut self, args: &JsArgs, strict: bool) -> JsResult<Local<JsValue>> {
 		let mut result = self.new_object();
 		
 		result.set_class(self, Some(name::ARGUMENTS_CLASS));
 		
-		let value = JsValue::new_number(args.len() as f64).as_local(self);
+		let value = JsValue::new_number(args.args.len() as f64).as_local(self);
 		try!(result.define_own_property(self, name::LENGTH, JsDescriptor::new_value(value, true, false, true), false));
 		
-		for i in 0..args.len() {
-			try!(result.define_own_property(self, Name::from_index(i), JsDescriptor::new_simple_value(args[i]), false));
+		for i in 0..args.args.len() {
+			try!(result.define_own_property(self, Name::from_index(i), JsDescriptor::new_simple_value(args.args[i]), false));
+		}
+		
+		if !strict {
+			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_value(args.function, true, false, true), false));
+		} else {
+			let prototype = self.function_prototype.as_local(self);
+			let thrower = self.new_native_function(None, 0, &throw_type_error, prototype);
+			
+			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_accessor(thrower, thrower, false, false), false));
+			try!(result.define_own_property(self, name::CALLER, JsDescriptor::new_accessor(thrower, thrower, false, false), false));
 		}
 		
 		Ok(result.as_value(self))
 	}
+	
+	// 11.8.7 The in operator
+	pub fn in_(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<Local<JsValue>> {
+		if rhs.ty() != JsType::Object {
+			Err(JsError::new_type(self, ::errors::TYPE_IN_RHS_NOT_OBJECT))
+		} else {
+			let name = try!(lhs.to_string(self));
+			let name = self.ir.interner().intern(&name.to_string());
+			
+			let result = rhs.has_property(self, name);
+			
+			Ok(JsValue::new_bool(result).as_local(self))
+		}
+	}
+}
+
+fn throw_type_error(env: &mut JsEnv, _: JsArgs) -> JsResult<Local<JsValue>> {
+	Err(JsError::new_type(env, ::errors::TYPE_CANNOT_ACCESS_ARGUMENTS_PROPERTY))
 }
