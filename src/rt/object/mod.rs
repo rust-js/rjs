@@ -1,14 +1,11 @@
-extern crate libc;
-
 use syntax::Name;
 use syntax::token::name;
 use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, GC_OBJECT};
-use gc::{Local, Ptr};
+use gc::{Local, Ptr, AsPtr, ptr_t};
 use ::{JsResult, JsError};
 use self::hash_store::HashStore;
 use self::array_store::ArrayStore;
 use std::mem;
-use self::libc::c_void;
 use std::str::FromStr;
 use std::u32;
 
@@ -553,12 +550,12 @@ impl StorePtr {
 	unsafe fn new<T>(ptr: Ptr<T>, ty: JsStoreType) -> StorePtr {
 		StorePtr {
 			ty: ty,
-			ptr: ptr.as_ptr() as usize
+			ptr: ptr.ptr() as usize
 		}
 	}
 	
 	fn get_ptr<T>(&self) -> Ptr<T> {
-		Ptr::from_ptr(self.ptr as *const c_void)
+		Ptr::from_ptr(self.ptr as ptr_t)
 	}
 	
 	fn as_hash(&self, env: &JsEnv) -> Local<HashStore> {

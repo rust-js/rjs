@@ -2,11 +2,10 @@ pub mod copying;
 
 extern crate libc;
 
-use self::libc::c_void;
-use gc::{RootWalker, GcWalker};
+use gc::{RootWalker, GcWalker, ptr_t};
 
 pub trait Strategy {
-	unsafe fn alloc_raw(&mut self, size: usize) -> *mut c_void;
+	unsafe fn alloc_raw(&mut self, size: usize) -> ptr_t;
 	
 	fn mem_allocated(&self) -> usize;
 	

@@ -3,16 +3,14 @@ extern crate time;
 
 use gc::strategy::Strategy;
 use gc::os::Memory;
-use gc::{RootWalker, GcOpts, GcMemHeader, GcWalker, GcWalk};
-use self::libc::c_void;
+use gc::{RootWalker, GcOpts, GcMemHeader, GcWalker, GcWalk, ptr_t};
 use std::ptr;
-use std::mem;
-use std::mem::size_of;
+use std::mem::{size_of, transmute, swap};
 
 const PAGE_SIZE : usize = 4 * 1024;
 
 struct Header {
-	forward: *const c_void,
+	forward: ptr_t,
 	size: usize
 }
 
@@ -24,15 +22,15 @@ impl Header {
 		}
 	}
 	
-	unsafe fn from_ptr<'a>(ptr: *const c_void) -> &'a mut Header {
-		mem::transmute(ptr.offset(-((size_of::<Header>() + size_of::<GcMemHeader>()) as isize)))
+	unsafe fn from_ptr<'a>(ptr: ptr_t) -> &'a mut Header {
+		transmute(ptr.offset(-((size_of::<Header>() + size_of::<GcMemHeader>()) as isize)))
 	}
 	
-	unsafe fn offset_from_user(ptr: *const c_void) -> *const c_void {
+	unsafe fn offset_from_user(ptr: ptr_t) -> ptr_t {
 		ptr.offset(-((size_of::<Header>() + size_of::<GcMemHeader>()) as isize))
 	}
 	
-	unsafe fn offset_to_user(ptr: *const c_void) -> *const c_void {
+	unsafe fn offset_to_user(ptr: ptr_t) -> ptr_t {
 		ptr.offset((size_of::<Header>() + size_of::<GcMemHeader>()) as isize)
 	}
 }
@@ -43,7 +41,7 @@ struct Block {
 }
 
 impl Block {
-	unsafe fn alloc(&mut self, size: usize) -> *mut c_void {
+	unsafe fn alloc(&mut self, size: usize) -> ptr_t {
 		let size = size + size_of::<Header>();
 		
 		if self.offset + size > self.memory.size() {
@@ -160,7 +158,7 @@ impl Copying {
 			let ptrs = size / size_of::<usize>();
 			
 			if gc_header.is_array() {
-				let count = *mem::transmute::<_, *const usize>(ptr);
+				let count = *transmute::<_, *const usize>(ptr);
 
 				let mut child = ptr.offset(size_of::<usize>() as isize);
 				let end = child.offset((count * size) as isize);
@@ -181,7 +179,7 @@ impl Copying {
 		// Swap the from and to space.
 		
 		self.from.offset = forwarder.target as usize - self.to.ptr() as usize;
-		mem::swap(&mut self.from.memory, &mut self.to);
+		swap(&mut self.from.memory, &mut self.to);
 		
 		// Calculate the current fill rate.
 		
@@ -191,11 +189,11 @@ impl Copying {
 }
 
 struct Forwarder {
-	target: *mut c_void
+	target: ptr_t
 }
 
 impl Forwarder {
-	unsafe fn forward(&mut self, ptr: *const c_void) -> *const c_void {
+	unsafe fn forward(&mut self, ptr: ptr_t) -> ptr_t {
 		let header = Header::from_ptr(ptr);
 		
 		if header.forward.is_null() {
@@ -205,7 +203,7 @@ impl Forwarder {
 			
 			ptr::copy(
 				Header::offset_from_user(ptr).offset(size_of::<Header>() as isize),
-				self.target.offset(size_of::<Header>() as isize),
+				transmute(self.target.offset(size_of::<Header>() as isize)),
 				header.size - size_of::<Header>()
 			);
 			
@@ -216,13 +214,13 @@ impl Forwarder {
 	}
 }
 
-unsafe fn process_block(ptr: *const c_void, ty: u32, ptrs: usize, forwarder: &mut Forwarder, walker: &GcWalker) {
+unsafe fn process_block(ptr: ptr_t, ty: u32, ptrs: usize, forwarder: &mut Forwarder, walker: &GcWalker) {
 	for i in 0..ptrs {
 		match walker.walk(ty, ptr, i as u32) {
 			GcWalk::End => return,
 			GcWalk::Skip => {},
 			GcWalk::Pointer => {
-				let offset = (ptr as *mut *const c_void).offset(i as isize);
+				let offset = (ptr as *mut ptr_t).offset(i as isize);
 				let child = *offset;
 				
 				if !child.is_null() {
@@ -234,7 +232,7 @@ unsafe fn process_block(ptr: *const c_void, ty: u32, ptrs: usize, forwarder: &mu
 }
 
 impl Strategy for Copying {
-	unsafe fn alloc_raw(&mut self, size: usize) -> *mut c_void {
+	unsafe fn alloc_raw(&mut self, size: usize) -> ptr_t {
 		// Round the size to the next pointer.
 		let size = (size + (size_of::<usize>() - 1)) & !(size_of::<usize>() - 1);
 		
@@ -243,7 +241,7 @@ impl Strategy for Copying {
 		if result.is_null() {
 			self.last_failed = size;
 		} else {
-			ptr::write_bytes(result, 0, size);
+			ptr::write_bytes(transmute::<_, *mut u8>(result), 0, size);
 		}
 		
 		result

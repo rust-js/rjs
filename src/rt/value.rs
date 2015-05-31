@@ -8,7 +8,7 @@ use syntax::lexer::Lexer;
 use syntax::reader::StringReader;
 use syntax::token::Token;
 use syntax::token::name;
-use gc::{Local, Ptr};
+use gc::{Local, Ptr, AsPtr, ptr_t};
 use std::fmt;
 use std::mem::transmute;
 use std::f64;
@@ -91,28 +91,28 @@ impl JsValue {
 		Self::new_bool(false)
 	}
 	
-	pub fn new_string(value: Ptr<JsString>) -> JsValue {
+	pub fn new_string<T: AsPtr<JsString>>(value: T) -> JsValue {
 		JsValue {
 			ty: JsType::String,
 			value: JsRawValue::new_ptr(value)
 		}
 	}
 	
-	pub fn new_object(value: Ptr<JsObject>) -> JsValue {
+	pub fn new_object<T: AsPtr<JsObject>>(value: T) -> JsValue {
 		JsValue {
 			ty: JsType::Object,
 			value: JsRawValue::new_ptr(value)
 		}
 	}
 	
-	pub fn new_iterator(value: Ptr<JsIterator>) -> JsValue {
+	pub fn new_iterator<T: AsPtr<JsIterator>>(value: T) -> JsValue {
 		JsValue {
 			ty: JsType::Iterator,
 			value: JsRawValue::new_ptr(value)
 		}
 	}
 	
-	pub fn new_scope(value: Ptr<JsScope>) -> JsValue {
+	pub fn new_scope<T: AsPtr<JsScope>>(value: T) -> JsValue {
 		JsValue {
 			ty: JsType::Scope,
 			value: JsRawValue::new_ptr(value)
@@ -561,9 +561,9 @@ impl JsRawValue {
 		}
 	}
 	
-	fn new_ptr<T>(value: Ptr<T>) -> JsRawValue {
+	fn new_ptr<T, U: AsPtr<T>>(value: U) -> JsRawValue {
 		let mut result = JsRawValue::new();
-		result.set_ptr(value);
+		result.set_ptr(value.as_ptr());
 		result
 	}
 	
@@ -584,10 +584,10 @@ impl JsRawValue {
 	}
 	
 	fn get_ptr<T>(&self) -> Ptr<T> {
-		Ptr::from_ptr(self.data as *const libc::c_void)
+		Ptr::from_ptr(self.data as ptr_t)
 	}
 	
 	fn set_ptr<T>(&mut self, value: Ptr<T>) {
-		self.data = value.as_ptr() as u64
+		self.data = value.as_ptr().ptr() as u64
 	}
 }

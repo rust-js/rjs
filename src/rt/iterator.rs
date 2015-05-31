@@ -1,6 +1,6 @@
 use rt::{JsItem, JsEnv, JsValue, JsType, JsObject, GC_ITERATOR, GC_U32};
 use rt::object::JsStoreKey;
-use gc::{Local, Ptr, Array, ArrayLocal};
+use gc::*;
 use syntax::Name;
 
 const INITIAL_SEEN : usize = 8;

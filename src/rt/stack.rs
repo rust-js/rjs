@@ -1,7 +1,5 @@
-extern crate libc;
-
+use gc::ptr_t;
 use gc::os::Memory;
-use self::libc::c_void;
 use rt::JsValue;
 use std::mem::{size_of, transmute};
 
@@ -9,8 +7,8 @@ const STACK : usize = 8192;
 
 pub struct Stack {
 	stack: Memory,
-	sp: *mut c_void,
-	end: *mut c_void
+	sp: ptr_t,
+	end: ptr_t
 }
 
 impl Stack {
@@ -55,7 +53,7 @@ impl Stack {
 }
 
 pub struct StackFrame {
-	sp: *mut c_void
+	sp: ptr_t
 }
 
 impl StackFrame {

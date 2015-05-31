@@ -217,7 +217,7 @@ impl JsEnv {
 struct Walker;
 
 impl GcWalker for Walker {
-	fn walk(&self, _ty: u32, _ptr: *const libc::c_void, _index: u32) -> GcWalk {
+	fn walk(&self, _ty: u32, _ptr: ptr_t, _index: u32) -> GcWalk {
 		panic!();
 	}
 }

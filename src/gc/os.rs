@@ -4,9 +4,11 @@ extern crate libc;
 
 use self::libc::*;
 use std::ptr;
+use std::mem;
+use gc::ptr_t;
 
 #[cfg(target_os = "windows")]
-unsafe fn map(addr: *const c_void, size: usize) -> *mut libc::c_void {
+unsafe fn map(addr: ptr_t, size: usize) -> ptr_t {
 	assert!(size != 0);
 	
 	/*
@@ -17,11 +19,11 @@ unsafe fn map(addr: *const c_void, size: usize) -> *mut libc::c_void {
 	
 	assert!(
 		ret == ptr::null_mut() ||
-		(addr == ptr::null() && ret as *const c_void != addr) ||
-		(addr != ptr::null() && ret as *const c_void == addr)
+		(addr == ptr::null() && ret as ptr_t != addr) ||
+		(addr != ptr::null() && ret as ptr_t == addr)
 	);
 	
-	ret
+	mem::transmute(ret)
 }
 
 /* LINUX VERSION
@@ -57,8 +59,8 @@ pages_map(void *addr, size_t size)
 */
 
 #[cfg(target_os = "windows")]
-unsafe fn unmap(addr: *mut c_void, _: usize) {
-	if VirtualFree(addr, 0, MEM_RELEASE) == 0 {
+unsafe fn unmap(addr: ptr_t, _: usize) {
+	if VirtualFree(mem::transmute(addr), 0, MEM_RELEASE) == 0 {
 		panic!("Error in VirtualFree");
 	}
 }
@@ -83,7 +85,7 @@ pages_unmap(void *addr, size_t size)
 */
 
 pub struct Memory {
-	ptr: *mut libc::c_void,
+	ptr: ptr_t,
 	size: usize
 }
 
@@ -107,7 +109,7 @@ impl Memory {
 		}
 	}
 	
-	pub unsafe fn ptr(&self) -> *mut libc::c_void {
+	pub unsafe fn ptr(&self) -> ptr_t {
 		self.ptr
 	}
 	
