@@ -167,7 +167,7 @@ pub struct Local<T> {
 }
 
 impl<T> Local<T> {
-	pub fn from_root(root: Root<T>, heap: &GcHeap) -> Local<T> {
+	pub fn from_root(root: &Root<T>, heap: &GcHeap) -> Local<T> {
 		Self::from_ptr(root.as_ptr(), heap)
 	}
 	

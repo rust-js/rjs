@@ -38,8 +38,8 @@ pub fn Global_eval(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 		Ok(arg)
 	} else {
 		let arg = arg.as_string(env).to_string();
-		let scope = env.build_global_scope();
+		let global_scope = Local::from_root(&env.global_scope, &env.heap);
 		
-		env.eval_scoped(&arg, args.strict, scope, false).map(|result| Local::from_root(result, env.heap()))
+		env.eval_scoped(&arg, args.strict, global_scope, false).map(|result| Local::from_root(&result, env.heap()))
 	}
 }

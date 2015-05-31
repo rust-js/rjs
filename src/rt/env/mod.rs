@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(unused_variables)]
 
-use super::{JsEnv, JsObject, JsFunction, JsFn, JsValue, JsDescriptor, JsItem, JsStoreType};
+use super::{JsEnv, JsObject, JsFunction, JsFn, JsValue, JsDescriptor, JsItem, JsStoreType, JsScope};
 use ::JsResult;
 use syntax::Name;
 use syntax::token::name;
@@ -78,6 +78,12 @@ fn setup_global(env: &mut JsEnv) {
 	let _scope = env.heap.new_local_scope();
 	
 	*env.global = JsObject::new(&env, JsStoreType::Hash);
+	
+	env.global_scope = {
+		let global = env.global.as_local(&env);
+		let global_scope = JsScope::new_local_thick(&env, global, None, true);
+		Root::from_local(&env.heap, global_scope)
+	};
 	
 	let mut global = env.global().as_value(env);
 	

@@ -58,6 +58,7 @@ impl Root<JsObject> {
 pub struct JsEnv {
 	heap: GcHeap,
 	global: Root<JsObject>,
+	global_scope: Root<JsScope>,
 	object_prototype: Root<JsObject>,
 	array_prototype: Root<JsObject>,
 	function_prototype: Root<JsObject>,
@@ -75,6 +76,7 @@ impl JsEnv {
 		let heap = GcHeap::new(Box::new(Walker), GcOpts::default());
 		
 		let global = heap.alloc_root::<JsObject>(GC_OBJECT);
+		let global_scope = heap.alloc_root::<JsScope>(GC_SCOPE);
 		let object_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
 		let array_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
 		let function_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
@@ -87,6 +89,7 @@ impl JsEnv {
 		let mut env = JsEnv {
 			heap: heap,
 			global: global,
+			global_scope: global_scope,
 			object_prototype: object_prototype,
 			array_prototype: array_prototype,
 			function_prototype: function_prototype,
@@ -117,22 +120,17 @@ impl JsEnv {
 		
 		let _scope = self.heap.new_local_scope();
 		
-		let scope = self.build_global_scope();
+		let global_scope = Local::from_root(&self.global_scope, &self.heap);
 		
-		self.call(function_ref, scope)
+		self.call(function_ref, global_scope)
 	}
 	
 	pub fn eval(&mut self, js: &str) -> JsResult<Root<JsValue>> {
 		let _scope = self.heap.new_local_scope();
 		
-		let scope = self.build_global_scope();
+		let global_scope = Local::from_root(&self.global_scope, &self.heap);
 		
-		self.eval_scoped(js, false, scope, false)
-	}
-	
-	fn build_global_scope(&self) -> Local<JsScope> {
-		let global = self.global.as_local(self);
-		JsScope::new_local_thick(self, global, None, true)
+		self.eval_scoped(js, false, global_scope, false)
 	}
 	
 	fn eval_scoped(&mut self, js: &str, strict: bool, scope: Local<JsScope>, direct_eval: bool) -> JsResult<Root<JsValue>> {
@@ -448,7 +446,7 @@ pub trait JsItem {
 		if proto.ty() == JsType::Object {
 			obj.set_prototype(env, Some(proto));
 		} else {
-			let proto = Local::from_root(env.object_prototype.clone(), &env.heap).as_value(env);
+			let proto = Local::from_root(&env.object_prototype.clone(), &env.heap).as_value(env);
 			obj.set_prototype(env, Some(proto));
 		}
 		

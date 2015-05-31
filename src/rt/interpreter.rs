@@ -1095,7 +1095,7 @@ impl<'a> Frame<'a> {
 				
 				let scope = self.get_scope().unwrap();
 				
-				*try!(self.env.eval_scoped(&js, self.strict, scope, true).map(|result| Local::from_root(result, self.env.heap())))
+				*try!(self.env.eval_scoped(&js, self.strict, scope, true).map(|result| Local::from_root(&result, self.env.heap())))
 			}
 		} else {
 			*try!(function.call(self.env, this, args, self.strict))

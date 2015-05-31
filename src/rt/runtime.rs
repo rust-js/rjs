@@ -82,7 +82,8 @@ impl JsEnv {
 				
 				debugln!("ENTER {}", location);
 				
-				let scope = args.function.scope(self).unwrap_or_else(|| self.build_global_scope());
+				let scope = args.function.scope(self)
+					.unwrap_or_else(|| Local::from_root(&self.global_scope, &self.heap));
 				
 				let result = try!(self.call_block(block, args, &function, scope)).as_local(self);
 				
