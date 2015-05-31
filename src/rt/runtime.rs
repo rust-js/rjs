@@ -1,4 +1,4 @@
-use super::*;
+use rt::*;
 use gc::*;
 use ::{JsResult, JsError};
 use syntax::Name;

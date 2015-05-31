@@ -3,7 +3,7 @@ pub mod copying;
 extern crate libc;
 
 use self::libc::c_void;
-use super::{RootWalker, GcWalker};
+use gc::{RootWalker, GcWalker};
 
 pub trait Strategy {
 	unsafe fn alloc_raw(&mut self, size: usize) -> *mut c_void;

@@ -1,12 +1,12 @@
 #![allow(unused_variables)]
 
-use super::{JsEnv, JsValue, JsString, JsItem, JsIterator, JsScope, JsType, JsArgs};
+use rt::{JsEnv, JsValue, JsString, JsItem, JsIterator, JsScope, JsType, JsArgs};
 use gc::*;
 use ::{JsResult, JsError};
 use ir::IrFunction;
 use ir::builder::{Block, Ir};
 use std::rc::Rc;
-use super::stack::StackFrame;
+use rt::stack::StackFrame;
 use syntax::Name;
 use syntax::ast::ScopeType;
 use syntax::token::name;

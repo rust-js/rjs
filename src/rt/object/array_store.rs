@@ -1,7 +1,7 @@
-use super::{Store, Entry, JsStoreKey};
-use super::super::{JsEnv, JsDescriptor, GC_ENTRY, GC_ARRAY_STORE};
+use rt::{JsEnv, JsDescriptor, GC_ENTRY, GC_ARRAY_STORE};
+use rt::object::{Store, Entry, JsStoreKey};
+use rt::object::hash_store::HashStore;
 use syntax::Name;
-use super::hash_store::HashStore;
 use gc::Array;
 use std::cmp;
 use gc::Local;

@@ -2,7 +2,7 @@ extern crate libc;
 
 use syntax::Name;
 use syntax::token::name;
-use super::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, GC_OBJECT};
+use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, GC_OBJECT};
 use gc::{Local, Ptr};
 use ::{JsResult, JsError};
 use self::hash_store::HashStore;

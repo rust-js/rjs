@@ -1,4 +1,4 @@
-use super::{JsEnv, JsValue, JsObject, JsItem, GC_SCOPE, GC_VALUE};
+use rt::{JsEnv, JsValue, JsObject, JsItem, GC_SCOPE, GC_VALUE};
 use gc::{Ptr, Array, Local};
 
 pub struct JsScope {

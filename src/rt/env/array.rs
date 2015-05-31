@@ -1,5 +1,5 @@
 use ::{JsResult, JsError};
-use super::super::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsDescriptor, JsType, JsString};
+use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsDescriptor, JsType, JsString};
 use gc::*;
 use syntax::Name;
 use syntax::token::name;

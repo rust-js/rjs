@@ -1,4 +1,4 @@
-use super::*;
+use syntax::ast::*;
 
 pub trait AstVisitor<'a> {
 	fn visit_function(&mut self, function: &'a Function) {

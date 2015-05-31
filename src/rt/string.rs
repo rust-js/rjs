@@ -1,6 +1,6 @@
 use gc::{Array, Local};
-use super::{JsEnv, JsValue, JsItem, GC_STRING, GC_U16};
-use super::utf;
+use rt::{JsEnv, JsValue, JsItem, GC_STRING, GC_U16};
+use rt::utf;
 use gc::Ptr;
 
 pub struct JsString {

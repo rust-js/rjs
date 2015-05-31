@@ -2,7 +2,7 @@ extern crate libc;
 
 use gc::os::Memory;
 use self::libc::c_void;
-use super::JsValue;
+use rt::JsValue;
 use std::mem::{size_of, transmute};
 
 const STACK : usize = 8192;

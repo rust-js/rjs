@@ -1,7 +1,7 @@
 extern crate libc;
 
-use super::{JsEnv, JsString, JsType, JsObject, JsItem, JsDescriptor, JsScope, JsPreferredType};
-use super::{JsNull, JsUndefined, JsNumber, JsBoolean, JsIterator, GC_VALUE};
+use rt::{JsEnv, JsString, JsType, JsObject, JsItem, JsDescriptor, JsScope, JsPreferredType};
+use rt::{JsNull, JsUndefined, JsNumber, JsBoolean, JsIterator, GC_VALUE};
 use ::{JsResult, JsError};
 use syntax::Name;
 use syntax::lexer::Lexer;

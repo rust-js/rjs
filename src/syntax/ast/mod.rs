@@ -1,7 +1,7 @@
 pub mod visitor;
 
+use syntax::{Name, Span};
 use syntax::token::Lit;
-use super::{Name, Span};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 

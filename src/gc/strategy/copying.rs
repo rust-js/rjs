@@ -1,9 +1,9 @@
 extern crate libc;
 extern crate time;
 
-use super::Strategy;
-use super::super::os::Memory;
-use super::super::{RootWalker, GcOpts, GcMemHeader, GcWalker, GcWalk};
+use gc::strategy::Strategy;
+use gc::os::Memory;
+use gc::{RootWalker, GcOpts, GcMemHeader, GcWalker, GcWalk};
 use self::libc::c_void;
 use std::ptr;
 use std::mem;

@@ -1,5 +1,5 @@
 use ::{JsResult, JsError};
-use super::super::{JsEnv, JsObject, JsArgs, JsValue, JsType, JsItem, JsStoreType, JsString, JsFnMode, JsDescriptor};
+use rt::{JsEnv, JsObject, JsArgs, JsValue, JsType, JsItem, JsStoreType, JsString, JsFnMode, JsDescriptor};
 use gc::*;
 
 // 15.2.1 The Object Constructor Called as a Function

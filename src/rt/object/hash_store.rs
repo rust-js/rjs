@@ -1,7 +1,7 @@
 const INITIAL_OBJECT : usize = 20;
 
-use super::{Store, Entry, JsStoreKey};
-use super::super::{JsEnv, JsDescriptor, GC_HASH_STORE, GC_ENTRY};
+use rt::{JsEnv, JsDescriptor, GC_HASH_STORE, GC_ENTRY};
+use rt::object::{Store, Entry, JsStoreKey};
 use syntax::Name;
 use gc::{Local, Array, ArrayLocal};
 
@@ -317,9 +317,9 @@ mod primes {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use super::super::{JsType, JsValue, JsRawValue};
-	use super::super::super::gc::*;
-	use super::super::super::syntax::ast::Name;
+	use rt::{JsType, JsValue, JsRawValue};
+	use gc::*;
+	use syntax::ast::Name;
 	
 	const A : Name = Name(1);
 	const B : Name = Name(2);

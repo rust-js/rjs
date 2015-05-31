@@ -1,5 +1,5 @@
 use ::JsResult;
-use super::super::{JsEnv, JsArgs, JsValue, JsType};
+use rt::{JsEnv, JsArgs, JsValue, JsType};
 use gc::*;
 
 pub fn Global_escape(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {

@@ -1,5 +1,5 @@
 use ::{JsResult, JsError};
-use super::super::{JsEnv, JsString, JsFnMode, JsArgs, JsValue, JsItem, JsFunction, JsType};
+use rt::{JsEnv, JsString, JsFnMode, JsArgs, JsValue, JsItem, JsFunction, JsType};
 use syntax::ast::FunctionRef;
 use gc::*;
 use std::fmt::Write;

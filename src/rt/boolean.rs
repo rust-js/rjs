@@ -1,4 +1,4 @@
-use super::{JsItem, JsEnv, JsValue};
+use rt::{JsItem, JsEnv, JsValue};
 use gc::Local;
 
 pub struct JsBoolean {

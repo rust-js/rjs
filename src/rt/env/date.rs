@@ -1,5 +1,5 @@
 use ::JsResult;
-use super::super::{JsEnv, JsArgs, JsValue};
+use rt::{JsEnv, JsArgs, JsValue};
 use gc::*;
 
 pub fn Date_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {

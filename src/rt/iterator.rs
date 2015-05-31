@@ -1,5 +1,5 @@
-use super::{JsItem, JsEnv, JsValue, JsType, JsObject, GC_ITERATOR, GC_U32};
-use super::object::JsStoreKey;
+use rt::{JsItem, JsEnv, JsValue, JsType, JsObject, GC_ITERATOR, GC_U32};
+use rt::object::JsStoreKey;
 use gc::{Local, Ptr, Array, ArrayLocal};
 use syntax::Name;
 

@@ -1,4 +1,4 @@
-use super::{JsItem, JsEnv, JsValue, JsDescriptor};
+use rt::{JsItem, JsEnv, JsValue, JsDescriptor};
 use gc::Local;
 use ::{JsResult, JsError};
 use syntax::Name;
