@@ -58,7 +58,7 @@ impl JsEnv {
 				let mut scope_object = self.new_object();
 				scope_object.set_prototype(&self, None);
 				
-				JsScope::new_local_thick(self, scope_object, Some(scope)).as_value(self)
+				JsScope::new_local_thick(self, scope_object, Some(scope), true).as_value(self)
 			} else {
 				scope.as_value(self)
 			};
@@ -422,7 +422,8 @@ impl<'a> Frame<'a> {
 				let scope = JsScope::new_local_thick(
 					self.env,
 					scope_object,
-					self.get_scope()
+					self.get_scope(),
+					false
 				);
 				
 				self.locals.set(self.scope, *scope.as_value(self.env));
@@ -438,7 +439,8 @@ impl<'a> Frame<'a> {
 				let scope = JsScope::new_local_thick(
 					self.env,
 					scope_object.as_object(self.env),
-					self.get_scope()
+					self.get_scope(),
+					false
 				);
 				
 				self.locals.set(self.scope, *scope.as_value(self.env));
@@ -628,7 +630,7 @@ impl<'a> Frame<'a> {
 			&Ir::LoadLifted(index, depth) => {
 				let _scope = self.env.heap.new_local_scope();
 				
-				let scope = self.find_scope(depth).unwrap();
+				let scope = self.find_scope(depth, false);
 				let result = scope.get(self.env, index as usize);
 				self.env.stack.push(*result);
 			}
@@ -673,9 +675,9 @@ impl<'a> Frame<'a> {
 				self.env.stack.push(*scope_object);
 			}
 			&Ir::LoadEnvArguments(depth) => {
-				let scope = self.find_scope(depth).unwrap();
+				let scope = self.find_scope(depth, true);
 				
-				let arguments = scope.arguments(self.env).as_value(self.env);
+				let arguments = scope.arguments(self.env).unwrap();
 				
 				self.env.stack.push(*arguments);
 			}
@@ -811,7 +813,7 @@ impl<'a> Frame<'a> {
 				
 				let frame = self.env.stack.create_frame(1);
 				
-				let mut scope = self.find_scope(depth).unwrap();
+				let mut scope = self.find_scope(depth, false);
 				let result = scope.set(index as usize, frame.get(0).as_local(self.env));
 				
 				self.env.stack.drop_frame(frame);
@@ -849,7 +851,7 @@ impl<'a> Frame<'a> {
 				let arguments = frame.get(0).as_local(self.env);
 				
 				let mut scope = self.get_scope().unwrap();
-				scope.set_arguments(self.env, arguments.as_object(self.env));
+				scope.set_arguments(arguments);
 				
 				self.env.stack.drop_frame(frame);
 			}
@@ -999,12 +1001,14 @@ impl<'a> Frame<'a> {
 		Some(scope.as_scope(self.env))
 	}
 	
-	fn find_scope(&self, mut depth: u32) -> Option<Local<JsScope>> {
-		let mut scope = if let Some(scope) = self.get_scope() {
-			scope
-		} else {
-			return None;
-		};
+	fn find_scope(&self, mut depth: u32, root: bool) -> Local<JsScope> {
+		let mut scope = self.get_scope().unwrap();
+		
+		// Skip over non-root scopes.
+		
+		while root && scope.arguments(self.env).is_none() {
+			scope = scope.parent(self.env).unwrap();
+		}
 		
 		if !self.built_scope {
 			depth -= 1;
@@ -1012,10 +1016,17 @@ impl<'a> Frame<'a> {
 		
 		while depth > 0 {
 			scope = scope.parent(self.env).unwrap();
+			
+			// Skip over non-root scopes.
+			
+			while root && scope.arguments(self.env).is_none() {
+				scope = scope.parent(self.env).unwrap();
+			}
+			
 			depth -= 1;
 		}
 		
-		Some(scope)
+		scope
 	}
 	
 	fn find_scope_object(&self, name: Name) -> Local<JsValue> {

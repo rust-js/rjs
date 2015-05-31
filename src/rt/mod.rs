@@ -132,7 +132,7 @@ impl JsEnv {
 	
 	fn build_global_scope(&self) -> Local<JsScope> {
 		let global = self.global.as_local(self);
-		JsScope::new_local_thick(self, global, None)
+		JsScope::new_local_thick(self, global, None, true)
 	}
 	
 	fn eval_scoped(&mut self, js: &str, strict: bool, scope: Local<JsScope>, direct_eval: bool) -> JsResult<Root<JsValue>> {

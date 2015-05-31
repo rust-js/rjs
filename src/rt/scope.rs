@@ -20,11 +20,13 @@ impl JsScope {
 		result
 	}
 	
-	pub fn new_local_thick(env: &JsEnv, scope_object: Local<JsObject>, parent: Option<Local<JsScope>>) -> Local<JsScope> {
+	pub fn new_local_thick(env: &JsEnv, scope_object: Local<JsObject>, parent: Option<Local<JsScope>>, arguments: bool) -> Local<JsScope> {
 		let mut result = env.heap.alloc_local::<JsScope>(GC_SCOPE);
 		
+		let size = 2 + if arguments { 1 } else { 0 };
+		
 		unsafe {
-			result.items = env.heap.alloc_array(GC_VALUE, 3);
+			result.items = env.heap.alloc_array(GC_VALUE, size);
 		}
 		
 		if let Some(parent) = parent {
@@ -57,12 +59,20 @@ impl Local<JsScope> {
 		self.raw_get(env, 1).as_object(env)
 	}
 	
-	pub fn arguments(&self, env: &JsEnv) -> Local<JsObject> {
-		self.raw_get(env, 2).as_object(env)
+	pub fn arguments(&self, env: &JsEnv) -> Option<Local<JsValue>> {
+		if self.items.len() == 2 {
+			None
+		} else {
+			Some(self.raw_get(env, 2))
+		}
 	}
 	
-	pub fn set_arguments(&mut self, env: &JsEnv, arguments: Local<JsObject>) {
-		self.raw_set(2, arguments.as_value(env));
+	pub fn set_arguments(&mut self, arguments: Local<JsValue>) {
+		if self.items.len() == 2 {
+			panic!("scope does not have a slot to store arguments");
+		}
+		
+		self.raw_set(2, arguments);
 	}
 	
 	pub fn get(&self, env: &JsEnv, index: usize) -> Local<JsValue> {
