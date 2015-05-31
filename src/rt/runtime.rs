@@ -68,8 +68,8 @@ impl JsEnv {
 		
 		let function = function.as_ref().unwrap();
 		
-		Ok(match function {
-			&JsFunction::Ir(function_ref) => {
+		Ok(match *function {
+			JsFunction::Ir(function_ref) => {
 				let block = try!(self.ir.get_function_ir(function_ref));
 				
 				let function = self.ir.get_function(function_ref);
@@ -91,7 +91,7 @@ impl JsEnv {
 				
 				result
 			}
-			&JsFunction::Native(_, _, ref callback, can_construct) => {
+			JsFunction::Native(_, _, ref callback, can_construct) => {
 				if !can_construct && args.mode == JsFnMode::New {
 					return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_CONSTRUCTOR));
 				}

@@ -32,7 +32,7 @@ macro_rules! typeof_delete {
 				$generator.ir.emit(Ir::$on_index);
 			}
 			expr @ _ => {
-				let matched = if let Some(ident) = $generator.unwrap_ident(expr) {
+				let matched = if let Some(ident) = $generator.unwrap_ident(&expr) {
 					match ident.state.get() {
 						IdentState::Scoped | IdentState::Global => {
 							$generator.ir.emit(Ir::LoadEnvObjectFor(ident.name));
@@ -51,7 +51,7 @@ macro_rules! typeof_delete {
 				};
 				
 				if !matched {
-					try!($generator.emit_expr(expr, true));
+					try!($generator.emit_expr(&expr, true));
 					$generator.ir.emit(Ir::$on_expr);
 				}
 			}
@@ -371,8 +371,8 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn named_label(&mut self, label: &'a Option<Label>) -> NamedLabel {
-		let name = match label {
-			&Some(ref ident) => Some(ident.name),
+		let name = match *label {
+			Some(ref ident) => Some(ident.name),
 			_ => None
 		};
 		
@@ -394,8 +394,8 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn get_target(&self, targets: &Vec<NamedLabel>, label: &Option<Label>) -> JsResult<(builder::Label, i32)> {
-		match label {
-			&Some(ref ident) => {
+		match *label {
+			Some(ref ident) => {
 				for target in targets.iter().rev() {
 					if target.name.is_some() && target.name.unwrap() == ident.name {
 						return Ok((target.label, target.try_catch_depth));
@@ -426,9 +426,9 @@ impl<'a> IrGenerator<'a> {
 	
 	fn unwrap_ident(&self, mut expr: &'a Expr) -> Option<&'a Ident> {
 		loop {
-			match expr {
-				&Expr::Ident(ref ident) => return Some(ident),
-				&Expr::Paren(ref exprs) => expr = &exprs.exprs[exprs.exprs.len() - 1],
+			match *expr {
+				Expr::Ident(ref ident) => return Some(ident),
+				Expr::Paren(ref exprs) => expr = &exprs.exprs[exprs.exprs.len() - 1],
 				_ => return None
 			}
 		}
@@ -488,27 +488,27 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_stmt(&mut self, stmt: &'a Item) -> JsResult<()> {
-		match stmt {
-			&Item::Block(ref label, ref block) => self.emit_labeled_block(label, block),
-			&Item::Break(ref label) => self.emit_break_continue(label, true),
-			&Item::Continue(ref label) => self.emit_break_continue(label, false),
-			&Item::Debugger => self.emit_debugger(),
-			&Item::Do(ref label, ref expr, ref stmt) => self.emit_do(label, expr, stmt),
-			&Item::Empty => Ok(()),
-			&Item::ExprStmt(ref exprs) => self.emit_expr_stmt(exprs),
-			&Item::For(ref label, ref init, ref test, ref incr, ref stmt) => self.emit_for(label, init, test, incr, stmt),
-			&Item::ForIn(ref label, ref expr, ref in_, ref stmt) => self.emit_for_in(label, expr, in_, stmt),
-			&Item::ForVar(ref label, ref init, ref test, ref incr, ref stmt) => self.emit_for_var(label, init, test, incr, stmt),
-			&Item::ForVarIn(ref label, ref var, ref in_, ref stmt) => self.emit_for_var_in(label, var, in_, stmt),
-			&Item::Function(ref ident, function_ref) => self.emit_function(ident, function_ref),
-			&Item::If(ref test, ref then, ref else_) => self.emit_if(test, then, if let &Some(ref else_) = else_ { Some(else_) } else { None }),
-			&Item::Return(ref exprs) => self.emit_return(exprs),
-			&Item::Switch(ref label, ref exprs, ref clauses) => self.emit_switch(label, exprs, clauses),
-			&Item::Throw(ref exprs) => self.emit_throw(exprs),
-			&Item::Try(ref try, ref catch, ref finally) => self.emit_try(try, catch, finally),
-			&Item::VarDecl(ref vars) => self.emit_var_decl(vars),
-			&Item::While(ref label, ref expr, ref stmt) => self.emit_while(label, expr, stmt),
-			&Item::With(ref exprs, ref stmt) => self.emit_with(exprs, stmt)
+		match *stmt {
+			Item::Block(ref label, ref block) => self.emit_labeled_block(label, block),
+			Item::Break(ref label) => self.emit_break_continue(label, true),
+			Item::Continue(ref label) => self.emit_break_continue(label, false),
+			Item::Debugger => self.emit_debugger(),
+			Item::Do(ref label, ref expr, ref stmt) => self.emit_do(label, expr, stmt),
+			Item::Empty => Ok(()),
+			Item::ExprStmt(ref exprs) => self.emit_expr_stmt(exprs),
+			Item::For(ref label, ref init, ref test, ref incr, ref stmt) => self.emit_for(label, init, test, incr, stmt),
+			Item::ForIn(ref label, ref expr, ref in_, ref stmt) => self.emit_for_in(label, expr, in_, stmt),
+			Item::ForVar(ref label, ref init, ref test, ref incr, ref stmt) => self.emit_for_var(label, init, test, incr, stmt),
+			Item::ForVarIn(ref label, ref var, ref in_, ref stmt) => self.emit_for_var_in(label, var, in_, stmt),
+			Item::Function(ref ident, function_ref) => self.emit_function(ident, function_ref),
+			Item::If(ref test, ref then, ref else_) => self.emit_if(test, then, if let Some(ref else_) = *else_ { Some(else_) } else { None }),
+			Item::Return(ref exprs) => self.emit_return(exprs),
+			Item::Switch(ref label, ref exprs, ref clauses) => self.emit_switch(label, exprs, clauses),
+			Item::Throw(ref exprs) => self.emit_throw(exprs),
+			Item::Try(ref try, ref catch, ref finally) => self.emit_try(try, catch, finally),
+			Item::VarDecl(ref vars) => self.emit_var_decl(vars),
+			Item::While(ref label, ref expr, ref stmt) => self.emit_while(label, expr, stmt),
+			Item::With(ref exprs, ref stmt) => self.emit_with(exprs, stmt)
 		}
 	}
 	
@@ -564,7 +564,7 @@ impl<'a> IrGenerator<'a> {
 		self.emit_for_init(
 			label,
 			|generator| {
-				if let &Some(ref init) = init {
+				if let Some(ref init) = *init {
 					try!(generator.emit_exprs(init, false))
 				}
 				
@@ -580,7 +580,7 @@ impl<'a> IrGenerator<'a> {
 		self.emit_for_init(
 			label,
 			|generator| {
-				if let &Some(ref init) = init {
+				if let Some(ref init) = *init {
 					try!(generator.emit_var_decl(init));
 				}
 				
@@ -611,13 +611,13 @@ impl<'a> IrGenerator<'a> {
 		
 		self.ir.mark(continue_target.label);
 		
-		if let &Some(ref incr) = incr {
+		if let Some(ref incr) = *incr {
 			try!(self.emit_exprs(incr, false));
 		}
 		
 		self.ir.mark(test_label);
 		
-		if let &Some(ref test) = test {
+		if let Some(ref test) = *test {
 			try!(self.emit_tests(test, body_label, false));
 		} else {
 			self.ir.emit(Ir::Jump(body_label));
@@ -641,7 +641,7 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn resolve_ident(&mut self, expr: &'a Expr) -> JsResult<&'a Ident> {
-		if let &Expr::Ident(ref ident) = expr {
+		if let Expr::Ident(ref ident) = *expr {
 			Ok(ident)
 		} else {
 			self.fatal("Expected an identifier")
@@ -739,7 +739,7 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_return(&mut self, exprs: &'a Option<ExprSeq>) -> JsResult<()> {
-		if let &Some(ref exprs) = exprs {
+		if let Some(ref exprs) = *exprs {
 			try!(self.emit_exprs(exprs, true));
 		} else {
 			self.ir.emit(Ir::LoadUndefined);
@@ -781,8 +781,8 @@ impl<'a> IrGenerator<'a> {
 		let mut default = None;
 		
 		for clause in clauses {
-			match clause {
-				&SwitchClause::Case(ref exprs, _) => {
+			match *clause {
+				SwitchClause::Case(ref exprs, _) => {
 					let label = self.ir.label();
 					targets.push(label);
 					
@@ -790,7 +790,7 @@ impl<'a> IrGenerator<'a> {
 					try!(self.emit_exprs(exprs, true));
 					self.ir.emit(Ir::JumpEq(label));
 				}
-				&SwitchClause::Default(..) => {
+				SwitchClause::Default(..) => {
 					let label = self.ir.label();
 					default = Some(label);
 					targets.push(label);
@@ -807,9 +807,9 @@ impl<'a> IrGenerator<'a> {
 		for i in 0..clauses.len() {
 			self.ir.mark(targets[i]);
 			
-			let stmts = match &clauses[i] {
-				&SwitchClause::Case(_, ref stmts) => stmts,
-				&SwitchClause::Default(ref stmts) => stmts
+			let stmts = match clauses[i] {
+				SwitchClause::Case(_, ref stmts) => stmts,
+				SwitchClause::Default(ref stmts) => stmts
 			};
 			
 			try!(self.emit_stmts(stmts));
@@ -841,7 +841,7 @@ impl<'a> IrGenerator<'a> {
 		
 		self.ir.emit(Ir::Leave(after_label));
 		
-		if let &Some(ref catch) = catch {
+		if let Some(ref catch) = *catch {
 			self.ir.start_catch();
 			
 			self.push_local_scope(&catch.block);
@@ -886,7 +886,7 @@ impl<'a> IrGenerator<'a> {
 			self.ir.emit(Ir::Leave(after_label));
 		}
 		
-		if let &Some(ref finally) = finally {
+		if let Some(ref finally) = *finally {
 			self.ir.start_finally();
 			
 			try!(self.emit_block(finally));
@@ -989,23 +989,23 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_expr(&mut self, expr: &'a Expr, leave: bool) -> JsResult<()> {
-		match expr {
-			&Expr::ArrayLiteral(ref exprs) => self.emit_expr_array_literal(exprs, leave),
-			&Expr::Assign(op, ref lhs, ref rhs) => self.emit_expr_assign(op, lhs, rhs, leave),
-			&Expr::Binary(op, ref lhs, ref rhs) => self.emit_expr_binary(op, lhs, rhs, leave),
-			&Expr::Call(ref expr, ref args) => self.emit_expr_call(expr, args, leave),
-			&Expr::Function(function_ref) => self.emit_expr_function(function_ref, leave),
-			&Expr::Ident(ref ident) => self.emit_expr_ident(ident, leave),
-			&Expr::Literal(ref lit) => self.emit_expr_literal(&lit, leave),
-			&Expr::MemberDot(ref expr, ident) => self.emit_expr_member_dot(expr, ident, leave),
-			&Expr::MemberIndex(ref expr, ref index) => self.emit_expr_member_index(expr, index, leave),
-			&Expr::Missing => { panic!("missing must be handled at array creation"); },
-			&Expr::New(ref expr) => self.emit_expr_new(expr, leave),
-			&Expr::ObjectLiteral(ref props) => self.emit_expr_object_literal(props, leave),
-			&Expr::Paren(ref exprs) => self.emit_expr_paren(exprs, leave),
-			&Expr::Ternary(ref test, ref then, ref else_) => self.emit_expr_ternary(test, then, else_, leave),
-			&Expr::This => self.emit_expr_this(leave),
-			&Expr::Unary(op, ref expr) => self.emit_expr_unary(op, expr, leave)
+		match *expr {
+			Expr::ArrayLiteral(ref exprs) => self.emit_expr_array_literal(exprs, leave),
+			Expr::Assign(op, ref lhs, ref rhs) => self.emit_expr_assign(op, lhs, rhs, leave),
+			Expr::Binary(op, ref lhs, ref rhs) => self.emit_expr_binary(op, lhs, rhs, leave),
+			Expr::Call(ref expr, ref args) => self.emit_expr_call(expr, args, leave),
+			Expr::Function(function_ref) => self.emit_expr_function(function_ref, leave),
+			Expr::Ident(ref ident) => self.emit_expr_ident(ident, leave),
+			Expr::Literal(ref lit) => self.emit_expr_literal(&lit, leave),
+			Expr::MemberDot(ref expr, ident) => self.emit_expr_member_dot(expr, ident, leave),
+			Expr::MemberIndex(ref expr, ref index) => self.emit_expr_member_index(expr, index, leave),
+			Expr::Missing => { panic!("missing must be handled at array creation"); },
+			Expr::New(ref expr) => self.emit_expr_new(expr, leave),
+			Expr::ObjectLiteral(ref props) => self.emit_expr_object_literal(props, leave),
+			Expr::Paren(ref exprs) => self.emit_expr_paren(exprs, leave),
+			Expr::Ternary(ref test, ref then, ref else_) => self.emit_expr_ternary(test, then, else_, leave),
+			Expr::This => self.emit_expr_this(leave),
+			Expr::Unary(op, ref expr) => self.emit_expr_unary(op, expr, leave)
 		}
 	}
 	
@@ -1104,7 +1104,7 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn unwrap_paren(&self, expr: &'a Expr) -> &'a Expr {
-		if let &Expr::Paren(ref exprs) = expr {
+		if let Expr::Paren(ref exprs) = *expr {
 			if exprs.exprs.len() == 1 {
 				return &exprs.exprs[0];
 			}
@@ -1127,8 +1127,8 @@ impl<'a> IrGenerator<'a> {
 			Ok(())
 		};
 		
-		match self.unwrap_paren(lhs) {
-			&Expr::Ident(ref ident) => {
+		match *self.unwrap_paren(lhs) {
+			Expr::Ident(ref ident) => {
 				match ident.state.get() {
 					IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
 						if leave {
@@ -1154,7 +1154,7 @@ impl<'a> IrGenerator<'a> {
 					}
 				}
 			},
-			&Expr::MemberDot(ref expr, ident) => {
+			Expr::MemberDot(ref expr, ident) => {
 				if leave {
 					try!(load(self));
 					self.ir.emit(Ir::Dup);
@@ -1167,7 +1167,7 @@ impl<'a> IrGenerator<'a> {
 				
 				self.ir.emit(Ir::StoreName(ident));
 			},
-			&Expr::MemberIndex(ref expr, ref index) => {
+			Expr::MemberIndex(ref expr, ref index) => {
 				if leave {
 					try!(load(self));
 					self.ir.emit(Ir::Dup);
@@ -1228,7 +1228,7 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_expr_call(&mut self, expr: &'a Expr, args: &'a Vec<Expr>, leave: bool) -> JsResult<()> {
-		if let &Expr::MemberDot(ref expr, ident) = expr {
+		if let Expr::MemberDot(ref expr, ident) = *expr {
 			try!(self.emit_expr(expr, true));
 			self.ir.emit(Ir::Dup);
 			self.ir.emit(Ir::LoadName(ident));
@@ -1243,7 +1243,7 @@ impl<'a> IrGenerator<'a> {
 		
 		let is_eval = if self.strict {
 			false
-		} else if let &Expr::Ident(ref ident) = expr {
+		} else if let Expr::Ident(ref ident) = *expr {
 			ident.name == name::EVAL
 		} else {
 			false
@@ -1283,14 +1283,14 @@ impl<'a> IrGenerator<'a> {
 	
 	fn emit_expr_literal(&mut self, lit: &'a Lit, leave: bool) -> JsResult<()> {
 		if leave {
-			match lit {
-				&Lit::Null => self.ir.emit(Ir::LoadNull),
-				&Lit::Boolean(value) => self.ir.emit(if value { Ir::LoadTrue } else { Ir::LoadFalse }),
-				&Lit::String(value) => self.ir.emit(Ir::LoadString(value)),
-				&Lit::Integer(value) => self.ir.emit(Ir::LoadI32(value)),
-				&Lit::Long(value) => self.ir.emit(Ir::LoadI64(value)),
-				&Lit::Double(value) => self.ir.emit(Ir::LoadF64(value)),
-				&Lit::Regex(body, flags) => self.ir.emit(Ir::LoadRegex(body, flags))
+			match *lit {
+				Lit::Null => self.ir.emit(Ir::LoadNull),
+				Lit::Boolean(value) => self.ir.emit(if value { Ir::LoadTrue } else { Ir::LoadFalse }),
+				Lit::String(value) => self.ir.emit(Ir::LoadString(value)),
+				Lit::Integer(value) => self.ir.emit(Ir::LoadI32(value)),
+				Lit::Long(value) => self.ir.emit(Ir::LoadI64(value)),
+				Lit::Double(value) => self.ir.emit(Ir::LoadF64(value)),
+				Lit::Regex(body, flags) => self.ir.emit(Ir::LoadRegex(body, flags))
 			}
 		}
 		
@@ -1321,7 +1321,7 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_expr_new(&mut self, expr: &'a Expr, leave: bool) -> JsResult<()> {
-		if let &Expr::Call(ref expr, ref args) = expr {
+		if let Expr::Call(ref expr, ref args) = *expr {
 			try!(self.emit_expr(expr, true));
 		
 			for arg in args {
@@ -1349,29 +1349,29 @@ impl<'a> IrGenerator<'a> {
 			for prop in props {
 				self.ir.emit(Ir::Dup);
 				
-				match prop {
-					&Property::Assignment(ref key, ref expr) => {
-						match key {
-							&PropertyKey::Ident(ident) => {
+				match *prop {
+					Property::Assignment(ref key, ref expr) => {
+						match *key {
+							PropertyKey::Ident(ident) => {
 								try!(self.emit_expr(&*expr, true));
 								self.ir.emit(Ir::StoreName(ident))
 							}
-							&PropertyKey::Literal(ref lit) => {
+							PropertyKey::Literal(ref lit) => {
 								try!(self.emit_expr_literal(&*lit, true));
 								try!(self.emit_expr(&*expr, true));
 								self.ir.emit(Ir::StoreIndex);
 							}
 						}
 					}
-					&Property::Getter(ref ident, function_ref) => {
-						if let &Some(ident) = ident {
+					Property::Getter(ref ident, function_ref) => {
+						if let Some(ident) = *ident {
 							self.ir.emit(Ir::StoreNameGetter(ident, function_ref));
 						} else {
 							self.ir.emit(Ir::StoreGetter(function_ref));
 						}
 					}
-					&Property::Setter(ref ident, function_ref) => {
-						if let &Some(ident) = ident {
+					Property::Setter(ref ident, function_ref) => {
+						if let Some(ident) = *ident {
 							self.ir.emit(Ir::StoreNameSetter(ident, function_ref));
 						} else {
 							self.ir.emit(Ir::StoreSetter(function_ref));
@@ -1381,8 +1381,8 @@ impl<'a> IrGenerator<'a> {
 			}
 		} else {
 			for prop in props {
-				match prop {
-					&Property::Assignment(_, ref expr) => try!(self.emit_expr(expr, false)),
+				match *prop {
+					Property::Assignment(_, ref expr) => try!(self.emit_expr(expr, false)),
 					_ => {}
 				}
 			}
@@ -1425,8 +1425,8 @@ impl<'a> IrGenerator<'a> {
 	fn emit_lhs_load(&mut self, expr: &'a Expr) -> JsResult<LhsRef<'a>> {
 		let expr = self.unwrap_paren(expr);
 		
-		match expr {
-			&Expr::Ident(ref ident) => {
+		match *expr {
+			Expr::Ident(ref ident) => {
 				match ident.state.get() {
 					IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
 						self.emit_load_arguments(ident.state.get());
@@ -1438,12 +1438,12 @@ impl<'a> IrGenerator<'a> {
 					}
 				}
 			}
-			&Expr::MemberDot(ref expr, ident) => {
+			Expr::MemberDot(ref expr, ident) => {
 				try!(self.emit_expr(expr, true));
 				self.ir.emit(Ir::Dup);
 				self.ir.emit(Ir::LoadName(ident));
 			}
-			&Expr::MemberIndex(ref expr, ref index) => {
+			Expr::MemberIndex(ref expr, ref index) => {
 				try!(self.emit_expr(expr, true));
 				try!(self.emit_exprs(index, true));
 				self.ir.emit(Ir::Pick(1));
@@ -1459,8 +1459,8 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_lhs_store(&mut self, lhs_ref: LhsRef<'a>) {
-		match lhs_ref.expr {
-			&Expr::Ident(ref ident) => {
+		match *lhs_ref.expr {
+			Expr::Ident(ref ident) => {
 				match ident.state.get() {
 					IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
 						self.ir.emit(Ir::StoreName(Name::from_index(index as usize)));
@@ -1470,10 +1470,10 @@ impl<'a> IrGenerator<'a> {
 					}
 				}
 			}
-			&Expr::MemberDot(_, ident) => {
+			Expr::MemberDot(_, ident) => {
 				self.ir.emit(Ir::StoreName(ident));
 			}
-			&Expr::MemberIndex(..) => {
+			Expr::MemberIndex(..) => {
 				self.ir.emit(Ir::StoreIndex);
 			}
 			_ => panic!()

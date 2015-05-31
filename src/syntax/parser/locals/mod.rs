@@ -279,8 +279,8 @@ impl<'a> LocalResolver<'a> {
 
 impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 	fn visit_expr_assign(&mut self, expr: &'a Expr) {
-		if let &Expr::Assign(_, ref lhs, ref rhs) = expr {
-			if let &Expr::Ident(ref ident) = &**lhs {
+		if let Expr::Assign(_, ref lhs, ref rhs) = *expr {
+			if let Expr::Ident(ref ident) = **lhs {
 				self.resolve_ident(ident, true);
 			} else {
 				self.visit_expr(lhs);
@@ -291,32 +291,32 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 	}
 	
 	fn visit_expr_ident(&mut self, expr: &'a Expr) {
-		if let &Expr::Ident(ref ident) = expr {
+		if let Expr::Ident(ref ident) = *expr {
 			self.resolve_ident(ident, false);
 		}
 	}
 	
 	fn visit_item_function(&mut self, item: &'a Item) {
-		if let &Item::Function(ref ident, function_ref) = item {
+		if let Item::Function(ref ident, function_ref) = *item {
 			self.resolve_ident(ident, true);
 			self.resolve_function(function_ref);
 		}
 	}
 	
 	fn visit_property_getter(&mut self, property: &'a Property) {
-		if let &Property::Getter(_, function_ref) = property {
+		if let Property::Getter(_, function_ref) = *property {
 			self.resolve_function(function_ref);
 		}
 	}
 	
 	fn visit_property_setter(&mut self, property: &'a Property) {
-		if let &Property::Setter(_, function_ref) = property {
+		if let Property::Setter(_, function_ref) = *property {
 			self.resolve_function(function_ref);
 		}
 	}
 	
 	fn visit_expr_function(&mut self, expr: &'a Expr) {
-		if let &Expr::Function(function_ref) = expr {
+		if let Expr::Function(function_ref) = *expr {
 			self.resolve_function(function_ref);
 		}
 	}
@@ -331,7 +331,7 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 	}
 	
 	fn visit_item_with(&mut self, item: &'a Item) {
-		if let &Item::With(ref exprs, ref stmt) = item {
+		if let Item::With(ref exprs, ref stmt) = *item {
 			self.visit_expr_seq(exprs);
 			
 			self.walker.push_block(None);
@@ -347,7 +347,7 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 	}
 	
 	fn visit_item_for_var_in(&mut self, item: &'a Item) {
-		if let &Item::ForVarIn(_, ref ident, ref in_, ref stmt) = item {
+		if let Item::ForVarIn(_, ref ident, ref in_, ref stmt) = *item {
 			self.resolve_ident(ident, true);
 			self.visit_expr_seq(in_);
 			self.visit_item(stmt);
@@ -357,7 +357,7 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 	fn visit_var(&mut self, var: &'a Var) {
 		self.resolve_ident(&var.ident, true);
 		
-		if let &Some(ref expr) = &var.expr {
+		if let Some(ref expr) = var.expr {
 			self.visit_expr(expr);
 		}
 	}
@@ -421,8 +421,8 @@ impl<'a> ThickScopeTransformer<'a> {
 
 impl<'a> AstVisitor<'a> for ThickScopeTransformer<'a> {
 	fn visit_expr_assign(&mut self, expr: &'a Expr) {
-		if let &Expr::Assign(_, ref lhs, ref rhs) = expr {
-			if let &Expr::Ident(ref ident) = &**lhs {
+		if let Expr::Assign(_, ref lhs, ref rhs) = *expr {
+			if let Expr::Ident(ref ident) = **lhs {
 				self.resolve_ident(ident);
 			} else {
 				self.visit_expr(lhs);
@@ -433,32 +433,32 @@ impl<'a> AstVisitor<'a> for ThickScopeTransformer<'a> {
 	}
 	
 	fn visit_expr_ident(&mut self, expr: &'a Expr) {
-		if let &Expr::Ident(ref ident) = expr {
+		if let Expr::Ident(ref ident) = *expr {
 			self.resolve_ident(ident);
 		}
 	}
 	
 	fn visit_item_function(&mut self, item: &'a Item) {
-		if let &Item::Function(ref ident, function_ref) = item {
+		if let Item::Function(ref ident, function_ref) = *item {
 			self.resolve_ident(ident);
 			self.resolve_function(function_ref);
 		}
 	}
 	
 	fn visit_property_getter(&mut self, property: &'a Property) {
-		if let &Property::Getter(_, function_ref) = property {
+		if let Property::Getter(_, function_ref) = *property {
 			self.resolve_function(function_ref);
 		}
 	}
 	
 	fn visit_property_setter(&mut self, property: &'a Property) {
-		if let &Property::Setter(_, function_ref) = property {
+		if let Property::Setter(_, function_ref) = *property {
 			self.resolve_function(function_ref);
 		}
 	}
 	
 	fn visit_expr_function(&mut self, expr: &'a Expr) {
-		if let &Expr::Function(function_ref) = expr {
+		if let Expr::Function(function_ref) = *expr {
 			self.resolve_function(function_ref);
 		}
 	}
@@ -484,7 +484,7 @@ impl<'a> AstVisitor<'a> for ThickScopeTransformer<'a> {
 	}
 	
 	fn visit_item_for_var_in(&mut self, item: &'a Item) {
-		if let &Item::ForVarIn(_, ref ident, ref in_, ref stmt) = item {
+		if let Item::ForVarIn(_, ref ident, ref in_, ref stmt) = *item {
 			self.resolve_ident(ident);
 			self.visit_expr_seq(in_);
 			self.visit_item(stmt);
@@ -494,13 +494,13 @@ impl<'a> AstVisitor<'a> for ThickScopeTransformer<'a> {
 	fn visit_var(&mut self, var: &'a Var) {
 		self.resolve_ident(&var.ident);
 		
-		if let &Some(ref expr) = &var.expr {
+		if let Some(ref expr) = var.expr {
 			self.visit_expr(expr);
 		}
 	}
 	
 	fn visit_item_with(&mut self, item: &'a Item) {
-		if let &Item::With(ref exprs, ref stmt) = item {
+		if let Item::With(ref exprs, ref stmt) = *item {
 			let global = self.global;
 			self.global = false;
 			self.visit_expr_seq(exprs);

@@ -85,184 +85,184 @@ impl Block {
 			
 			write!(string, "L{:04}: ", i).ok();
 			
-			match &self.ir[i] {
-				&Ir::Add => string.push_str("add"),
-				&Ir::BitAnd => string.push_str("bit.and"),
-				&Ir::BitNot => string.push_str("bit.not"),
-				&Ir::BitOr => string.push_str("bit.or"),
-				&Ir::BitXOr => string.push_str("bit.xor"),
-				&Ir::Call(args) => { write!(string, "call {}", args).ok(); }
-				&Ir::CallEnv(args) => { write!(string, "call.env {}", args).ok(); } 
-				&Ir::CurrentIter(local) => {
+			match self.ir[i] {
+				Ir::Add => string.push_str("add"),
+				Ir::BitAnd => string.push_str("bit.and"),
+				Ir::BitNot => string.push_str("bit.not"),
+				Ir::BitOr => string.push_str("bit.or"),
+				Ir::BitXOr => string.push_str("bit.xor"),
+				Ir::Call(args) => { write!(string, "call {}", args).ok(); }
+				Ir::CallEnv(args) => { write!(string, "call.env {}", args).ok(); } 
+				Ir::CurrentIter(local) => {
 					string.push_str("iter.cur ");
 					self.print_local(string, local, interner);
 				}
-				&Ir::Debugger => string.push_str("debug"),
-				&Ir::Delete => string.push_str("delete"),
-				&Ir::DeleteName(name) => {
+				Ir::Debugger => string.push_str("debug"),
+				Ir::Delete => string.push_str("delete"),
+				Ir::DeleteName(name) => {
 					string.push_str("delete.name ");
 					self.print_name(string, name, interner);
 				}
-				&Ir::DeleteIndex => string.push_str("delete.index"),
-				&Ir::Divide => string.push_str("div"),
-				&Ir::Dup => string.push_str("dup"),
-				&Ir::EndFinally => string.push_str("finally.end"),
-				&Ir::EndIter(local) => {
+				Ir::DeleteIndex => string.push_str("delete.index"),
+				Ir::Divide => string.push_str("div"),
+				Ir::Dup => string.push_str("dup"),
+				Ir::EndFinally => string.push_str("finally.end"),
+				Ir::EndIter(local) => {
 					string.push_str("iter.end ");
 					self.print_local(string, local, interner);
 				}
-				&Ir::EnterEnv => string.push_str("env.enter"),
-				&Ir::EnterWithEnv => string.push_str("env.enter.with"),
-				&Ir::Eq => string.push_str("eq"),
-				&Ir::Ge => string.push_str("ge"),
-				&Ir::Gt => string.push_str("gt"),
-				&Ir::In => string.push_str("in"),
-				&Ir::InstanceOf => string.push_str("instof"),
-				&Ir::IntoIter(local) => {
+				Ir::EnterEnv => string.push_str("env.enter"),
+				Ir::EnterWithEnv => string.push_str("env.enter.with"),
+				Ir::Eq => string.push_str("eq"),
+				Ir::Ge => string.push_str("ge"),
+				Ir::Gt => string.push_str("gt"),
+				Ir::In => string.push_str("in"),
+				Ir::InstanceOf => string.push_str("instof"),
+				Ir::IntoIter(local) => {
 					string.push_str("iter.into ");
 					self.print_local(string, local, interner);
 				}
-				&Ir::Jump(label) => {
+				Ir::Jump(label) => {
 					string.push_str("jmp ");
 					self.print_label(string, label);
 				}
-				&Ir::JumpEq(label) => {
+				Ir::JumpEq(label) => {
 					string.push_str("jmp.eq ");
 					self.print_label(string, label);
 				}
-				&Ir::JumpFalse(label) => {
+				Ir::JumpFalse(label) => {
 					string.push_str("jmp.f ");
 					self.print_label(string, label);
 				}
-				&Ir::JumpTrue(label) => {
+				Ir::JumpTrue(label) => {
 					string.push_str("jmp.t ");
 					self.print_label(string, label);
 				}
-				&Ir::Le => string.push_str("le"),
-				&Ir::Leave(label) => {
+				Ir::Le => string.push_str("le"),
+				Ir::Leave(label) => {
 					string.push_str("leave ");
 					self.print_label(string, label);
 				}
-				&Ir::LeaveEnv => string.push_str("env.leave"),
-				&Ir::LoadArguments => string.push_str("ld.arguments"),
-				&Ir::LoadEnv(name) => {
+				Ir::LeaveEnv => string.push_str("env.leave"),
+				Ir::LoadArguments => string.push_str("ld.arguments"),
+				Ir::LoadEnv(name) => {
 					string.push_str("ld.env ");
 					self.print_name(string, name, interner);
 				}
-				&Ir::LoadEnvArguments(depth) => { write!(string, "ld.env.args {}", depth).ok(); },
-				&Ir::LoadEnvObject => string.push_str("ld.env.obj"),
-				&Ir::LoadEnvObjectFor(name) => {
+				Ir::LoadEnvArguments(depth) => { write!(string, "ld.env.args {}", depth).ok(); },
+				Ir::LoadEnvObject => string.push_str("ld.env.obj"),
+				Ir::LoadEnvObjectFor(name) => {
 					string.push_str("ld.env.obj.for ");
 					self.print_name(string, name, interner);
 				}
-				&Ir::LoadGlobal(name) => {
+				Ir::LoadGlobal(name) => {
 					string.push_str("ld.global ");
 					self.print_name(string, name, interner);
 				}
-				&Ir::LoadGlobalObject => string.push_str("ld.global.obj"),
-				&Ir::LoadException => string.push_str("ld.exception"),
-				&Ir::LoadF64(value) => { write!(string, "ld.f64 {}", value).ok(); }
-				&Ir::LoadFalse => string.push_str("ld.false"),
-				&Ir::LoadFunction(index) => { write!(string, "ld.func {}", index.usize()).ok(); }
-				&Ir::LoadI32(value) => { write!(string, "ld.i32 {}", value).ok(); }
-				&Ir::LoadI64(value) => { write!(string, "ld.i64 {}", value).ok(); }
-				&Ir::LoadIndex => string.push_str("ld.idx"),
-				&Ir::LoadLifted(index, depth) => {
+				Ir::LoadGlobalObject => string.push_str("ld.global.obj"),
+				Ir::LoadException => string.push_str("ld.exception"),
+				Ir::LoadF64(value) => { write!(string, "ld.f64 {}", value).ok(); }
+				Ir::LoadFalse => string.push_str("ld.false"),
+				Ir::LoadFunction(index) => { write!(string, "ld.func {}", index.usize()).ok(); }
+				Ir::LoadI32(value) => { write!(string, "ld.i32 {}", value).ok(); }
+				Ir::LoadI64(value) => { write!(string, "ld.i64 {}", value).ok(); }
+				Ir::LoadIndex => string.push_str("ld.idx"),
+				Ir::LoadLifted(index, depth) => {
 					string.push_str("ld.lifted ");
 					write!(string, "{} {}", index, depth).ok();
 				}
-				&Ir::LoadLocal(local) => {
+				Ir::LoadLocal(local) => {
 					string.push_str("ld.local ");
 					self.print_local(string, local, interner);
 				}
-				&Ir::LoadMissing => string.push_str("ld.missing"),
-				&Ir::LoadName(name) => {
+				Ir::LoadMissing => string.push_str("ld.missing"),
+				Ir::LoadName(name) => {
 					string.push_str("ld.name ");
 					self.print_name(string, name, interner);
 				}
-				&Ir::LoadNameLit => string.push_str("ld.name.lit"),
-				&Ir::LoadNull => string.push_str("ld.null"),
-				&Ir::LoadParam(index) => { write!(string, "ld.arg {}", index).ok(); }
-				&Ir::LoadRegex(body, flags) => {
+				Ir::LoadNameLit => string.push_str("ld.name.lit"),
+				Ir::LoadNull => string.push_str("ld.null"),
+				Ir::LoadParam(index) => { write!(string, "ld.arg {}", index).ok(); }
+				Ir::LoadRegex(body, flags) => {
 					string.push_str("ld.regex ");
 					self.print_string(string, &*interner.get(body));
 					string.push_str(", ");
 					self.print_string(string, &*interner.get(flags));
 				}
-				&Ir::LoadString(value) => {
+				Ir::LoadString(value) => {
 					string.push_str("ld.str ");
 					self.print_string(string, &*interner.get(value));
 				}
-				&Ir::LoadThis => string.push_str("ld.this"),
-				&Ir::LoadTrue => string.push_str("ld.true"),
-				&Ir::LoadUndefined => string.push_str("ld.undefined"),
-				&Ir::Lsh => string.push_str("lsh"),
-				&Ir::Lt => string.push_str("lt"),
-				&Ir::Modulus => string.push_str("mod"),
-				&Ir::Multiply => string.push_str("mul"),
-				&Ir::Ne => string.push_str("ne"),
-				&Ir::Negative => string.push_str("neg"),
-				&Ir::New(args) => { write!(string, "new {}", args).ok(); }
-				&Ir::NewArguments => string.push_str("new.args"),
-				&Ir::NewArray => string.push_str("new.array"),
-				&Ir::NewObject => string.push_str("new.object"),
-				&Ir::NextIter(local, label) => {
+				Ir::LoadThis => string.push_str("ld.this"),
+				Ir::LoadTrue => string.push_str("ld.true"),
+				Ir::LoadUndefined => string.push_str("ld.undefined"),
+				Ir::Lsh => string.push_str("lsh"),
+				Ir::Lt => string.push_str("lt"),
+				Ir::Modulus => string.push_str("mod"),
+				Ir::Multiply => string.push_str("mul"),
+				Ir::Ne => string.push_str("ne"),
+				Ir::Negative => string.push_str("neg"),
+				Ir::New(args) => { write!(string, "new {}", args).ok(); }
+				Ir::NewArguments => string.push_str("new.args"),
+				Ir::NewArray => string.push_str("new.array"),
+				Ir::NewObject => string.push_str("new.object"),
+				Ir::NextIter(local, label) => {
 					string.push_str("iter.next ");
 					self.print_local(string, local, interner);
 					string.push_str(", ");
 					self.print_label(string, label);
 				}
-				&Ir::Not => string.push_str("not"),
-				&Ir::Pick(offset) => { write!(string, "pick {}", offset).ok(); }
-				&Ir::Pop => string.push_str("pop"),
-				&Ir::Positive => string.push_str("pos"),
-				&Ir::Return => string.push_str("ret"),
-				&Ir::Rsh => string.push_str("rsh"),
-				&Ir::RshZeroFill => string.push_str("rsh.zf"),
-				&Ir::StoreGetter(function) => { write!(string, "st.getter {}", function.usize()).ok(); }
-				&Ir::StoreGlobal(name) => {
+				Ir::Not => string.push_str("not"),
+				Ir::Pick(offset) => { write!(string, "pick {}", offset).ok(); }
+				Ir::Pop => string.push_str("pop"),
+				Ir::Positive => string.push_str("pos"),
+				Ir::Return => string.push_str("ret"),
+				Ir::Rsh => string.push_str("rsh"),
+				Ir::RshZeroFill => string.push_str("rsh.zf"),
+				Ir::StoreGetter(function) => { write!(string, "st.getter {}", function.usize()).ok(); }
+				Ir::StoreGlobal(name) => {
 					string.push_str("st.global ");
 					self.print_name(string, name, interner);
 				}
-				&Ir::StoreNameGetter(name, function) => {
+				Ir::StoreNameGetter(name, function) => {
 					string.push_str("st.getter.name ");
 					self.print_name(string, name, interner);
 					write!(string, ", {}", function.usize()).ok();
 				}
-				&Ir::StoreIndex => string.push_str("st.idx"),
-				&Ir::StoreLifted(index, depth) => {
+				Ir::StoreIndex => string.push_str("st.idx"),
+				Ir::StoreLifted(index, depth) => {
 					string.push_str("st.lifted ");
 					write!(string, "{} {}", index, depth).ok();
 				}
-				&Ir::StoreLocal(local) => {
+				Ir::StoreLocal(local) => {
 					string.push_str("st.local ");
 					self.print_local(string, local, interner);
 				}
-				&Ir::StoreName(name) => {
+				Ir::StoreName(name) => {
 					string.push_str("st.name ");
 					self.print_name(string, name, interner);
 				}
-				&Ir::StoreParam(index) => { write!(string, "st.arg {}", index).ok(); }
-				&Ir::StoreEnv(name) => {
+				Ir::StoreParam(index) => { write!(string, "st.arg {}", index).ok(); }
+				Ir::StoreEnv(name) => {
 					string.push_str("st.env ");
 					self.print_name(string, name, interner);
 				}
-				&Ir::StoreEnvArguments => string.push_str("st.env.args"),
-				&Ir::StoreSetter(function) => { write!(string, "st.setter {}", function.usize()).ok(); }
-				&Ir::StoreNameSetter(name, function) => {
+				Ir::StoreEnvArguments => string.push_str("st.env.args"),
+				Ir::StoreSetter(function) => { write!(string, "st.setter {}", function.usize()).ok(); }
+				Ir::StoreNameSetter(name, function) => {
 					string.push_str("st.setter.name ");
 					self.print_name(string, name, interner);
 					write!(string, ", {}", function.usize()).ok();
 				}
-				&Ir::StrictEq => string.push_str("eq.strict"),
-				&Ir::StrictNe => string.push_str("ne.strict"),
-				&Ir::Subtract => string.push_str("sub"),
-				&Ir::Swap => string.push_str("swap"),
-				&Ir::Throw => string.push_str("throw"),
-				&Ir::ToBoolean => string.push_str("cast.bool"),
-				&Ir::Typeof => string.push_str("typeof"),
-				&Ir::TypeofIndex => string.push_str("typeof.index"),
-				&Ir::TypeofName(name) => {
+				Ir::StrictEq => string.push_str("eq.strict"),
+				Ir::StrictNe => string.push_str("ne.strict"),
+				Ir::Subtract => string.push_str("sub"),
+				Ir::Swap => string.push_str("swap"),
+				Ir::Throw => string.push_str("throw"),
+				Ir::ToBoolean => string.push_str("cast.bool"),
+				Ir::Typeof => string.push_str("typeof"),
+				Ir::TypeofIndex => string.push_str("typeof.index"),
+				Ir::TypeofName(name) => {
 					string.push_str("typeof.name ");
 					self.print_name(string, name, interner);
 				}

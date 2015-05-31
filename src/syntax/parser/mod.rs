@@ -701,7 +701,7 @@ impl<'a> Parser<'a> {
 			
 			let right = try!(self.parse_expr_tail());
 			
-			let rebalance = if let &Expr::Binary(lop, _, _) = &expr {
+			let rebalance = if let Expr::Binary(lop, _, _) = expr {
 				lop.precedence() < op.precedence()
 			} else {
 				false

@@ -13242,7 +13242,7 @@ fn run_safe(file: &'static str) {
 	let mut is_es6 = header.headers.get("es6id").is_some();
 	
 	if let Some(header) = header.headers.get("features") {
-		if let &Header::List(ref items) = header {
+		if let Header::List(ref items) = *header {
 			for item in items {
 				if item == "arrow-function" {
 					is_es6 = true;
@@ -13262,7 +13262,7 @@ fn run_safe(file: &'static str) {
 	];
 	
 	if let Some(header) = header.headers.get("includes") {
-		if let &Header::List(ref items) = header {
+		if let Header::List(ref items) = *header {
 			for item in items {
 				includes.push(item.clone());
 			}
@@ -13304,7 +13304,7 @@ struct TestHeader {
 impl TestHeader {
 	fn parse(js: &str) -> TestHeader {
 		fn add_header(headers: &mut HashMap<String, Header>, index: String, header: Header) {
-			if let &Header::String(ref string) = &header {
+			if let Header::String(ref string) = header {
 				if string[0..1].eq("[") && string[string.len() - 1..string.len()].eq("]") {
 					let mut list = Vec::new();
 					for item in string[1..string.len() - 1].split(",") {
@@ -13343,14 +13343,14 @@ impl TestHeader {
 
 					if chars[0].is_whitespace() {
 						if let Some(ref mut header) = header {
-							match header {
-								&mut Header::String(ref mut string) => {
+							match *header {
+								Header::String(ref mut string) => {
 									if string.len() > 0 {
 										string.push('\n');
 									}
 									string.push_str(line.trim());
 								}
-								&mut Header::List(ref mut list) => {
+								Header::List(ref mut list) => {
 									let mut offset = 0;
 									while chars[offset].is_whitespace() || chars[offset] == '-' {
 										offset += 1;
