@@ -57,7 +57,7 @@ impl<T> fmt::Debug for Array<T> {
 impl<T: Copy> Array<T> {
 	pub fn copy<'a>(from: &'a Array<T>, to: &'a mut Array<T>, count: usize) {
 		unsafe {
-			assert!(count < from.len() && count < to.len());
+			assert!(count <= from.len() && count <= to.len());
 			
 			ptr::copy(
 				from.ptr.offset(size_of::<usize>() as isize),
