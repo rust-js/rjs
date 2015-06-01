@@ -50,3 +50,15 @@ pub fn String_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>
 pub fn String_substr(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	unimplemented!();
 }
+
+// 15.5.3.2 String.fromCharCode ( [ char0 [ , char1 [ , … ] ] ] )
+pub fn String_fromCharCode(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let mut result = JsString::new_local(env, args.args.len());
+	
+	for i in 0..args.args.len() {
+		let c = try!(args.args[i].to_uint16(env));
+		result.chars[i] = c;
+	}
+	
+	Ok(result.as_value(env))
+}

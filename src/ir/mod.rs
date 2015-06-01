@@ -1450,7 +1450,7 @@ impl<'a> IrGenerator<'a> {
 				self.ir.emit(Ir::Pick(1));
 				self.ir.emit(Ir::LoadIndex);
 			}
-			_ => panic!()
+			_ => return Err(JsError::Reference("Unexpected left hand side expression".to_string()))
 		}
 		
 		Ok(LhsRef {
@@ -1458,8 +1458,8 @@ impl<'a> IrGenerator<'a> {
 		})
 	}
 	
-	fn emit_lhs_store(&mut self, lhs_ref: LhsRef<'a>) {
-		match *lhs_ref.expr {
+	fn emit_lhs_store(&mut self, lhs_ref: LhsRef<'a>) -> JsResult<()> {
+		let result = match *lhs_ref.expr {
 			Expr::Ident(ref ident) => {
 				match ident.state.get() {
 					IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
@@ -1476,8 +1476,10 @@ impl<'a> IrGenerator<'a> {
 			Expr::MemberIndex(..) => {
 				self.ir.emit(Ir::StoreIndex);
 			}
-			_ => panic!()
-		}
+			_ => return Err(JsError::Reference("Unexpected left hand side expression".to_string()))
+		};
+		
+		Ok(result)
 	}
 	
 	fn emit_expr_unary(&mut self, op: Op, expr: &'a Expr, leave: bool) -> JsResult<()> {
@@ -1494,12 +1496,12 @@ impl<'a> IrGenerator<'a> {
 					self.ir.emit(Ir::Add);
 					self.ir.emit(Ir::StoreLocal(local));
 					self.ir.emit(Ir::LoadLocal(local));
-					self.emit_lhs_store(lhs_ref);
+					try!(self.emit_lhs_store(lhs_ref));
 					self.ir.emit(Ir::LoadLocal(local));
 				} else {
 					self.ir.emit(Ir::LoadI32(1));
 					self.ir.emit(Ir::Add);
-					self.emit_lhs_store(lhs_ref);
+					try!(self.emit_lhs_store(lhs_ref));
 				}
 				
 				return Ok(());
@@ -1514,12 +1516,12 @@ impl<'a> IrGenerator<'a> {
 					self.ir.emit(Ir::LoadLocal(local));
 					self.ir.emit(Ir::LoadI32(1));
 					self.ir.emit(Ir::Add);
-					self.emit_lhs_store(lhs_ref);
+					try!(self.emit_lhs_store(lhs_ref));
 					self.ir.emit(Ir::LoadLocal(local));
 				} else {
 					self.ir.emit(Ir::LoadI32(1));
 					self.ir.emit(Ir::Add);
-					self.emit_lhs_store(lhs_ref);
+					try!(self.emit_lhs_store(lhs_ref));
 				}
 				
 				return Ok(());
@@ -1534,12 +1536,12 @@ impl<'a> IrGenerator<'a> {
 					self.ir.emit(Ir::Subtract);
 					self.ir.emit(Ir::StoreLocal(local));
 					self.ir.emit(Ir::LoadLocal(local));
-					self.emit_lhs_store(lhs_ref);
+					try!(self.emit_lhs_store(lhs_ref));
 					self.ir.emit(Ir::LoadLocal(local));
 				} else {
 					self.ir.emit(Ir::LoadI32(1));
 					self.ir.emit(Ir::Subtract);
-					self.emit_lhs_store(lhs_ref);
+					try!(self.emit_lhs_store(lhs_ref));
 				}
 				
 				return Ok(());
@@ -1554,12 +1556,12 @@ impl<'a> IrGenerator<'a> {
 					self.ir.emit(Ir::LoadLocal(local));
 					self.ir.emit(Ir::LoadI32(1));
 					self.ir.emit(Ir::Subtract);
-					self.emit_lhs_store(lhs_ref);
+					try!(self.emit_lhs_store(lhs_ref));
 					self.ir.emit(Ir::LoadLocal(local));
 				} else {
 					self.ir.emit(Ir::LoadI32(1));
 					self.ir.emit(Ir::Subtract);
-					self.emit_lhs_store(lhs_ref);
+					try!(self.emit_lhs_store(lhs_ref));
 				}
 				
 				return Ok(());
@@ -1732,7 +1734,7 @@ mod test {
 	
 	fn parse(js: &str) -> String {
 		let mut ctx = IrContext::new();
-		ctx.parse_string(js).ok();
+		ctx.parse_string(js, false, false).ok();
 		
 		let mut ir = String::new();
 		ctx.print_ir(&mut ir).ok();

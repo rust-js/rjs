@@ -17,6 +17,8 @@ use self::date::*;
 use self::number::*;
 use self::boolean::*;
 use self::regexp::*;
+use self::math::*;
+use self::console::*;
 
 mod global;
 mod object;
@@ -27,6 +29,8 @@ mod date;
 mod number;
 mod boolean;
 mod regexp;
+mod math;
+mod console;
 
 macro_rules! function {
 	( $target:expr , $name:expr , $function:ident , $arity:expr , $prototype:expr , $env:expr ) => {
@@ -102,6 +106,7 @@ fn setup_global(env: &mut JsEnv) {
 	setup_math(env, global, function_prototype);
 	setup_regexp(env, global, function_prototype);
 	setup_json(env, global, function_prototype);
+	setup_console(env, global, function_prototype);
 	
 	// Build global functions
 	
@@ -203,7 +208,9 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototy
 }
 
 fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
-	let class = env.new_native_function(Some(name::STRING_CLASS), 0, &String_constructor, function_prototype);	
+	let mut class = env.new_native_function(Some(name::STRING_CLASS), 0, &String_constructor, function_prototype);	
+	
+	function!(class, name::FROM_CHAR_CODE, String_fromCharCode, 0, function_prototype, env);
 	
 	property!(global, name::STRING_CLASS, class, true, false, true, env);
 
@@ -264,6 +271,9 @@ fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototyp
 	class.set_class(env, Some(name::MATH_CLASS));
 	
 	property!(global, name::MATH_CLASS, class.as_value(env), true, false, true, env);
+	
+	function!(class, name::POW, Math_pow, 2, function_prototype, env);
+	function!(class, name::FLOOR, Math_floor, 1, function_prototype, env);
 }
 
 fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
@@ -282,6 +292,16 @@ fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototyp
 	class.set_class(env, Some(name::JSON_CLASS));
 	
 	property!(global, name::JSON_CLASS, class.as_value(env), true, false, true, env);
+}
+
+fn setup_console<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
+	let mut class = JsObject::new_local(env, JsStoreType::Hash);
+	
+	class.set_class(env, Some(name::CONSOLE_CLASS));
+	
+	property!(global, name::CONSOLE, class.as_value(env), true, false, true, env);
+	
+	function!(class, name::LOG, console_log, 1, function_prototype, env);
 }
 
 fn new_naked_function<'a>(env: &mut JsEnv, name: Option<Name>, args: u32, function: &JsFn, prototype: Local<JsObject>, can_construct: bool) -> Local<JsValue> {

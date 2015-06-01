@@ -295,4 +295,10 @@ declare_idents! {
 	( "isFinite", IS_FINITE, 120 );
 	( "callee", CALLEE, 121 );
 	( "caller", CALLER, 122 );
+	( "fromCharCode", FROM_CHAR_CODE, 123 );
+	( "pow", POW, 124 );
+	( "floor", FLOOR, 125 );
+	( "Console", CONSOLE_CLASS, 126 );
+	( "console", CONSOLE, 127 );
+	( "log", LOG, 128 );
 }

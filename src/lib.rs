@@ -21,6 +21,7 @@ pub enum JsError {
 	Io(std::io::Error),
 	Lex(String),
 	Parse(String),
+	Reference(String),
 	Runtime(Root<JsValue>)
 }
 
@@ -79,6 +80,12 @@ impl JsError {
 					Err(error) => error.as_runtime(env)
 				}
 			}
+			JsError::Reference(ref message) => {
+				match Self::new_error(env, name::REFERENCE_ERROR_CLASS, Some(&message), None, None) {
+					Ok(error) => error,
+					Err(error) => error.as_runtime(env)
+				}
+			}
 			JsError::Runtime(ref error) => error.clone(),
 			ref error @ _ => {
 				// TODO: This could be nicer.
@@ -96,6 +103,7 @@ impl fmt::Debug for JsError {
 			JsError::Io(ref err) => try!(err.fmt(formatter)),
 			JsError::Lex(ref message) => try!(write!(formatter, "Lex {{ {} }}", message)),
 			JsError::Parse(ref message) => try!(write!(formatter, "Parse {{ {} }}", message)),
+			JsError::Reference(ref message) => try!(write!(formatter, "Reference {{ {} }}", message)),
 			JsError::Runtime(..) => try!(write!(formatter, "Runtime {{ .. }}"))
 		}
 		write!(formatter, " }}")

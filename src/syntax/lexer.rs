@@ -11,9 +11,10 @@ pub struct Lexer<'a> {
 	reader: &'a mut Reader,
 	interner: &'a StrInterner,
 	strict: bool,
-	look_ahead: VecDeque<TokenAndSpan>,
+	look_ahead: VecDeque<(TokenAndSpan, usize)>,
 	file: Name,
-	last_span: Option<Span>
+	last_span: Option<Span>,
+	allow_regexp: bool
 }
 
 impl<'a> Lexer<'a> {
@@ -26,7 +27,8 @@ impl<'a> Lexer<'a> {
 			strict: false,
 			look_ahead: VecDeque::new(),
 			file: file,
-			last_span: None
+			last_span: None,
+			allow_regexp: false
 		})
 	}
 	
@@ -35,7 +37,28 @@ impl<'a> Lexer<'a> {
 	}
 	
 	pub fn set_strict(&mut self, strict: bool) {
+		self.reset_look_ahead();
+		
 		self.strict = strict;
+	}
+	
+	pub fn set_allow_regexp(&mut self, allow: bool) {
+		assert!(allow != self.allow_regexp);
+		
+		self.reset_look_ahead();
+		
+		self.allow_regexp = allow;
+	}
+	
+	fn reset_look_ahead(&mut self) {
+		// This method is called when the parser state changes. Reset the reader
+		// to just before the first look ahead token and clear the look ahead list.
+		
+		if let Some(first) = self.look_ahead.get(0) {
+			self.reader.seek(first.1);
+		}
+		
+		self.look_ahead.clear();
 	}
 	
 	pub fn span(&mut self) -> JsResult<Span> {
@@ -146,34 +169,19 @@ impl<'a> Lexer<'a> {
 				return Ok(None);
 			}
 			
-			// The allow_regexp function recurses back here. We detect
-			// this by checking whether the length changes. If so,
-			// we insert the parsed token into the right location.
-			
 			let index = self.look_ahead.len();
+			let offset = self.reader.offset();
 			
 			let token = try!(self.parse());
 			
-			if index == self.look_ahead.len() {
-				self.look_ahead.push_back(token);
-			} else {
-				// TODO: Unstable.
-				// self.look_ahead.insert(index, token);
-				
-				let mut tokens = Vec::new();
-				while self.look_ahead.len() > index {
-					tokens.push(self.look_ahead.pop_back().unwrap());
-				}
-				
-				self.look_ahead.push_back(token);
-				
-				for token in tokens.into_iter().rev() {
-					self.look_ahead.push_back(token);
-				}
-			}
+			// Ensure that we did not recurse into ourselves.
+			
+			assert_eq!(index, self.look_ahead.len());
+			
+			self.look_ahead.push_back((token, offset));
 		}
 		
-		Ok(Some(self.look_ahead[index]))
+		Ok(Some(self.look_ahead[index].0))
 	}
 
 	fn fatal<T>(&self, message: &str) -> JsResult<T> {
@@ -202,18 +210,19 @@ impl<'a> Lexer<'a> {
 				}
 			},
 			'/' => {
-				if self.reader.consume('=') {
+ 				if self.reader.consume('=') {
 					DivideAssign
 				} else if self.reader.consume('*') {
-					self.parse_block_comment();
+					try!(self.parse_block_comment());
 					Comment
 				} else if self.reader.consume('/') {
 					self.skip_while(|c| c != '\n');
 					Comment
-				} else if try!(self.allow_regex()) {
-					match self.parse_regex() {
-						Some(token) => token,
-						_ => Divide
+				} else if self.allow_regexp {
+					if let Some(token) = self.parse_regex() {
+						token
+					} else {
+						Divide
 					}
 				} else {
 					Divide
@@ -437,12 +446,14 @@ impl<'a> Lexer<'a> {
 		}
 	}
 	
-	fn parse_block_comment(&mut self) {
+	fn parse_block_comment(&mut self) -> JsResult<()> {
 		while !self.reader.is_eof() {
 			if self.reader.next() == '*' && self.reader.consume('/') {
-				return;
+				return Ok(());
 			}
 		}
+		
+		Err(JsError::Parse("Unmatched block comment".to_string()))
 	}
 	
 	fn consume_while<F: Fn(char) -> bool>(&mut self, predicate: F) -> String {
@@ -692,17 +703,6 @@ impl<'a> Lexer<'a> {
 					false
 				}
 			}
-		}
-	}
-	
-	fn allow_regex(&mut self) -> JsResult<bool> {
-		if let Some(token) = try!(self.peek(0)) {
-			match token.token {
-				Identifier(..) | Literal(..) | This | CloseBracket | CloseParen => Ok(false),
-				_ => Ok(true)
-			}
-		} else {
-			Ok(true)
 		}
 	}
 	
@@ -1245,6 +1245,7 @@ fn is_unicode_zwj(c: char) -> bool {
 	c == '\u{200D}'
 }
 
+/*
 #[cfg(test)]
 mod test {
 	use super::*;
@@ -1305,3 +1306,4 @@ mod test {
 		Lexer::new(&mut reader, interner, false).ok().unwrap()
 	}
 }
+*/

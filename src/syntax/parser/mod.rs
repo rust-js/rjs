@@ -519,12 +519,20 @@ impl<'a> Parser<'a> {
 		Ok(Some(name))
 	}
 	
-	fn parse_lit(&mut self) -> JsResult<Lit> {
-		if let Token::Literal(lit) = try!(self.next()) {
-			return Ok(lit);
-		}
+	fn parse_lit(&mut self) -> JsResult<Option<Lit>> {
+		self.lexer.set_allow_regexp(true);
 		
-		self.fatal("Expected literal")
+		let token = try!(self.peek());
+		
+		self.lexer.set_allow_regexp(false);
+		
+		if let Some(Token::Literal(lit)) = token {
+			try!(self.bump());
+			
+			Ok(Some(lit))
+		} else {
+			Ok(None)
+		}
 	}
 	
 	fn parse_block(&mut self) -> JsResult<Block> {
@@ -667,7 +675,7 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr_binary(&mut self) -> JsResult<Expr> {
-		let mut expr = try!(self.parse_expr_tail());
+		let mut expr = try!(self.parse_expr_unary());
 		
 		loop {
 			let op = match try!(self.peek()) {
@@ -699,7 +707,7 @@ impl<'a> Parser<'a> {
 			
 			try!(self.bump());
 			
-			let right = try!(self.parse_expr_tail());
+			let right = try!(self.parse_expr_unary());
 			
 			let rebalance = if let Expr::Binary(lop, _, _) = expr {
 				lop.precedence() < op.precedence()
@@ -729,7 +737,7 @@ impl<'a> Parser<'a> {
 		Ok(expr)
 	}
 	
-	fn parse_expr_tail(&mut self) -> JsResult<Expr> {
+	fn parse_expr_unary(&mut self) -> JsResult<Expr> {
 		let mut expr = try!(match try!(self.peek()) {
 			Some(Token::Function) => {
 				try!(self.bump());
@@ -843,20 +851,9 @@ impl<'a> Parser<'a> {
 	fn parse_expr_unary_pre(&mut self, op: Op) -> JsResult<Expr> {
 		try!(self.bump());
 		
-		let expr = try!(self.parse_expr());
+		let expr = try!(self.parse_expr_unary());
 		
-		// Rebalance binary expression because presendence of unary
-		// operator is higher than that of a binary expresion.
-		
-		if let Expr::Binary(binop, lhs, rhs) = expr {
-			Ok(Expr::Binary(
-				binop,
-				Box::new(Expr::Unary(op, lhs)),
-				rhs
-			))
-		} else {
-			Ok(Expr::Unary(op, Box::new(expr)))
-		}
+		Ok(Expr::Unary(op, Box::new(expr)))
 	}
 	
 	fn parse_expr_unary_post(&mut self, expr: Expr, op: Op) -> JsResult<Expr> {
@@ -1037,9 +1034,7 @@ impl<'a> Parser<'a> {
 					Ok(Property::Assignment(PropertyKey::Ident(name), Box::new(expr)))
 				}
 			}
-		} else if let Some(Token::Literal(..)) = try!(self.peek()) {
-			let lit = try!(self.parse_lit());
-			
+		} else if let Some(lit) = try!(self.parse_lit()) {
 			// Only strings and numbers are accepted as property keys.
 			
 			match lit {

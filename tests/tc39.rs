@@ -1091,7 +1091,7 @@ test!(language_expressions_delete_11_4_1_4_a_4_s, "language/expressions/delete/1
 test!(language_expressions_delete_11_4_1_4_a_1, "language/expressions/delete/11.4.1-4.a-1.js");
 test!(language_expressions_delete_11_4_1_4_a_2, "language/expressions/delete/11.4.1-4.a-2.js");
 test!(language_expressions_delete_11_4_1_4_a_3, "language/expressions/delete/11.4.1-4.a-3.js");
-test!(language_expressions_delete_11_4_1_4_a_3_s, "language/expressions/delete/11.4.1-4.a-3-s.js");
+test!(language_expressions_delete_11_4_1_4_a_3_s_1, "language/expressions/delete/11.4.1-4.a-3-s.js");
 test!(language_expressions_delete_11_4_1_4_a_4, "language/expressions/delete/11.4.1-4.a-4.js");
 test!(language_expressions_delete_11_4_1_4_a_5, "language/expressions/delete/11.4.1-4.a-5.js");
 test!(language_expressions_delete_11_4_1_4_a_6, "language/expressions/delete/11.4.1-4.a-6.js");
@@ -13134,12 +13134,12 @@ fn parse(file: &str) {
 	let mut js = String::new();
 	File::open(file).ok().unwrap().read_to_string(&mut js).ok();
 
-	if js.contains("negative: SyntaxError") || js.contains("negative: ReferenceError") {
+	if js.contains("negative: SyntaxError") || js.contains("negative: ReferenceError") || js.contains("es6id") || js.contains("arrow-function") {
 		return
 	}
 	
 	let mut ctx = IrContext::new();
-	ctx.parse_string(&js).ok();
+	ctx.parse_string(&js, false, false).ok();
 	
 	ctx.print_ir(&mut String::new()).ok();
 }

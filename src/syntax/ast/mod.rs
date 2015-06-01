@@ -4,6 +4,7 @@ use syntax::{Name, Span};
 use syntax::token::Lit;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::fmt;
 
 pub struct AstContext {
 	pub functions: Vec<Box<Function>>
@@ -135,10 +136,15 @@ pub struct Label {
 	pub name: Name
 }
 
-#[derive(Debug)]
 pub struct Ident {
 	pub name: Name,
 	pub state: Cell<IdentState>
+}
+
+impl fmt::Debug for Ident {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "Ident {{ name: {:?} }}", self.name)
+    }
 }
 
 /// Resolve state of an identifier. Variables can:
