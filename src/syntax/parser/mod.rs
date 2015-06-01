@@ -763,22 +763,14 @@ impl<'a> Parser<'a> {
 		});
 		
 		loop {
+			let is_eos = try!(self.is_eos());
+			
 			expr = try!(match try!(self.peek()) {
 				Some(Token::OpenBracket) => self.parse_expr_member_index(expr),
 				Some(Token::Dot) => self.parse_expr_member_dot(expr),
 				Some(Token::OpenParen) => self.parse_expr_call(expr),
-				Some(Token::PlusPlus) => {
-					match try!(self.peek_any()) {
-						Some(Token::Newline) => return Ok(expr),
-						_ => self.parse_expr_unary_post(expr, Op::PostIncr)
-					}
-				},
-				Some(Token::MinusMinus) => {
-					match try!(self.peek_any()) {
-						Some(Token::Newline) => return Ok(expr),
-						_ => self.parse_expr_unary_post(expr, Op::PostDecr)
-					}
-				},
+				Some(Token::PlusPlus) if !is_eos => self.parse_expr_unary_post(expr, Op::PostIncr),
+				Some(Token::MinusMinus) if !is_eos => self.parse_expr_unary_post(expr, Op::PostDecr),
 				_ => return Ok(expr)
 			});
 		}
@@ -1245,10 +1237,14 @@ impl<'a> Parser<'a> {
 	fn parse_continue(&mut self) -> JsResult<Item> {
 		try!(self.bump());
 		
-		let label = if let Some(name) = try!(self.parse_opt_name()) {
-			Some(Label {
-				name: name
-			})
+		let label = if !try!(self.is_eos()) {
+			if let Some(name) = try!(self.parse_opt_name()) {
+				Some(Label {
+					name: name
+				})
+			} else {
+				None
+			}
 		} else {
 			None
 		};
@@ -1261,10 +1257,14 @@ impl<'a> Parser<'a> {
 	fn parse_break(&mut self) -> JsResult<Item> {
 		try!(self.bump());
 		
-		let label = if let Some(name) = try!(self.parse_opt_name()) {
-			Some(Label {
-				name: name
-			})
+		let label = if !try!(self.is_eos()) {
+			if let Some(name) = try!(self.parse_opt_name()) {
+				Some(Label {
+					name: name
+				})
+			} else {
+				None
+			}
 		} else {
 			None
 		};
@@ -1359,11 +1359,15 @@ impl<'a> Parser<'a> {
 	fn parse_throw(&mut self) -> JsResult<Item> {
 		try!(self.bump());
 		
-		let expr = try!(self.parse_expr_seq());
-		
-		try!(self.expect_eos());
-		
-		Ok(Item::Throw(expr))
+		if try!(self.is_eos()) {
+			Err(JsError::Parse("Illegal end of statement after throw".to_string()))
+		} else {
+			let expr = try!(self.parse_expr_seq());
+			
+			try!(self.expect_eos());
+			
+			Ok(Item::Throw(expr))
+		}
 	}
 	
 	fn parse_try(&mut self) -> JsResult<Item> {

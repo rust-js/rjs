@@ -7,6 +7,7 @@ use syntax::token::name;
 use std::f64;
 use std::cmp;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ComparisonResult {
 	Undefined,
 	True,
@@ -44,6 +45,7 @@ impl JsEnv {
 		Ok(lnum - rnum)
 	}
 	
+	// 11.4.7 Unary - Operator
 	pub fn negative(&mut self, expr: Local<JsValue>) -> JsResult<f64> {
 		let old_value = try!(expr.to_number(self));
 		let result = if old_value.is_nan() {
@@ -53,6 +55,11 @@ impl JsEnv {
 		};
 		
 		Ok(result)
+	}
+	
+	// 11.4.6 Unary + Operator
+	pub fn positive(&mut self, expr: Local<JsValue>) -> JsResult<f64> {
+		expr.to_number(self)
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.2.3
@@ -207,7 +214,7 @@ impl JsEnv {
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.2
 	pub fn compare_gt(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> JsResult<bool>  {
-		let result = try!(self.compare_any(x, y, true));
+		let result = try!(self.compare_any(y, x, true));
 		
 		Ok(match result {
 			ComparisonResult::True => true,
@@ -217,7 +224,7 @@ impl JsEnv {
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.3
 	pub fn compare_le(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> JsResult<bool>  {
-		let result = try!(self.compare_any(x, y, false));
+		let result = try!(self.compare_any(y, x, false));
 		
 		Ok(match result {
 			ComparisonResult::True | ComparisonResult::Undefined => false,
@@ -470,6 +477,64 @@ impl JsEnv {
 			
 			Ok(JsValue::new_bool(result).as_local(&self.heap))
 		}
+	}
+	
+	// 11.5.1 Applying the * Operator
+	pub fn multiply(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+		self.multiplicative(lhs, rhs, |lhs, rhs| lhs * rhs)
+	}
+	
+	// 11.5.2 Applying the / Operator
+	pub fn divide(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+		self.multiplicative(lhs, rhs, |lhs, rhs| {
+			if rhs == 0f64 {
+				if lhs.is_infinite() {
+					lhs
+				} else if lhs == 0f64 {
+					f64::NAN
+				} else if lhs > 0f64 {
+					f64::INFINITY
+				} else {
+					f64::NEG_INFINITY
+				}
+			} else {
+				lhs / rhs
+			}
+		})
+	}
+	
+	// 11.5.3 Applying the % Operator
+	pub fn modulus(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+		self.multiplicative(lhs, rhs, |lhs, rhs| lhs % rhs)
+	}
+	
+	// 11.5 Multiplicative Operators
+	fn multiplicative<F: FnOnce(f64, f64) -> f64>(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>, func: F) -> JsResult<f64> {
+		let left = try!(lhs.to_number(self));
+		let right = try!(rhs.to_number(self));
+		Ok(func(left, right))
+	}
+	
+	// 11.10 Binary Bitwise Operators
+	pub fn bit_and(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+		self.bitwise(lhs, rhs, |lhs, rhs| lhs & rhs)
+	}
+	
+	// 11.10 Binary Bitwise Operators
+	pub fn bit_or(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+		self.bitwise(lhs, rhs, |lhs, rhs| lhs | rhs)
+	}
+	
+	// 11.10 Binary Bitwise Operators
+	pub fn bit_xor(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+		self.bitwise(lhs, rhs, |lhs, rhs| lhs ^ rhs)
+	}
+	
+	// 11.10 Binary Bitwise Operators
+	fn bitwise<F: FnOnce(i32, i32) -> i32>(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>, func: F) -> JsResult<f64> {
+		let left = try!(lhs.to_int32(self));
+		let right = try!(rhs.to_int32(self));
+		Ok(func(left, right) as f64)
 	}
 }
 

@@ -1482,23 +1482,23 @@ impl<'a> IrGenerator<'a> {
 	
 	fn emit_expr_unary(&mut self, op: Op, expr: &'a Expr, leave: bool) -> JsResult<()> {
 		match op {
-			Op::Delete => { typeof_delete!(self, expr, leave, Delete, DeleteName, DeleteIndex); },
-			Op::Typeof => { typeof_delete!(self, expr, leave, Typeof, TypeofName, TypeofIndex); },
-			Op::PostDecr => {
+			Op::Delete => { typeof_delete!(self, expr, leave, Delete, DeleteName, DeleteIndex); }
+			Op::Typeof => { typeof_delete!(self, expr, leave, Typeof, TypeofName, TypeofIndex); }
+			Op::PreIncr => {
 				let lhs_ref = try!(self.emit_lhs_load(expr));
 				
 				if leave {
 					let local = self.ir.local(None);
 					
+					self.ir.emit(Ir::LoadI32(1));
+					self.ir.emit(Ir::Add);
 					self.ir.emit(Ir::StoreLocal(local));
 					self.ir.emit(Ir::LoadLocal(local));
-					self.ir.emit(Ir::LoadI32(1));
-					self.ir.emit(Ir::Subtract);
 					self.emit_lhs_store(lhs_ref);
 					self.ir.emit(Ir::LoadLocal(local));
 				} else {
 					self.ir.emit(Ir::LoadI32(1));
-					self.ir.emit(Ir::Subtract);
+					self.ir.emit(Ir::Add);
 					self.emit_lhs_store(lhs_ref);
 				}
 				
@@ -1531,29 +1531,29 @@ impl<'a> IrGenerator<'a> {
 					let local = self.ir.local(None);
 					
 					self.ir.emit(Ir::LoadI32(1));
-					self.ir.emit(Ir::Add);
+					self.ir.emit(Ir::Subtract);
 					self.ir.emit(Ir::StoreLocal(local));
 					self.ir.emit(Ir::LoadLocal(local));
 					self.emit_lhs_store(lhs_ref);
 					self.ir.emit(Ir::LoadLocal(local));
 				} else {
 					self.ir.emit(Ir::LoadI32(1));
-					self.ir.emit(Ir::Add);
+					self.ir.emit(Ir::Subtract);
 					self.emit_lhs_store(lhs_ref);
 				}
 				
 				return Ok(());
 			}
-			Op::PreIncr => {
+			Op::PostDecr => {
 				let lhs_ref = try!(self.emit_lhs_load(expr));
 				
 				if leave {
 					let local = self.ir.local(None);
 					
-					self.ir.emit(Ir::LoadI32(1));
-					self.ir.emit(Ir::Subtract);
 					self.ir.emit(Ir::StoreLocal(local));
 					self.ir.emit(Ir::LoadLocal(local));
+					self.ir.emit(Ir::LoadI32(1));
+					self.ir.emit(Ir::Subtract);
 					self.emit_lhs_store(lhs_ref);
 					self.ir.emit(Ir::LoadLocal(local));
 				} else {

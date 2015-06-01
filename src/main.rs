@@ -107,7 +107,6 @@ fn main() {
 	runner.run("language/arguments-object/unmapped/Symbol.iterator/next-iteration.js");
 	runner.run("language/arguments-object/unmapped/Symbol.iterator/next-truncation-before-exhaustion.js");
 	runner.run("language/arguments-object/unmapped/Symbol.iterator/property-descriptor.js");
-	/*
 	runner.run("language/asi/S7.9.2_A1_T1.js");
 	runner.run("language/asi/S7.9.2_A1_T2.js");
 	runner.run("language/asi/S7.9.2_A1_T3.js");
@@ -400,7 +399,6 @@ fn main() {
 	runner.run("language/directive-prologue/14.1-15-s.js");
 	runner.run("language/directive-prologue/14.1-16-s.js");
 	runner.run("language/directive-prologue/14.1-17-s.js");
-	*/
 	runner.run("language/eval-code/10.4.2-1-1.js");
 	runner.run("language/eval-code/10.4.2-1-2.js");
 	runner.run("language/eval-code/10.4.2-1-3.js");
@@ -445,7 +443,6 @@ fn main() {
 	runner.run("language/eval-code/S10.4.2_A1.2_T9.js");
 	runner.run("language/eval-code/S10.4.2_A1.2_T10.js");
 	runner.run("language/eval-code/S10.4.2_A1.2_T11.js");
-	/*
 	runner.run("language/expressions/addition/S9.3_A1_T2.js");
 	runner.run("language/expressions/addition/S9.3_A2_T2.js");
 	runner.run("language/expressions/addition/S9.3_A3_T2.js");
@@ -3827,7 +3824,6 @@ fn main() {
 	runner.run("language/statements/while/S12.6.2_A14_T1.js");
 	runner.run("language/statements/while/S12.6.2_A14_T2.js");
 	runner.run("language/statements/while/S12.6.2_A15.js");
-	*/
 	runner.run("language/statements/with/12.10-0-1.js");
 	runner.run("language/statements/with/12.10-0-3.js");
 	runner.run("language/statements/with/12.10-0-7.js");
@@ -3977,7 +3973,6 @@ fn main() {
 	runner.run("language/statements/with/S12.10_A5_T4.js");
 	runner.run("language/statements/with/S12.10_A5_T5.js");
 	runner.run("language/statements/with/S12.10_A5_T6.js");
-	/*
 	runner.run("language/types/boolean/S8.3_A1_T1.js");
 	runner.run("language/types/boolean/S8.3_A1_T2.js");
 	runner.run("language/types/boolean/S8.3_A2.1.js");
@@ -13166,7 +13161,6 @@ fn main() {
 	runner.run("harness/testbuiltinobject-prop-not-configurable.js");
 	runner.run("harness/testbuiltinobject-prop-not-writable.js");
 	runner.run("harness/testbuiltinobject-undefined.js");
-	*/
 }
 
 struct Runner {

@@ -28,6 +28,33 @@ macro_rules! local_try {
 	}
 }
 
+macro_rules! numeric_op {
+	( $frame:expr , $method:ident ) => { {
+		let _scope = $frame.env.heap.new_local_scope();
+		
+		let frame = $frame.env.stack.create_frame(1);
+		let arg = frame.get(0).as_local(&$frame.env.heap);
+		let result = local_try!($frame.env.$method(arg));
+		$frame.env.stack.drop_frame(frame);
+		
+		$frame.env.stack.push(JsValue::new_number(result));
+	} }
+}
+
+macro_rules! numeric_bin_op {
+	( $frame:expr , $method:ident ) => { {
+		let _scope = $frame.env.heap.new_local_scope();
+		
+		let frame = $frame.env.stack.create_frame(2);
+		let arg1 = frame.get(0).as_local(&$frame.env.heap);
+		let arg2 = frame.get(1).as_local(&$frame.env.heap);
+		let result = local_try!($frame.env.$method(arg1, arg2));
+		$frame.env.stack.drop_frame(frame);
+		
+		$frame.env.stack.push(JsValue::new_number(result));
+	} }
+}
+
 struct Frame<'a> {
 	env: &'a mut JsEnv,
 	ip: usize,
@@ -352,10 +379,10 @@ impl<'a> Frame<'a> {
 				self.env.stack.drop_frame(frame);
 				self.env.stack.push(*result);
 			}
-			Ir::BitAnd => unimplemented!(),
+			Ir::BitAnd => numeric_bin_op!(self, bit_and),
 			Ir::BitNot => unimplemented!(),
-			Ir::BitOr => unimplemented!(),
-			Ir::BitXOr => unimplemented!(),
+			Ir::BitOr => numeric_bin_op!(self, bit_or),
+			Ir::BitXOr => numeric_bin_op!(self, bit_xor),
 			Ir::Call(count) => local_try!(self.call(count, false)),
 			Ir::CurrentIter(local) => {
 				let _scope = self.env.heap.new_local_scope();
@@ -406,7 +433,7 @@ impl<'a> Frame<'a> {
 				self.env.stack.drop_frame(frame);
 				self.env.stack.push(JsValue::new_bool(result));
 			}
-			Ir::Divide => unimplemented!(),
+			Ir::Divide => numeric_bin_op!(self, divide),
 			Ir::Dup => {
 				let frame = self.env.stack.create_frame(1);
 				self.env.stack.push(frame.get(0));
@@ -701,8 +728,8 @@ impl<'a> Frame<'a> {
 				self.env.stack.drop_frame(frame);
 				self.env.stack.push(JsValue::new_bool(result));
 			}
-			Ir::Modulus => unimplemented!(),
-			Ir::Multiply => unimplemented!(),
+			Ir::Modulus => numeric_bin_op!(self, modulus),
+			Ir::Multiply => numeric_bin_op!(self, multiply),
 			Ir::Ne => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -714,16 +741,7 @@ impl<'a> Frame<'a> {
 				
 				self.env.stack.push(JsValue::new_bool(result));
 			}
-			Ir::Negative => {
-				let _scope = self.env.heap.new_local_scope();
-				
-				let frame = self.env.stack.create_frame(1);
-				let arg = frame.get(0).as_local(&self.env.heap);
-				let result = local_try!(self.env.negative(arg));
-				self.env.stack.drop_frame(frame);
-				
-				self.env.stack.push(JsValue::new_number(result));
-			}
+			Ir::Negative => numeric_op!(self, negative),
 			Ir::New(count) => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -785,7 +803,7 @@ impl<'a> Frame<'a> {
 				let frame = self.env.stack.create_frame(1);
 				self.env.stack.drop_frame(frame);
 			}
-			Ir::Positive => unimplemented!(),
+			Ir::Positive => numeric_op!(self, positive),
 			Ir::Return => {
 				let frame = self.env.stack.create_frame(1);
 				let result = frame.get(0);
@@ -904,17 +922,7 @@ impl<'a> Frame<'a> {
 				
 				self.env.stack.push(JsValue::new_bool(!result));
 			}
-			Ir::Subtract => {
-				let _scope = self.env.heap.new_local_scope();
-				
-				let frame = self.env.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(&self.env.heap);
-				let arg2 = frame.get(1).as_local(&self.env.heap);
-				let result = local_try!(self.env.subtract(arg1, arg2));
-				self.env.stack.drop_frame(frame);
-				
-				self.env.stack.push(JsValue::new_number(result));
-			}
+			Ir::Subtract => numeric_bin_op!(self, subtract),
 			Ir::Swap => {
 				let frame = self.env.stack.create_frame(2);
 				let tmp = frame.get(0);
