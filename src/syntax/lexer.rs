@@ -45,6 +45,12 @@ impl<'a> Lexer<'a> {
 	pub fn span_at(&mut self, offset: usize) -> JsResult<Span> {
 		if let Some(token) = try!(self.peek(offset)) {
 			Ok(token.span)
+		} else if self.last_span.is_none() {
+			// This is a bit of a strange escape. What we're testing for
+			// here is that the file is empty. If that is the case, we
+			// still return a span to simplify the rest of the parser.
+			
+			Ok(Span::new(0, 0, 0, 0, self.file))
 		} else {
 			panic!("end of stream");
 		}

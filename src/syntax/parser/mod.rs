@@ -287,7 +287,7 @@ impl<'a> Parser<'a> {
 			}
 		}
 		
-		let end = parser.lexer.last_span().unwrap();
+		let end = parser.lexer.last_span().unwrap_or(start);
 		
 		let block = parser.pop_block_scope();
 		let scope = parser.pop_scope();
