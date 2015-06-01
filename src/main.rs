@@ -26,7 +26,7 @@ fn test() {
 		let _scope = env.heap().new_local_scope();
 		
 		let error = error.as_runtime(&mut env);
-		let error = error.as_local(&mut env);
+		let error = error.as_local(env.heap());
 		
 		let error = if let Ok(error) = error.to_string(&mut env) {
 			error.to_string()
@@ -13284,7 +13284,7 @@ fn run_safe(file: &'static str) {
 			let _scope = env.heap().new_local_scope();
 			
 			let error = error.as_runtime(&mut env);
-			let error = error.as_local(&mut env);
+			let error = error.as_local(env.heap());
 			
 			let error = if let Ok(error) = error.to_string(&mut env) {
 				error.to_string()

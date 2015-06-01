@@ -18,9 +18,9 @@ impl JsIterator {
 		let mut result = env.heap.alloc_local::<JsIterator>(GC_ITERATOR);
 		
 		let target = if target.ty() == JsType::Object {
-			target.as_object(env).as_ptr()
+			target.unwrap_object().as_local(&env.heap).as_ptr()
 		} else if let Some(prototype) = target.prototype(env) {
-			prototype.as_object(env).as_ptr()
+			prototype.unwrap_object().as_local(&env.heap).as_ptr()
 		} else {
 			Ptr::null()
 		};
@@ -41,7 +41,7 @@ impl JsIterator {
 
 impl Local<JsIterator> {
 	pub fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-		JsValue::new_iterator(self.as_ptr()).as_local(env)
+		JsValue::new_iterator(self.as_ptr()).as_local(&env.heap)
 	}
 	
 	pub fn next(&mut self, env: &JsEnv) -> bool {
@@ -49,7 +49,7 @@ impl Local<JsIterator> {
 			return false;
 		}
 		
-		let mut target = Local::from_ptr(self.target, &env.heap);
+		let mut target = self.target.as_local(&env.heap);
 		
 		loop {
 			match target.get_key(env, self.offset) {
@@ -67,7 +67,7 @@ impl Local<JsIterator> {
 				}
 				JsStoreKey::End => {
 					if let Some(prototype) = target.prototype(env) {
-						target = prototype.as_object(env);
+						target = prototype.unwrap_object().as_local(&env.heap);
 						
 						self.target = target.as_ptr();
 						self.offset = 0;
@@ -84,7 +84,7 @@ impl Local<JsIterator> {
 	}
 	
 	fn add(&mut self, env: &JsEnv, name: Name) -> bool {
-		let mut seen =  ArrayLocal::from_ptr(self.seen, &env.heap);
+		let mut seen = self.seen.as_local(&env.heap);
 		
 		for i in 0..self.len {
 			if seen[i] == name {

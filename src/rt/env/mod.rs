@@ -58,7 +58,7 @@ macro_rules! property {
 
 macro_rules! value {
 	( $target:expr , $name:expr , $value:expr , $writable:expr , $enumerable:expr , $configurable:expr , $env:expr ) => {
-		property!($target, $name, $value.as_local($env), $writable, $enumerable, $configurable, $env)
+		property!($target, $name, $value.as_local(&$env.heap), $writable, $enumerable, $configurable, $env)
 	}
 }
 
@@ -80,15 +80,15 @@ fn setup_global(env: &mut JsEnv) {
 	*env.global = JsObject::new(&env, JsStoreType::Hash);
 	
 	env.global_scope = {
-		let global = env.global.as_local(&env);
+		let global = env.global.as_local(&env.heap);
 		let global_scope = JsScope::new_local_thick(&env, global, None, true);
-		Root::from_local(&env.heap, global_scope)
+		global_scope.as_root(&env.heap)
 	};
 	
 	let mut global = env.global().as_value(env);
 	
 	let mut object_prototype = JsObject::new_local(&env, JsStoreType::Hash);
-	env.object_prototype = Root::from_local(&env.heap, object_prototype);
+	env.object_prototype = object_prototype.as_root(&env.heap);
 	
 	// Constructor setup.
 	
@@ -119,12 +119,12 @@ fn setup_global(env: &mut JsEnv) {
 }
 
 fn setup_function(env: &mut JsEnv, mut global: Local<JsValue>, object_prototype: Local<JsObject>) -> Local<JsObject> {
-	let mut prototype = new_naked_function(env, None, 0, &Function_baseConstructor, object_prototype, false).as_object(env);
-	env.function_prototype = Root::from_local(&env.heap, prototype);
+	let mut prototype = new_naked_function(env, None, 0, &Function_baseConstructor, object_prototype, false).unwrap_object().as_local(&env.heap);
+	env.function_prototype = prototype.as_root(&env.heap);
 	
 	let class = new_naked_function(env, Some(name::FUNCTION_CLASS), 0, &Function_constructor, prototype, true);
 	
-	let mut class_object = class.as_object(env);
+	let mut class_object = class.unwrap_object().as_local(&env.heap);
 
 	let value = prototype.as_value(env);
 	class_object.define_own_property(env, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false).ok();
@@ -173,7 +173,7 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototy
 	
 	property!(global, name::ARRAY_CLASS, class, true, false, true, env);
 
-	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
+	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object().as_local(&env.heap);
 
 	function!(prototype, name::TO_STRING, Array_toString, 0, function_prototype, env);
 	function!(prototype, name::TO_LOCALE_STRING, Array_toLocaleString, 0, function_prototype, env);
@@ -197,7 +197,7 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototy
 	function!(prototype, name::REDUCE, Array_reduce, 1, function_prototype, env);
 	function!(prototype, name::REDUCE_RIGHT, Array_reduceRight, 1, function_prototype, env);
 	
-	env.array_prototype = Root::from_local(&env.heap, prototype);
+	env.array_prototype = prototype.as_root(&env.heap);
 	
 	function!(class, name::IS_ARRAY, Array_isArray, 1, function_prototype, env);
 }
@@ -207,9 +207,9 @@ fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	
 	property!(global, name::STRING_CLASS, class, true, false, true, env);
 
-	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
+	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object().as_local(&env.heap);
 
-	env.string_prototype = Root::from_local(&env.heap, prototype);
+	env.string_prototype = prototype.as_root(&env.heap);
 	
 	function!(&mut prototype, name::SUBSTR, String_substr, 1, function_prototype, env);
 	function!(&mut prototype, name::TO_STRING, String_toString, 0, function_prototype, env);
@@ -220,9 +220,9 @@ fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototyp
 	
 	property!(global, name::DATE_CLASS, class, true, false, true, env);
 
-	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
+	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object().as_local(&env.heap);
 	
-	env.date_prototype = Root::from_local(&env.heap, prototype);
+	env.date_prototype = prototype.as_root(&env.heap);
 	
 	function!(&mut prototype, name::GET_YEAR, Date_getYear, 0, function_prototype, env);
 	function!(&mut prototype, name::SET_YEAR, Date_setYear, 1, function_prototype, env);
@@ -240,9 +240,9 @@ fn setup_number<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	
 	property!(global, name::NUMBER_CLASS, class, true, false, true, env);
 
-	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
+	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object().as_local(&env.heap);
 	
-	env.number_prototype = Root::from_local(&env.heap, prototype);
+	env.number_prototype = prototype.as_root(&env.heap);
 
 	function!(&mut prototype, name::VALUE_OF, Number_valueOf, 0, function_prototype, env);
 	function!(&mut prototype, name::TO_STRING, Number_toString, 0, function_prototype, env);
@@ -253,9 +253,9 @@ fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_proto
 	
 	property!(global, name::BOOLEAN_CLASS, class, true, false, true, env);
 	
-	let prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
+	let prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object().as_local(&env.heap);
 	
-	env.boolean_prototype = Root::from_local(&env.heap, prototype);
+	env.boolean_prototype = prototype.as_root(&env.heap);
 }
 
 fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
@@ -271,9 +271,9 @@ fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	
 	property!(global, name::REGEXP_CLASS, class, true, false, true, env);
 	
-	let prototype = class.get(env, name::PROTOTYPE).ok().unwrap().as_object(env);
+	let prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object().as_local(&env.heap);
 	
-	env.regexp_prototype = Root::from_local(&env.heap, prototype);
+	env.regexp_prototype = prototype.as_root(&env.heap);
 }
 
 fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {

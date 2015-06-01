@@ -12,12 +12,12 @@ pub fn Boolean_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVa
 		false
 	};
 	
-	let arg = JsValue::new_bool(arg).as_local(env);
+	let arg = JsValue::new_bool(arg).as_local(&env.heap);
 	
 	if args.mode == JsFnMode::Call {
 		Ok(arg)
 	} else {
-		let mut this = args.this.as_object(env);
+		let mut this = args.this.unwrap_object().as_local(&env.heap);
 		
 		this.set_class(env, Some(name::BOOLEAN_CLASS));
 		this.set_value(Some(arg));

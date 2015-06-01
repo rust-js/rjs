@@ -3,7 +3,7 @@ const INITIAL_OBJECT : usize = 20;
 use rt::{JsEnv, JsDescriptor, GC_HASH_STORE, GC_ENTRY};
 use rt::object::{Store, Entry, JsStoreKey};
 use syntax::Name;
-use gc::{Local, Array, ArrayLocal};
+use gc::{Local, Array};
 
 pub struct HashStore {
 	entries: Array<Entry>,
@@ -73,7 +73,7 @@ impl HashStore {
 	}
 	
 	fn grow_entries(&mut self, env: &JsEnv) {
-		let entries = ArrayLocal::from_ptr(self.entries, &env.heap);
+		let entries = self.entries.as_local(&env.heap);
 		
 		unsafe {
 			self.entries = env.heap.alloc_array(GC_ENTRY, primes::get_prime(entries.len() * 2));

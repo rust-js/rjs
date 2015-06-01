@@ -1,4 +1,4 @@
-use gc::ptr_t;
+use gc::{GcHeap, Local, ptr_t};
 use std::ops::{Deref, DerefMut};
 use std::marker::PhantomData;
 use std::ptr;
@@ -8,26 +8,6 @@ use std::fmt;
 pub struct Ptr<T> {
 	ptr: ptr_t,
 	_type: PhantomData<T>
-}
-
-impl<T> PartialEq for Ptr<T> {
-	fn eq(&self, other: &Ptr<T>) -> bool {
-		self.ptr == other.ptr
-	}
-}
-
-impl<T> Copy for Ptr<T> { }
-
-impl<T> Clone for Ptr<T> {
-	fn clone(&self) -> Ptr<T> {
-		Self::from_ptr(self.ptr)
-	}
-}
-
-impl<T> fmt::Debug for Ptr<T> {
-	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-		write!(fmt, "Ptr {{ ptr: {:?} }}", self.ptr)
-	}
 }
 
 impl<T> Ptr<T> {
@@ -48,6 +28,30 @@ impl<T> Ptr<T> {
 	
 	pub fn is_null(&self) -> bool {
 		self.ptr.is_null()
+	}
+	
+	pub fn as_local(&self, heap: &GcHeap) -> Local<T> {
+		heap.alloc_local_from_ptr(*self)
+	}
+}
+
+impl<T> PartialEq for Ptr<T> {
+	fn eq(&self, other: &Ptr<T>) -> bool {
+		self.ptr == other.ptr
+	}
+}
+
+impl<T> Copy for Ptr<T> { }
+
+impl<T> Clone for Ptr<T> {
+	fn clone(&self) -> Ptr<T> {
+		Self::from_ptr(self.ptr)
+	}
+}
+
+impl<T> fmt::Debug for Ptr<T> {
+	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		write!(fmt, "Ptr {{ ptr: {:?} }}", self.ptr)
 	}
 }
 

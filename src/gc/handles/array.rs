@@ -1,4 +1,4 @@
-use gc::ptr_t;
+use gc::{GcHeap, ArrayLocal, ptr_t};
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::marker::PhantomData;
 use std::ptr;
@@ -9,20 +9,6 @@ use std::fmt;
 pub struct Array<T> {
 	ptr: ptr_t,
 	_type: PhantomData<T>
-}
-
-impl<T> Copy for Array<T> { }
-
-impl<T> Clone for Array<T> {
-	fn clone(&self) -> Array<T> {
-		Self::from_ptr(self.ptr)
-	}
-}
-
-impl<T> fmt::Debug for Array<T> {
-	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-		write!(fmt, "Ptr {{ ptr: {:?} }}", self.ptr)
-	}
 }
 
 impl<T> Array<T> {
@@ -47,6 +33,24 @@ impl<T> Array<T> {
 	
 	pub fn len(&self) -> usize {
 		unsafe { *transmute::<_, *const usize>(self.ptr) }
+	}
+	
+	pub fn as_local(&self, heap: &GcHeap) -> ArrayLocal<T> {
+		heap.alloc_array_local_from_ptr(*self)
+	}
+}
+
+impl<T> Copy for Array<T> {}
+
+impl<T> Clone for Array<T> {
+	fn clone(&self) -> Array<T> {
+		Self::from_ptr(self.ptr)
+	}
+}
+
+impl<T> fmt::Debug for Array<T> {
+	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		write!(fmt, "Ptr {{ ptr: {:?} }}", self.ptr)
 	}
 }
 

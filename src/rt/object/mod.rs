@@ -63,7 +63,7 @@ impl JsObject {
 		result.class = Some(name::FUNCTION_CLASS);
 		result.function = Some(function);
 		
-		let value = JsValue::new_number(args as f64).as_local(env);
+		let value = JsValue::new_number(args as f64).as_local(&env.heap);
 		// TODO: This does not seem to be conform the specs. Value should not be configurable.
 		result.define_own_property(env, name::LENGTH, JsDescriptor::new_value(value, false, false, true), false).ok();
 		
@@ -74,7 +74,7 @@ impl JsObject {
 impl Local<JsObject> {
 	pub fn value(&self, env: &JsEnv) -> Option<Local<JsValue>> {
 		if let Some(value) = self.value {
-			Some(value.as_local(env))
+			Some(value.as_local(&env.heap))
 		} else {
 			None
 		}
@@ -212,7 +212,7 @@ impl Local<JsObject> {
 	fn define_own_array_property(&mut self, env: &mut JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
 		let mut old_len_desc = self.get_own_property(env, name::LENGTH).unwrap();
 		// This is safe because we control the value of length.
-		let old_len = old_len_desc.value.unwrap().get_number() as usize;
+		let old_len = old_len_desc.value.unwrap().unwrap_number() as usize;
 		
 		if property == name::LENGTH {
 			return match descriptor.value {
@@ -231,7 +231,7 @@ impl Local<JsObject> {
 					if new_len as f64 != try!(desc_value.to_number(env)) {
 						Err(JsError::new_range(env))
 					} else {
-						new_len_desc.value = Some(JsValue::new_number(new_len as f64).as_local(env));
+						new_len_desc.value = Some(JsValue::new_number(new_len as f64).as_local(&env.heap));
 						
 						if new_len >= old_len {
 							self.define_own_object_property(
@@ -272,7 +272,7 @@ impl Local<JsObject> {
 								));
 								
 								if !delete_succeeded {
-									new_len_desc.value = Some(JsValue::new_number((old_len + 1) as f64).as_local(env));
+									new_len_desc.value = Some(JsValue::new_number((old_len + 1) as f64).as_local(&env.heap));
 									if !new_writable {
 										new_len_desc.writable = Some(false);
 									}
@@ -321,7 +321,7 @@ impl Local<JsObject> {
 						if !succeeded {
 							if throw { Err(JsError::new_type(env, ::errors::TYPE_CANNOT_WRITE)) } else { Ok(false) }
 						} else if index >= old_len {
-							old_len_desc.value = Some(JsValue::new_number((index + 1) as f64).as_local(env));
+							old_len_desc.value = Some(JsValue::new_number((index + 1) as f64).as_local(&env.heap));
 							try!(self.define_own_object_property(
 								env,
 								name::LENGTH,
@@ -373,7 +373,7 @@ impl Local<JsObject> {
 
 impl JsItem for Local<JsObject> {
 	fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-		JsValue::new_object(self.as_ptr()).as_local(env)
+		JsValue::new_object(self.as_ptr()).as_local(&env.heap)
 	}
 
 	// 8.12.1 [[GetOwnProperty]] (P)
@@ -423,14 +423,14 @@ impl JsItem for Local<JsObject> {
 		if self.prototype.is_null() {
 			None
 		} else {
-			Some(JsValue::new_object(self.prototype).as_local(env))
+			Some(JsValue::new_object(self.prototype).as_local(&env.heap))
 		}
 	}
 	
 	fn set_prototype(&mut self, _: &JsEnv, prototype: Option<Local<JsValue>>) {
 		if let Some(prototype) = prototype {
 			if prototype.ty() == JsType::Object {
-				self.prototype = prototype.get_object()
+				self.prototype = prototype.unwrap_object()
 			}
 		} else {
 			self.prototype = Ptr::null()
@@ -469,7 +469,7 @@ impl JsItem for Local<JsObject> {
 				loop {
 					if let Some(object_) = object.prototype(env) {
 						object = object_;
-						if prototype.get_object().as_ptr() == object.get_object().as_ptr() {
+						if prototype.unwrap_object() == object.unwrap_object() {
 							return Ok(true)
 						}
 					} else {
@@ -484,7 +484,7 @@ impl JsItem for Local<JsObject> {
 		if self.scope.is_null() {
 			None
 		} else {
-			Some(JsValue::new_scope(self.scope).get_scope().as_local(env))
+			Some(JsValue::new_scope(self.scope).unwrap_scope().as_local(&env.heap))
 		}
 	}
 	
@@ -561,13 +561,13 @@ impl StorePtr {
 	fn as_hash(&self, env: &JsEnv) -> Local<HashStore> {
 		assert_eq!(self.ty, JsStoreType::Hash);
 		
-		Local::from_ptr(self.get_ptr(), &env.heap)
+		self.get_ptr::<HashStore>().as_local(&env.heap)
 	}
 	
 	fn as_array(&self, env: &JsEnv) -> Local<ArrayStore> {
 		assert_eq!(self.ty, JsStoreType::Array);
 		
-		Local::from_ptr(self.get_ptr(), &env.heap)
+		self.get_ptr::<ArrayStore>().as_local(&env.heap)
 	}
 }
 
@@ -646,15 +646,15 @@ impl Entry {
 		if self.is_accessor() {
 			JsDescriptor {
 				value: None,
-				get: Some(self.value1.as_local(env)),
-				set: Some(self.value2.as_local(env)),
+				get: Some(self.value1.as_local(&env.heap)),
+				set: Some(self.value2.as_local(&env.heap)),
 				writable: None,
 				enumerable: Some(self.is_enumerable()),
 				configurable: Some(self.is_configurable())
 			}
 		} else {
 			JsDescriptor {
-				value: Some(self.value1.as_local(env)),
+				value: Some(self.value1.as_local(&env.heap)),
 				get: None,
 				set: None,
 				writable: Some(self.is_writable()),

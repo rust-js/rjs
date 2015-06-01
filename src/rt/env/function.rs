@@ -6,7 +6,7 @@ use std::fmt::Write;
 
 pub fn Function_baseConstructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	// Nothing to do. The default result already is undefined.
-	Ok(JsValue::new_undefined().as_local(env))
+	Ok(JsValue::new_undefined().as_local(&env.heap))
 }
 
 pub fn Function_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
@@ -68,7 +68,7 @@ pub fn Function_apply(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>>
 // TODO: This can be greatly improved, e.g. by retaining/getting the real code.
 pub fn Function_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	if args.this.ty() == JsType::Object {
-		if let Some(ref function) = args.this.as_object(env).function() {
+		if let Some(ref function) = args.this.unwrap_object().as_local(&env.heap).function() {
 			let name;
 			let args;
 			

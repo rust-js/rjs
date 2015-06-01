@@ -31,7 +31,7 @@ pub fn Array_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 		let arg = args.args[0];
 		if arg.ty() == JsType::Number {
 			if let Some(len) = try!(arg.to_uint32_exact(env)) {
-				let len = JsValue::new_number(len as f64).as_local(env);
+				let len = JsValue::new_number(len as f64).as_local(&env.heap);
 				try!(array.put(env, name::LENGTH, len, false));
 			} else {
 				return Err(JsError::new_range(env));
@@ -53,7 +53,7 @@ pub fn Array_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>>
 	let array = try!(args.this.to_object(env));
 	let mut func = try!(array.get(env, name::JOIN));
 	if !func.is_callable(env) {
-		func = try!(env.object_prototype.as_local(env).get(env, name::TO_STRING));
+		func = try!(env.object_prototype.as_local(&env.heap).get(env, name::TO_STRING));
 	}
 	
 	func.call(env, array, Vec::new(), false)
@@ -135,7 +135,7 @@ pub fn Array_concat(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 			// update the length of the result array.
 			
 			if length != set_length {
-				let value = JsValue::new_number(*index as f64).as_local(env);
+				let value = JsValue::new_number(*index as f64).as_local(&env.heap);
 				let desc = JsDescriptor {
 					value: Some(value),
 					..JsDescriptor::default()
@@ -220,16 +220,16 @@ pub fn Array_pop(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let len = try!(len_val.to_uint32(env));
 	
 	if len == 0 {
-		let length = JsValue::new_number(0f64).as_local(env);
+		let length = JsValue::new_number(0f64).as_local(&env.heap);
 		try!(array.put(env, name::LENGTH, length, true));
 		
-		Ok(JsValue::new_undefined().as_local(env))
+		Ok(JsValue::new_undefined().as_local(&env.heap))
 	} else {
 		let index = len as usize - 1;
 		let element = try!(array.get(env, Name::from_index(index)));
 		try!(array.delete(env, Name::from_index(index), true));
 		
-		let length = JsValue::new_number(index as f64).as_local(env);
+		let length = JsValue::new_number(index as f64).as_local(&env.heap);
 		try!(array.put(env, name::LENGTH, length, true));
 		
 		Ok(element)
@@ -247,7 +247,7 @@ pub fn Array_push(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 		index += 1;
 	}
 	
-	let length = JsValue::new_number(index as f64).as_local(env);
+	let length = JsValue::new_number(index as f64).as_local(&env.heap);
 	try!(array.put(env, name::LENGTH, length, true));
 	
 	Ok(length)
@@ -294,10 +294,10 @@ pub fn Array_shift(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let len = try!(len_val.to_uint32(env)) as usize;
 	
 	let result = if len == 0 {
-		let length = JsValue::new_number(0f64).as_local(env);
+		let length = JsValue::new_number(0f64).as_local(&env.heap);
 		try!(array.put(env, name::LENGTH, length, true));
 		
-		JsValue::new_undefined().as_local(env)
+		JsValue::new_undefined().as_local(&env.heap)
 	} else {
 		let first = try!(array.get(env, Name::from_index(0)));
 		
@@ -314,7 +314,7 @@ pub fn Array_shift(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 		}
 		
 		try!(array.delete(env, Name::from_index(len - 1), true));
-		let length = JsValue::new_number(len as f64).as_local(env);
+		let length = JsValue::new_number(len as f64).as_local(&env.heap);
 		try!(array.put(env, name::LENGTH, length, true));
 		
 		first
@@ -393,8 +393,8 @@ pub fn Array_sort(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	};
 	
 	let mut error = None;
-	let this = JsValue::new_undefined().as_local(env);
-	let zero = JsValue::new_number(0f64).as_local(env);
+	let this = JsValue::new_undefined().as_local(&env.heap);
+	let zero = JsValue::new_number(0f64).as_local(&env.heap);
 	
 	values.sort_by(|x, y| {
 		// Fast escape if we're in error mode.
@@ -553,7 +553,7 @@ pub fn Array_splice(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 		k += 1;
 	}
 	
-	let length = JsValue::new_number((len - actual_delete_count + item_count) as f64).as_local(env);
+	let length = JsValue::new_number((len - actual_delete_count + item_count) as f64).as_local(&env.heap);
 	try!(array.put(env, name::LENGTH, length, true));
 	
 	Ok(result.as_value(env))
@@ -585,7 +585,7 @@ pub fn Array_unshift(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 		try!(array.put(env, Name::from_index(i), args.args[i], true));
 	}
 	
-	let length = JsValue::new_number((len + arg_count) as f64).as_local(env);
+	let length = JsValue::new_number((len + arg_count) as f64).as_local(&env.heap);
 	try!(array.put(env, name::LENGTH, length, true));
 	
 	Ok(length)
@@ -622,7 +622,7 @@ pub fn Array_indexOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 				if present {
 					let element = try!(array.get(env, Name::from_index(i)));
 					if env.strict_eq(search_element, element) {
-						return Ok(JsValue::new_number(i as f64).as_local(env));
+						return Ok(JsValue::new_number(i as f64).as_local(&env.heap));
 					}
 				}
 			}
@@ -631,7 +631,7 @@ pub fn Array_indexOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 		}
 	};
 	
-	Ok(JsValue::new_number(result as f64).as_local(env))
+	Ok(JsValue::new_number(result as f64).as_local(&env.heap))
 }
 
 // 15.4.4.15 Array.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
@@ -662,7 +662,7 @@ pub fn Array_lastIndexOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 			if k_present {
 				let element_k = try!(array.get(env, Name::from_index(k as usize)));
 				if env.strict_eq(search_element, element_k) {
-					return Ok(JsValue::new_number(k as f64).as_local(env));
+					return Ok(JsValue::new_number(k as f64).as_local(&env.heap));
 				}
 			}
 			
@@ -672,7 +672,7 @@ pub fn Array_lastIndexOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 		-1
 	};
 	
-	Ok(JsValue::new_number(result as f64).as_local(env))
+	Ok(JsValue::new_number(result as f64).as_local(&env.heap))
 }
 
 // 15.4.4.16 Array.prototype.every ( callbackfn [ , thisArg ] )
@@ -694,7 +694,7 @@ fn Array_everyOrSome(env: &mut JsEnv, args: JsArgs, test: bool) -> JsResult<Loca
 		let k_present = array.has_property(env, p_k);
 		if k_present {
 			let k_value = try!(array.get(env, p_k));
-			let k = JsValue::new_number(k as f64).as_local(env);
+			let k = JsValue::new_number(k as f64).as_local(&env.heap);
 			
 			let test_result = try!(callback_fn.call(
 				env,
@@ -704,12 +704,12 @@ fn Array_everyOrSome(env: &mut JsEnv, args: JsArgs, test: bool) -> JsResult<Loca
 			));
 			
 			if test_result.to_boolean() == test {
-				return Ok(JsValue::new_bool(test).as_local(env));
+				return Ok(JsValue::new_bool(test).as_local(&env.heap));
 			}
 		}
 	}
 	
-	Ok(JsValue::new_bool(!test).as_local(env))
+	Ok(JsValue::new_bool(!test).as_local(&env.heap))
 }
 
 // 15.4.4.16 Array.prototype.every ( callbackfn [ , thisArg ] )
@@ -745,7 +745,7 @@ pub fn Array_forEach(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 		let k_present = array.has_property(env, p_k);
 		if k_present {
 			let k_value = try!(array.get(env, p_k));
-			let k = JsValue::new_number(k as f64).as_local(env);
+			let k = JsValue::new_number(k as f64).as_local(&env.heap);
 			
 			try!(callback_fn.call(
 				env,
@@ -756,7 +756,7 @@ pub fn Array_forEach(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 		}
 	}
 	
-	Ok(JsValue::new_undefined().as_local(env))
+	Ok(JsValue::new_undefined().as_local(&env.heap))
 }
 
 // 15.4.4.19 Array.prototype.map ( callbackfn [ , thisArg ] )
@@ -784,7 +784,7 @@ pub fn Array_map(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 		let k_present = array.has_property(env, p_k);
 		if k_present {
 			let k_value = try!(array.get(env, p_k));
-			let k = JsValue::new_number(k as f64).as_local(env);
+			let k = JsValue::new_number(k as f64).as_local(&env.heap);
 			
 			let mapped_value = try!(callback_fn.call(
 				env,
@@ -827,7 +827,7 @@ pub fn Array_filter(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 		let k_present = array.has_property(env, p_k);
 		if k_present {
 			let k_value = try!(array.get(env, p_k));
-			let k = JsValue::new_number(k as f64).as_local(env);
+			let k = JsValue::new_number(k as f64).as_local(&env.heap);
 			
 			let selected = try!(callback_fn.call(
 				env,
@@ -895,14 +895,14 @@ pub fn Array_reduce(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 		}
 	};
 	
-	let undefined = JsValue::new_undefined().as_local(env);
+	let undefined = JsValue::new_undefined().as_local(&env.heap);
 	
 	while k < len {
 		let p_k = Name::from_index(k);
 		let k_present = array.has_property(env, p_k);
 		if k_present {
 			let k_value = try!(array.get(env, p_k));
-			let k = JsValue::new_number(k as f64).as_local(env);
+			let k = JsValue::new_number(k as f64).as_local(&env.heap);
 			let accumulator = try!(callback_fn.call(
 				env,
 				undefined,
@@ -960,14 +960,14 @@ pub fn Array_reduceRight(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 		}
 	};
 	
-	let undefined = JsValue::new_undefined().as_local(env);
+	let undefined = JsValue::new_undefined().as_local(&env.heap);
 	
 	while k >= len {
 		let p_k = Name::from_index(k as usize);
 		let k_present = array.has_property(env, p_k);
 		if k_present {
 			let k_value = try!(array.get(env, p_k));
-			let k = JsValue::new_number(k as f64).as_local(env);
+			let k = JsValue::new_number(k as f64).as_local(&env.heap);
 			let accumulator = try!(callback_fn.call(
 				env,
 				undefined,
@@ -995,5 +995,5 @@ pub fn Array_isArray(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 		}
 	};
 	
-	Ok(JsValue::new_bool(result).as_local(env))
+	Ok(JsValue::new_bool(result).as_local(&env.heap))
 }

@@ -12,16 +12,12 @@ impl<T> Local<T> {
 		}
 	}
 	
-	pub fn from_root(root: &Root<T>, heap: &GcHeap) -> Local<T> {
-		Self::from_ptr(root.as_ptr(), heap)
-	}
-	
-	pub fn from_ptr<U: AsPtr<T>>(ptr: U, heap: &GcHeap) -> Local<T> {
-		heap.alloc_local_from_ptr(ptr)
+	pub fn as_root(&self, heap: &GcHeap) -> Root<T> {
+		unsafe { Root::new(heap, *self) }
 	}
 }
 
-impl<T> Copy for Local<T> { }
+impl<T> Copy for Local<T> {}
 
 impl<T> Clone for Local<T> {
 	fn clone(&self) -> Local<T> {

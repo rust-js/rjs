@@ -26,11 +26,11 @@ impl JsEnv {
 			let rhs = try!(rprim.to_string(self));
 			let result = JsString::concat(self, lhs, rhs);
 			
-			Ok(JsValue::new_string(result.as_ptr()).as_local(self))
+			Ok(JsValue::new_string(result.as_ptr()).as_local(&self.heap))
 		} else {
 			Ok(JsValue::new_number(
 				try!(lprim.to_number(self)) + try!(rprim.to_number(self))
-			).as_local(self))
+			).as_local(&self.heap))
 		}
 	}
 	
@@ -61,7 +61,7 @@ impl JsEnv {
 			return Err(JsError::new_type(self, ::errors::TYPE_INVALID));
 		};
 		
-		let function = args.function.as_object(self).function();
+		let function = args.function.unwrap_object().as_local(&self.heap).function();
 		if !function.is_some() {
 			return Err(JsError::new_type(self, ::errors::TYPE_INVALID));
 		}
@@ -83,9 +83,9 @@ impl JsEnv {
 				debugln!("ENTER {}", location);
 				
 				let scope = args.function.scope(self)
-					.unwrap_or_else(|| Local::from_root(&self.global_scope, &self.heap));
+					.unwrap_or_else(|| self.global_scope.as_local(&self.heap));
 				
-				let result = try!(self.call_block(block, args, &function, scope)).as_local(self);
+				let result = try!(self.call_block(block, args, &function, scope)).as_local(&self.heap);
 				
 				debugln!("EXIT {}", location);
 				
@@ -114,7 +114,7 @@ impl JsEnv {
 			JsType::Boolean => "boolean",
 			JsType::Number => "number",
 			JsType::String => "string",
-			JsType::Object => if value.as_object(self).function().is_some() { "function" } else { "object" },
+			JsType::Object => if value.unwrap_object().as_local(&self.heap).function().is_some() { "function" } else { "object" },
 			_ => panic!("unexpected type")
 		})
 	}
@@ -240,7 +240,7 @@ impl JsEnv {
 	
 		proto.set_class(self, Some(name::OBJECT_CLASS));
 		
-		let function_prototype = self.function_prototype.as_local(self);
+		let function_prototype = self.function_prototype.as_local(&self.heap);
 		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), function_prototype).as_value(self);
 		
 		if self.ir.get_function(function_ref).take_scope {
@@ -260,14 +260,14 @@ impl JsEnv {
 		let rval = self.get_value(rref);
 		
 		let result = try!(rval.has_instance(self, lval));
-		Ok(JsValue::new_bool(result).as_local(self))
+		Ok(JsValue::new_bool(result).as_local(&self.heap))
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.4.9
 	pub fn logical_not(&mut self, arg: Local<JsValue>) -> Local<JsValue> {
 		let value = self.get_value(arg);
 		let value = value.to_boolean();
-		JsValue::new_bool(!value).as_local(self)
+		JsValue::new_bool(!value).as_local(&self.heap)
 	}
 	
 	// 11.9.1 The Equals Operator ( == )
@@ -288,19 +288,19 @@ impl JsEnv {
 			Ok(true)
 		} else if lty == JsType::Number && rty == JsType::String {
 			let rval = try!(rval.to_number(self));
-			let rval = JsValue::new_number(rval).as_local(self);
+			let rval = JsValue::new_number(rval).as_local(&self.heap);
 			self.eq(lval, rval)
 		} else if lty == JsType::String && rty == JsType::Number {
 			let lval = try!(lval.to_number(self));
-			let lval = JsValue::new_number(lval).as_local(self);
+			let lval = JsValue::new_number(lval).as_local(&self.heap);
 			self.eq(lval, rval)
 		} else if lty == JsType::Boolean {
 			let lval = try!(lval.to_number(self));
-			let lval = JsValue::new_number(lval).as_local(self);
+			let lval = JsValue::new_number(lval).as_local(&self.heap);
 			self.eq(lval, rval)
 		} else if rty == JsType::Boolean {
 			let rval = try!(rval.to_number(self));
-			let rval = JsValue::new_number(rval).as_local(self);
+			let rval = JsValue::new_number(rval).as_local(&self.heap);
 			self.eq(lval, rval)
 		} else if (lty == JsType::String || lty == JsType::Number) && rty == JsType::Object {
 			let rval = try!(rval.to_primitive(self, JsPreferredType::None));
@@ -331,8 +331,8 @@ impl JsEnv {
 			match lval.ty() {
 				JsType::Undefined | JsType::Null => true,
 				JsType::Number => {
-					let x = lval.get_number();
-					let y = rval.get_number();
+					let x = lval.unwrap_number();
+					let y = rval.unwrap_number();
 					
 					if x.is_nan() || y.is_nan() {
 						false
@@ -342,8 +342,8 @@ impl JsEnv {
 					}
 				}
 				JsType::String => {
-					let x = &*lval.get_string().chars;
-					let y = &*rval.get_string().chars;
+					let x = &*lval.unwrap_string().chars;
+					let y = &*rval.unwrap_string().chars;
 					
 					if x.len() != y.len() {
 						false
@@ -356,8 +356,8 @@ impl JsEnv {
 						true
 					}
 				}
-				JsType::Boolean => lval.get_bool() == rval.get_bool(),
-				JsType::Object => lval.get_object() == rval.get_object(),
+				JsType::Boolean => lval.unwrap_bool() == rval.unwrap_bool(),
+				JsType::Object => lval.unwrap_object() == rval.unwrap_object(),
 				_ => panic!("unexpected type")
 			}
 		}
@@ -383,7 +383,7 @@ impl JsEnv {
 		// We don't propagate the JsError because this define_own_property
 		// will not fail.
 		
-		let length = JsValue::new_number(0f64).as_local(self);
+		let length = JsValue::new_number(0f64).as_local(&self.heap);
 		obj.define_own_property(
 			self,
 			name::LENGTH,
@@ -408,8 +408,8 @@ impl JsEnv {
 			match x_ty {
 				JsType::Undefined | JsType::Null => true,
 				JsType::Number => {
-					let x_number = x.get_number();
-					let y_number = y.get_number();
+					let x_number = x.unwrap_number();
+					let y_number = y.unwrap_number();
 					
 					if x_number.is_nan() && y_number.is_nan() {
 						true
@@ -423,9 +423,9 @@ impl JsEnv {
 						false
 					}
 				}
-				JsType::String => JsString::equals(x.get_string(), y.get_string()),
-				JsType::Boolean => x.get_bool() == y.get_bool(),
-				JsType::Object => x.get_object().as_ptr() == y.get_object().as_ptr(),
+				JsType::String => JsString::equals(x.unwrap_string(), y.unwrap_string()),
+				JsType::Boolean => x.unwrap_bool() == y.unwrap_bool(),
+				JsType::Object => x.unwrap_object() == y.unwrap_object(),
 				_ => panic!("unexpected type")
 			}
 		}
@@ -438,7 +438,7 @@ impl JsEnv {
 		
 		result.set_class(self, Some(name::ARGUMENTS_CLASS));
 		
-		let value = JsValue::new_number(args.args.len() as f64).as_local(self);
+		let value = JsValue::new_number(args.args.len() as f64).as_local(&self.heap);
 		try!(result.define_own_property(self, name::LENGTH, JsDescriptor::new_value(value, true, false, true), false));
 		
 		for i in 0..args.args.len() {
@@ -448,7 +448,7 @@ impl JsEnv {
 		if !strict {
 			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_value(args.function, true, false, true), false));
 		} else {
-			let prototype = self.function_prototype.as_local(self);
+			let prototype = self.function_prototype.as_local(&self.heap);
 			let thrower = self.new_native_function(None, 0, &throw_type_error, prototype);
 			
 			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_accessor(thrower, thrower, false, false), false));
@@ -468,7 +468,7 @@ impl JsEnv {
 			
 			let result = rhs.has_property(self, name);
 			
-			Ok(JsValue::new_bool(result).as_local(self))
+			Ok(JsValue::new_bool(result).as_local(&self.heap))
 		}
 	}
 }

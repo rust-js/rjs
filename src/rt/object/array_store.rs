@@ -75,7 +75,7 @@ impl Store for ArrayStore {
 				// The special array define_own_property takes care of checking
 				// that length is an u32.
 				
-				let length = value.value.unwrap().get_number() as usize;
+				let length = value.value.unwrap().unwrap_number() as usize;
 				self.set_length(env, length);
 			}
 			
@@ -126,7 +126,7 @@ impl Store for ArrayStore {
 				// The special array define_own_property takes care of checking
 				// that length is an u32.
 				
-				let length = value.value.unwrap().get_number() as usize;
+				let length = value.value.unwrap().unwrap_number() as usize;
 				self.set_length(env, length);
 			}
 			

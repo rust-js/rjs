@@ -17,13 +17,13 @@ pub fn String_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVal
 		return Ok(arg);
 	}
 	
-	let mut object = args.this.as_object(env);
+	let mut object = args.this.unwrap_object().as_local(&env.heap);
 	
 	object.set_prototype(env, Some(env.string_prototype.as_value(env)));
 	object.set_class(env, Some(name::STRING_CLASS));
 	object.set_value(Some(arg));
 	
-	let value = JsValue::new_number(arg.get_string().chars.len() as f64).as_local(env);
+	let value = JsValue::new_number(arg.unwrap_string().chars.len() as f64).as_local(&env.heap);
 	try!(object.define_own_property(env, name::LENGTH, JsDescriptor::new_value(value, false, false, false), false));
 	
 	Ok(args.this)
@@ -34,7 +34,7 @@ pub fn String_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>
 	match args.this.ty() {
 		JsType::String => Ok(args.this),
 		JsType::Object => {
-			let object = args.this.as_object(env);
+			let object = args.this.unwrap_object().as_local(&env.heap);
 			
 			if object.class(env) == Some(name::STRING_CLASS) {
 				// This is safe because the constructor always sets the value.

@@ -30,26 +30,26 @@ impl JsError {
 		
 		let _scope = env.heap().new_local_scope();
 		
-		let class = try!(env.global().as_local(env).get(env, name));
+		let class = try!(env.global().as_local(env.heap()).get(env, name));
 		
 		let mut args = Vec::new();
 		
 		args.push(match message {
 			Some(message) => JsString::from_str(env, message).as_value(env),
-			None => JsValue::new_undefined().as_local(env)
+			None => JsValue::new_undefined().as_local(env.heap())
 		});
 		args.push(match file_name {
 			Some(file_name) => JsString::from_str(env, file_name).as_value(env),
-			None => JsValue::new_undefined().as_local(env)
+			None => JsValue::new_undefined().as_local(env.heap())
 		});
 		args.push(match line_number {
-			Some(line_number) => JsValue::new_number(line_number as f64).as_local(env),
-			None => JsValue::new_undefined().as_local(env)
+			Some(line_number) => JsValue::new_number(line_number as f64).as_local(env.heap()),
+			None => JsValue::new_undefined().as_local(env.heap())
 		});
 		
 		let obj = try!(class.construct(env, args));
 		
-		Ok(Root::from_local(env.heap(), obj))
+		Ok(obj.as_root(env.heap()))
 	}
 	
 	pub fn new_runtime(env: &mut JsEnv, name: Name, message: Option<&str>, file_name: Option<&str>, line_number: Option<usize>) -> JsError {
@@ -83,7 +83,7 @@ impl JsError {
 			ref error @ _ => {
 				// TODO: This could be nicer.
 				let error = JsString::from_str(env, &format!("{:?}", error)).as_value(env);
-				Root::from_local(env.heap(), error)
+				error.as_root(env.heap())
 			}
 		}
 	}

@@ -8,7 +8,7 @@ use syntax::lexer::Lexer;
 use syntax::reader::StringReader;
 use syntax::token::Token;
 use syntax::token::name;
-use gc::{Local, Ptr, AsPtr, ptr_t};
+use gc::{Local, Ptr, AsPtr, GcHeap, ptr_t};
 use std::fmt;
 use std::mem::transmute;
 use std::f64;
@@ -25,8 +25,8 @@ impl fmt::Debug for JsValue {
 		match self.ty {
 			JsType::Undefined => try!(write!(fmt, "undefined")),
 			JsType::Null => try!(write!(fmt, "null")),
-			JsType::Number => try!(write!(fmt, "{}", self.get_number())),
-			JsType::Boolean => try!(write!(fmt, "{}", self.get_bool())),
+			JsType::Number => try!(write!(fmt, "{}", self.unwrap_number())),
+			JsType::Boolean => try!(write!(fmt, "{}", self.unwrap_bool())),
 			JsType::String => try!(write!(fmt, "string")),
 			JsType::Object => try!(write!(fmt, "object")),
 			_ => panic!("unexpected type")
@@ -39,11 +39,11 @@ impl fmt::Debug for JsValue {
 
 impl JsValue {
 	fn new_local(env: &JsEnv, ty: JsType, value: JsRawValue) -> Local<JsValue> {
-		Self::new(ty, value).as_local(env)
+		Self::new(ty, value).as_local(&env.heap)
 	}
 	
-	pub fn as_local(&self, env: &JsEnv) -> Local<JsValue> {
-		let mut result = env.heap.alloc_local(GC_VALUE);
+	pub fn as_local(&self, heap: &GcHeap) -> Local<JsValue> {
+		let mut result = heap.alloc_local(GC_VALUE);
 		*result = *self;
 		result
 	}
@@ -135,8 +135,8 @@ impl JsValue {
 		self.ty == JsType::Undefined
 	}
 	
-	pub fn get_number(&self) -> f64 {
-		assert!(self.ty == JsType::Number);
+	pub fn unwrap_number(&self) -> f64 {
+		assert_eq!(self.ty, JsType::Number);
 		
 		self.value.get_number()
 	}
@@ -145,8 +145,8 @@ impl JsValue {
 		*self = JsValue::new_number(value)
 	}
 	
-	pub fn get_bool(&self) -> bool {
-		assert!(self.ty == JsType::Boolean);
+	pub fn unwrap_bool(&self) -> bool {
+		assert_eq!(self.ty, JsType::Boolean);
 		
 		self.value.get_bool()
 	}
@@ -155,8 +155,8 @@ impl JsValue {
 		*self = JsValue::new_bool(value)
 	}
 	
-	pub fn get_string(&self) -> Ptr<JsString> {
-		assert!(self.ty == JsType::String);
+	pub fn unwrap_string(&self) -> Ptr<JsString> {
+		assert_eq!(self.ty, JsType::String);
 		
 		self.value.get_ptr()
 	}
@@ -164,12 +164,8 @@ impl JsValue {
 	pub fn set_string(&mut self, value: Ptr<JsString>) {
 		*self = JsValue::new_string(value);
 	}
-
-	pub fn as_string(&self, env: &JsEnv) -> Local<JsString> {
-		Local::from_ptr(self.get_string(), &env.heap)
-	}
 	
-	pub fn get_object(&self) -> Ptr<JsObject> {
+	pub fn unwrap_object(&self) -> Ptr<JsObject> {
 		assert_eq!(self.ty, JsType::Object);
 		
 		self.value.get_ptr()
@@ -179,11 +175,7 @@ impl JsValue {
 		*self = JsValue::new_object(value);
 	}
 	
-	pub fn as_object(&self, env: &JsEnv) -> Local<JsObject> {
-		Local::from_ptr(self.get_object(), &env.heap)
-	}
-	
-	pub fn get_iterator(&self) -> Ptr<JsIterator> {
+	pub fn unwrap_iterator(&self) -> Ptr<JsIterator> {
 		assert_eq!(self.ty, JsType::Iterator);
 		
 		self.value.get_ptr()
@@ -193,11 +185,7 @@ impl JsValue {
 		*self = JsValue::new_iterator(value);
 	}
 	
-	pub fn as_iterator(&self, env: &JsEnv) -> Local<JsIterator> {
-		Local::from_ptr(self.get_iterator(), &env.heap)
-	}
-	
-	pub fn get_scope(&self) -> Ptr<JsScope> {
+	pub fn unwrap_scope(&self) -> Ptr<JsScope> {
 		assert_eq!(self.ty, JsType::Scope);
 		
 		self.value.get_ptr()
@@ -206,10 +194,6 @@ impl JsValue {
 	pub fn set_scope(&mut self, value: Ptr<JsScope>) {
 		*self = JsValue::new_scope(value);
 	}
-	
-	pub fn as_scope(&self, env: &JsEnv) -> Local<JsScope> {
-		self.get_scope().as_local(&env)
-	}
 }
 
 macro_rules! delegate {
@@ -217,10 +201,10 @@ macro_rules! delegate {
 		match $target.ty() {
 			JsType::Undefined => JsUndefined.$method( $( $arg ),* ),
 			JsType::Null => JsNull.$method( $( $arg ),* ),
-			JsType::Number => JsNumber::new($target.get_number()).$method( $( $arg ),* ),
-			JsType::Boolean => JsBoolean::new($target.get_bool()).$method( $( $arg ),* ),
-			JsType::Object => $target.as_object($env).$method( $( $arg ),* ),
-			JsType::String => $target.as_string($env).$method( $( $arg ),* ),
+			JsType::Number => JsNumber::new($target.unwrap_number()).$method( $( $arg ),* ),
+			JsType::Boolean => JsBoolean::new($target.unwrap_bool()).$method( $( $arg ),* ),
+			JsType::Object => $target.unwrap_object().as_local(&$env.heap).$method( $( $arg ),* ),
+			JsType::String => $target.unwrap_string().as_local(&$env.heap).$method( $( $arg ),* ),
 			_ => panic!("unexpected type")
 		}
 	}
@@ -357,12 +341,12 @@ impl Local<JsValue> {
 	pub fn to_boolean(&self) -> bool {
 		match self.ty() {
 			JsType::Undefined | JsType::Null => false,
-			JsType::Boolean => self.get_bool(),
+			JsType::Boolean => self.unwrap_bool(),
 			JsType::Number => {
-				let value = self.get_number();
+				let value = self.unwrap_number();
 				!(value == 0f64 || value.is_nan())
 			}
-			JsType::String => self.get_string().chars.len() > 0,
+			JsType::String => self.unwrap_string().chars.len() > 0,
 			JsType::Object => true,
 			_ => panic!("unexpected type")
 		}
@@ -373,10 +357,10 @@ impl Local<JsValue> {
 		let result = match self.ty() {
 			JsType::Undefined => f64::NAN,
 			JsType::Null => 0f64,
-			JsType::Boolean => if self.get_bool() { 1f64 } else { 0f64 },
-			JsType::Number => self.get_number(),
+			JsType::Boolean => if self.unwrap_bool() { 1f64 } else { 0f64 },
+			JsType::Number => self.unwrap_number(),
 			JsType::String => {
-				let mut reader = StringReader::new("", &self.get_string().to_string());
+				let mut reader = StringReader::new("", &self.unwrap_string().to_string());
 				if let Ok(mut lexer) = Lexer::new(&mut reader, env.ir.interner()) {
 					if let Some(token) = try!(lexer.peek(0)) {
 						if try!(lexer.peek(1)).is_none() {
@@ -476,9 +460,9 @@ impl Local<JsValue> {
 		let result = match self.ty {
 			JsType::Undefined => JsString::from_str(env, "undefined"),
 			JsType::Null => JsString::from_str(env, "null"),
-			JsType::Boolean => JsString::from_str(env, if self.get_bool() { "true" } else { "false" }),
+			JsType::Boolean => JsString::from_str(env, if self.unwrap_bool() { "true" } else { "false" }),
 			JsType::Number => {
-				let number = self.get_number();
+				let number = self.unwrap_number();
 				
 				if number.is_nan() {
 					JsString::from_str(env, "NaN")
@@ -493,7 +477,7 @@ impl Local<JsValue> {
 					JsString::from_str(env, &number.to_string())
 				}
 			}
-			JsType::String => Local::from_ptr(self.get_string(), &mut env.heap),
+			JsType::String => self.unwrap_string().as_local(&env.heap),
 			JsType::Object => {
 				let result = try!(self.to_primitive(env, JsPreferredType::String));
 				try!(result.to_string(env))
@@ -509,8 +493,8 @@ impl Local<JsValue> {
 		match self.ty {
 			JsType::Null | JsType::Undefined => Err(JsError::new_type(env, ::errors::TYPE_INVALID)),
 			JsType::String => {
-				let constructor = try!(env.global().as_local(env).get(env, name::STRING_CLASS));
-				let value = self.as_local(env);
+				let constructor = try!(env.global().as_local(&env.heap).get(env, name::STRING_CLASS));
+				let value = self.as_local(&env.heap);
 				let object = try!(constructor.construct(env, vec![value]));
 				Ok(object)
 			}
@@ -522,9 +506,9 @@ impl Local<JsValue> {
 					_ => unreachable!()
 				};
 				
-				let constructor = try!(env.global().as_local(env).get(env, class));
+				let constructor = try!(env.global().as_local(&env.heap).get(env, class));
 				let object = try!(constructor.construct(env, Vec::new()));
-				object.as_object(env).set_value(Some(*self));
+				object.unwrap_object().as_local(&env.heap).set_value(Some(*self));
 				Ok(object)
 			}
 			JsType::Object => Ok(*self),

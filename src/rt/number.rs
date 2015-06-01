@@ -15,7 +15,7 @@ impl JsNumber {
 
 impl JsItem for JsNumber {
 	fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-		JsValue::new_number(self.value).as_local(env)
+		JsValue::new_number(self.value).as_local(&env.heap)
 	}
 	
 	fn has_prototype(&self, _: &JsEnv) -> bool {

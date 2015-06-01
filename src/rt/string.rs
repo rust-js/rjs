@@ -84,7 +84,7 @@ impl JsString {
 
 impl JsItem for Local<JsString> {
 	fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-		JsValue::new_string(*self).as_local(env)
+		JsValue::new_string(*self).as_local(&env.heap)
 	}
 	
 	fn has_prototype(&self, _: &JsEnv) -> bool {
