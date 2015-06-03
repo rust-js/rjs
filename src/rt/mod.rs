@@ -218,7 +218,7 @@ impl GcWalker for Walker {
 	}
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum JsPreferredType {
 	None,
 	String,

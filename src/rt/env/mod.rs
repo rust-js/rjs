@@ -151,8 +151,8 @@ fn setup_function(env: &mut JsEnv, mut global: Local<JsValue>, object_prototype:
 
 fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut Local<JsObject>, function_prototype: Local<JsObject>) {
 	function!(prototype, name::TO_STRING, Object_toString, 0, function_prototype, env);
-	function!(prototype, name::TO_LOCALE_STRING, Object_valueOf, 0, function_prototype, env);
-	function!(prototype, name::VALUE_OF, Object_toString, 0, function_prototype, env);
+	function!(prototype, name::TO_LOCALE_STRING, Object_toLocaleString, 0, function_prototype, env);
+	function!(prototype, name::VALUE_OF, Object_valueOf, 0, function_prototype, env);
 	function!(prototype, name::HAS_OWN_PROPERTY, Object_hasOwnProperty, 1, function_prototype, env);
 	function!(prototype, name::IS_PROTOTYPE_OF, Object_isPrototypeOf, 1, function_prototype, env);
 	function!(prototype, name::PROPERTY_IS_ENUMERABLE, Object_propertyIsEnumerable, 1, function_prototype, env);
@@ -260,9 +260,12 @@ fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_proto
 	
 	property!(global, name::BOOLEAN_CLASS, class, true, false, true, env);
 	
-	let prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object().as_local(&env.heap);
+	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object().as_local(&env.heap);
 	
 	env.boolean_prototype = prototype.as_root(&env.heap);
+	
+	function!(&mut prototype, name::VALUE_OF, Boolean_valueOf, 0, function_prototype, env);
+	function!(&mut prototype, name::TO_STRING, Boolean_toString, 0, function_prototype, env);
 }
 
 fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {

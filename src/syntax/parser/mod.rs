@@ -861,7 +861,7 @@ impl<'a> Parser<'a> {
 	fn parse_expr_new(&mut self) -> JsResult<Expr> {
 		try!(self.bump());
 		
-		Ok(Expr::New(Box::new(try!(self.parse_expr()))))
+		Ok(Expr::New(Box::new(try!(self.parse_expr_unary()))))
 	}
 	
 	fn parse_expr_unary_pre(&mut self, op: Op) -> JsResult<Expr> {

@@ -7,6 +7,26 @@ use syntax::token::name;
 use std::f64;
 use std::cmp;
 
+trait SignedZero {
+	#[inline(always)]
+	fn is_positive_zero(&self) -> bool;
+	
+	#[inline(always)]
+	fn is_negative_zero(&self) -> bool;
+}
+
+impl SignedZero for f64 {
+	#[inline(always)]
+	fn is_positive_zero(&self) -> bool {
+		*self == 0f64 && self.is_sign_positive()
+	}
+	
+	#[inline(always)]
+	fn is_negative_zero(&self) -> bool {
+		*self == 0f64 && self.is_sign_negative()
+	}
+}
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ComparisonResult {
 	Undefined,
@@ -158,9 +178,9 @@ impl JsEnv {
 				ComparisonResult::Undefined
 			} else if nx == ny {
 				ComparisonResult::False
-			} else if nx == 0f64 && ny == -0f64 {
+			} else if nx.is_positive_zero() && ny.is_negative_zero() {
 				ComparisonResult::False
-			} else if nx == -0f64 && ny == 0f64 {
+			} else if nx.is_negative_zero() && ny.is_positive_zero() {
 				ComparisonResult::False
 			} else if nx == f64::INFINITY {
 				ComparisonResult::False
@@ -432,7 +452,10 @@ impl JsEnv {
 					if x_number.is_nan() && y_number.is_nan() {
 						true
 					} else if x_number == y_number {
-						if (x_number == -0f64 && y_number != -0f64) || (x_number != -0f64 && y_number == -0f64) {
+						if
+							(x_number.is_negative_zero() && !y_number.is_negative_zero()) ||
+							(!x_number.is_negative_zero() && y_number.is_negative_zero())
+						{
 							false
 						} else {
 							true
@@ -499,11 +522,9 @@ impl JsEnv {
 	pub fn divide(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
 		self.multiplicative(lhs, rhs, |lhs, rhs| {
 			if rhs == 0f64 {
-				if lhs.is_infinite() {
-					lhs
-				} else if lhs == 0f64 {
+				if lhs == 0f64 {
 					f64::NAN
-				} else if lhs > 0f64 {
+				} else if lhs.is_sign_positive() == rhs.is_sign_positive() {
 					f64::INFINITY
 				} else {
 					f64::NEG_INFINITY

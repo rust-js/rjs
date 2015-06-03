@@ -1,6 +1,7 @@
 use ::{JsResult, JsError};
 use rt::{JsEnv, JsObject, JsArgs, JsValue, JsType, JsItem, JsStoreType, JsString, JsFnMode, JsDescriptor};
 use gc::*;
+use syntax::token::name;
 
 // 15.2.1 The Object Constructor Called as a Function
 // 15.2.2 The Object Constructor
@@ -68,12 +69,20 @@ pub fn Object_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>
 	Ok(result.as_value(env))
 }
 
+// 15.2.4.3 Object.prototype.toLocaleString ( )
 pub fn Object_toLocaleString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	unimplemented!();
+	let this = try!(args.this.to_object(env));
+	let to_string = try!(this.get(env, name::TO_STRING));
+	if to_string.is_callable(env) {
+		to_string.call(env, this, Vec::new(), false)
+	} else {
+		Err(JsError::new_type(env, ::errors::TYPE_CANNOT_CALL_TO_STRING))
+	}
 }
 
+// 15.2.4.4 Object.prototype.valueOf ( )
 pub fn Object_valueOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	unimplemented!();
+	args.this.to_object(env)
 }
 
 // 15.2.4.5 Object.prototype.hasOwnProperty (V)

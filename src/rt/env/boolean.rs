@@ -1,5 +1,5 @@
-use ::JsResult;
-use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem};
+use ::{JsResult, JsError};
+use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsType, JsString};
 use gc::*;
 use syntax::token::name;
 
@@ -24,4 +24,32 @@ pub fn Boolean_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVa
 		
 		Ok(args.this)
 	}
+}
+
+fn get_bool_value(env: &mut JsEnv, this: Local<JsValue>) -> JsResult<bool> {
+	match this.ty() {
+		JsType::Boolean => Ok(this.unwrap_bool()),
+		JsType::Object if this.class(env) == Some(name::BOOLEAN_CLASS) => {
+			let this = this.unwrap_object().as_local(&env.heap);
+			
+			Ok(this.value(env).unwrap().unwrap_bool())
+		}
+		_ => Err(JsError::new_type(env, ::errors::TYPE_INVALID))
+	}
+}
+
+// 15.6.4.3 Boolean.prototype.valueOf ( )
+pub fn Boolean_valueOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let value = try!(get_bool_value(env, args.this));
+	
+	Ok(JsValue::new_bool(value).as_local(&env.heap))
+}
+
+// 15.6.4.2 Boolean.prototype.toString ( )
+pub fn Boolean_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let value = try!(get_bool_value(env, args.this));
+	
+	let result = if value { "true" } else { "false" };
+	
+	Ok(JsString::from_str(env, result).as_value(env))
 }
