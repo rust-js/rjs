@@ -296,7 +296,7 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 				self.visit_expr(lhs);
 			}
 			
-			self.visit_expr_seq(rhs);
+			self.visit_expr(rhs);
 		}
 	}
 	
@@ -438,7 +438,7 @@ impl<'a> AstVisitor<'a> for ThickScopeTransformer<'a> {
 				self.visit_expr(lhs);
 			}
 			
-			self.visit_expr_seq(rhs);
+			self.visit_expr(rhs);
 		}
 	}
 	

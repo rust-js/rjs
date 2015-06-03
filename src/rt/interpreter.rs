@@ -1,6 +1,6 @@
 #![allow(unused_variables)]
 
-use rt::{JsEnv, JsValue, JsString, JsItem, JsIterator, JsScope, JsType, JsArgs};
+use rt::{JsEnv, JsValue, JsString, JsItem, JsIterator, JsScope, JsType, JsArgs, JsDescriptor};
 use gc::*;
 use ::{JsResult, JsError};
 use ir::IrFunction;
@@ -119,7 +119,11 @@ impl JsEnv {
 			
 			match frame.call_stmt(ir) {
 				Next::Next => {}
-				Next::Return(result) => return Ok(result),
+				Next::Return(result) => {
+					frame.env.stack.drop_frame(frame.locals);
+					
+					return Ok(result);
+				}
 				Next::Throw(error) => {
 					frame.thrown = Some(error.as_runtime(frame.env));
 					
@@ -850,7 +854,20 @@ impl<'a> Frame<'a> {
 				self.env.stack.drop_frame(frame);
 			}
 			Ir::StoreGetter(function) => unimplemented!(),
-			Ir::StoreNameGetter(name, function) => unimplemented!(),
+			Ir::StoreNameGetter(name, function) => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(1);
+				let mut object = frame.get(0).as_local(&self.env.heap);
+				
+				let scope = self.get_scope();
+				
+				let function = local_try!(self.env.new_function(function, scope));
+				
+				local_try!(object.define_own_property(self.env, name, JsDescriptor::new_simple_accessor(Some(function), None), true));
+				
+				self.env.stack.drop_frame(frame);
+			}
 			Ir::StoreEnv(name) => {
 				let _scope = self.env.heap.new_local_scope();
 				

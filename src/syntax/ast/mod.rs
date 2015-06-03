@@ -202,7 +202,7 @@ pub struct Catch {
 #[derive(Debug)]
 pub enum Expr {
 	ArrayLiteral(Vec<Expr>),
-	Assign(Op, Box<Expr>, ExprSeq),
+	Assign(Op, Box<Expr>, Box<Expr>),
 	Binary(Op, Box<Expr>, Box<Expr>),
 	Call(Box<Expr>, Vec<Expr>),
 	Function(FunctionRef),

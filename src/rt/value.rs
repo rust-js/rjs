@@ -205,7 +205,7 @@ macro_rules! delegate {
 			JsType::Boolean => JsBoolean::new($target.unwrap_bool()).$method( $( $arg ),* ),
 			JsType::Object => $target.unwrap_object().as_local(&$env.heap).$method( $( $arg ),* ),
 			JsType::String => $target.unwrap_string().as_local(&$env.heap).$method( $( $arg ),* ),
-			_ => panic!("unexpected type")
+			_ => panic!("unexpected type {:?}", $target.ty())
 		}
 	}
 }

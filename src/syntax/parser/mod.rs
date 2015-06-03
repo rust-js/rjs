@@ -852,9 +852,9 @@ impl<'a> Parser<'a> {
 	fn parse_expr_binary_assign(&mut self, expr: Expr, op: Op) -> JsResult<Expr> {
 		try!(self.bump());
 		
-		let right = try!(self.parse_expr_seq());
+		let right = try!(self.parse_expr());
 		
-		Ok(Expr::Assign(op, Box::new(expr), right))
+		Ok(Expr::Assign(op, Box::new(expr), Box::new(right)))
 	}
 	
 	fn parse_expr_ternary(&mut self, expr: Expr) -> JsResult<Expr> {

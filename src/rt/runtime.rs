@@ -489,8 +489,8 @@ impl JsEnv {
 			let prototype = self.function_prototype.as_local(&self.heap);
 			let thrower = self.new_native_function(None, 0, &throw_type_error, prototype);
 			
-			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_accessor(thrower, thrower, false, false), false));
-			try!(result.define_own_property(self, name::CALLER, JsDescriptor::new_accessor(thrower, thrower, false, false), false));
+			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false));
+			try!(result.define_own_property(self, name::CALLER, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false));
 		}
 		
 		Ok(result.as_value(self))
@@ -519,7 +519,7 @@ impl JsEnv {
 	pub fn divide(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
 		self.multiplicative(lhs, rhs, |lhs, rhs| {
 			if rhs == 0f64 {
-				if lhs == 0f64 {
+				if lhs == 0f64 || lhs.is_nan() {
 					f64::NAN
 				} else if lhs.is_sign_positive() == rhs.is_sign_positive() {
 					f64::INFINITY

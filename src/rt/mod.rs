@@ -566,18 +566,18 @@ impl JsDescriptor {
 		Self::new_value(value, true, true, true)
 	}
 	
-	pub fn new_accessor(get: Local<JsValue>, set: Local<JsValue>, enumerable: bool, configurable: bool) -> JsDescriptor {
+	pub fn new_accessor(get: Option<Local<JsValue>>, set: Option<Local<JsValue>>, enumerable: bool, configurable: bool) -> JsDescriptor {
 		JsDescriptor {
 			value: None,
-			get: Some(get),
-			set: Some(set),
+			get: get,
+			set: set,
 			writable: None,
 			enumerable: Some(enumerable),
 			configurable: Some(configurable)
 		}
 	}
 	
-	pub fn new_simple_accessor(get: Local<JsValue>, set: Local<JsValue>) -> JsDescriptor {
+	pub fn new_simple_accessor(get: Option<Local<JsValue>>, set: Option<Local<JsValue>>) -> JsDescriptor {
 		Self::new_accessor(get, set, true, true)
 	}
 	

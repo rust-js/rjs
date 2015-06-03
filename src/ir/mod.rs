@@ -1117,13 +1117,13 @@ impl<'a> IrGenerator<'a> {
 		expr
 	}
 	
-	fn emit_expr_assign(&mut self, op: Op, lhs: &'a Expr, rhs: &'a ExprSeq, leave: bool) -> JsResult<()> {
+	fn emit_expr_assign(&mut self, op: Op, lhs: &'a Expr, rhs: &'a Expr, leave: bool) -> JsResult<()> {
 		let load = |generator: &mut IrGenerator<'a>| {
 			if op == Op::Assign {
-				try!(generator.emit_exprs(rhs, true));
+				try!(generator.emit_expr(rhs, true));
 			} else {
 				try!(generator.emit_expr(lhs, true));
-				try!(generator.emit_exprs(rhs, true));
+				try!(generator.emit_expr(rhs, true));
 				
 				generator.emit_op(op);
 			}

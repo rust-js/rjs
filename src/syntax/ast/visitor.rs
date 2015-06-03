@@ -270,7 +270,7 @@ pub trait AstVisitor<'a> {
 	fn visit_expr_assign(&mut self, expr: &'a Expr) {
 		if let Expr::Assign(_, ref lhs, ref rhs) = *expr {
 			self.visit_expr(lhs);
-			self.visit_expr_seq(rhs);
+			self.visit_expr(rhs);
 		}
 	}
 	
