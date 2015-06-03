@@ -579,6 +579,7 @@ impl<'a> Lexer<'a> {
 	
 	fn parse_string(&mut self, quote: char) -> Token {
 		let mut s = String::new();
+		let mut exact = true;
 		
 		while !self.reader.is_eof() {
 			let c = self.reader.next();
@@ -586,6 +587,8 @@ impl<'a> Lexer<'a> {
 				break;
 			} else if c == '\\' {
 				// Do we have a line terminator (i.e. line continuation)? Otherwise parse an escape.
+				
+				exact = false;
 				
 				let c1 = self.reader.peek();
 				if is_line_terminator(c1) {
@@ -602,7 +605,7 @@ impl<'a> Lexer<'a> {
 			}
 		}
 		
-		Literal(Lit::String(self.interner.intern(&s)))
+		Literal(Lit::String(self.interner.intern(&s), exact))
 	}
 	
 	fn parse_escape(&mut self) -> String {

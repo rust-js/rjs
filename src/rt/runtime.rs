@@ -63,6 +63,7 @@ impl JsEnv {
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.2.3
+	// 10.4.3 Entering Function Code
 	pub fn call_function(&mut self, args: JsArgs) -> JsResult<Local<JsValue>> {
 		if args.function.ty() != JsType::Object {
 			return Err(JsError::new_type(self, ::errors::TYPE_INVALID));
@@ -88,6 +89,16 @@ impl JsEnv {
 				let location = format!("{}[{}:{}] {}", self.ir.interner().get(function.span.file), function.span.start_line, function.span.start_col, name);
 				
 				debugln!("ENTER {}", location);
+				
+				let mut args = args;
+				
+				if !function.strict {
+					if args.this.is_null() || args.this.is_undefined() {
+						args.this = self.global.as_value(self);
+					} else {
+						args.this = try!(args.this.to_object(self));
+					}
+				}
 				
 				let scope = args.function.scope(self)
 					.unwrap_or_else(|| self.global_scope.as_local(&self.heap));

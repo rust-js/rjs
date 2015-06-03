@@ -235,6 +235,10 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn is_eos(&mut self) -> JsResult<bool> {
+		self.is_eos_at(0)
+	}
+	
+	fn is_eos_at(&mut self, offset: usize) -> JsResult<bool> {
 		// Find a valid end of statement. A valid end of statement is:
 		//
 		//   * A semi colon or newline, which is consumed;
@@ -242,7 +246,7 @@ impl<'a> Parser<'a> {
 		//   * The end of the file.
 		//
 		
-		let mut index: usize = 0;
+		let mut index: usize = offset;
 		
 		loop {
 			match try!(self.peek_any_at(index)) {
@@ -311,10 +315,22 @@ impl<'a> Parser<'a> {
 	fn parse_strict(&mut self) -> JsResult<bool> {
 		let was_strict = self.lexer.strict();
 		
-		if try!(self.peek()) == Some(Token::Literal(Lit::String(name::USE_STRICT))) {
+		let mut strict = false;
+		
+		while let Some(Token::Literal(Lit::String(name, exact))) = try!(self.peek()) {
+			if !try!(self.is_eos_at(1)) {
+				break;
+			}
+			
 			try!(self.next());
+			try!(self.expect_eos());
 			
-			
+			if name == name::USE_STRICT && exact {
+				strict = true;
+			}
+		}
+		
+		if strict {
 			self.lexer.set_strict(true);
 		}
 		

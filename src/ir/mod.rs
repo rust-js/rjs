@@ -1286,7 +1286,7 @@ impl<'a> IrGenerator<'a> {
 			match *lit {
 				Lit::Null => self.ir.emit(Ir::LoadNull),
 				Lit::Boolean(value) => self.ir.emit(if value { Ir::LoadTrue } else { Ir::LoadFalse }),
-				Lit::String(value) => self.ir.emit(Ir::LoadString(value)),
+				Lit::String(value, _) => self.ir.emit(Ir::LoadString(value)),
 				Lit::Integer(value) => self.ir.emit(Ir::LoadI32(value)),
 				Lit::Long(value) => self.ir.emit(Ir::LoadI64(value)),
 				Lit::Double(value) => self.ir.emit(Ir::LoadF64(value)),
