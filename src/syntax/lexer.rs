@@ -250,7 +250,13 @@ impl<'a> Lexer<'a> {
 				} else if self.reader.consume('-') {
 					MinusMinus
 				} else {
-					Minus
+					match self.reader.peek() {
+						'0'...'9' => {
+							let c = self.reader.next();
+							try!(self.parse_number(c, false))
+						}
+						_ => Minus
+					}
 				}
 			},
 			'>' => {
@@ -350,23 +356,7 @@ impl<'a> Lexer<'a> {
 					Dot
 				}
 			},
-			c @ '0' ... '9' => {
-				if c == '0' {
-					if self.reader.consume('x') || self.reader.consume('X') {
-						try!(self.parse_hex())
-					} else if !self.strict && is_oct(self.reader.peek()) {
-						try!(self.parse_oct())
-					} else if self.reader.consume('.') {
-						try!(self.parse_decimal_tail("0.".to_string()))
-					} else if self.reader.peek() == 'e' || self.reader.peek() == 'E' {
-						try!(self.parse_decimal_tail("0".to_string()))
-					} else {
-						Literal(Lit::Integer(0))
-					}
-				} else {
-					try!(self.parse_decimal(c.to_string()))
-				}
-			},
+			c @ '0' ... '9' => try!(self.parse_number(c, true)),
 			'"' => self.parse_string('"'),
 			'\'' => self.parse_string('\''),
 			c @ _ if is_line_terminator(c) => Newline,
@@ -456,8 +446,11 @@ impl<'a> Lexer<'a> {
 		Err(JsError::Parse("Unmatched block comment".to_string()))
 	}
 	
-	fn consume_while<F: Fn(char) -> bool>(&mut self, predicate: F) -> String {
+	fn consume_while<F: Fn(char) -> bool>(&mut self, predicate: F, positive: bool) -> String {
 		let mut s = String::new();
+		if !positive {
+			s.push('-');
+		}
 		
 		while !self.reader.is_eof() && predicate(self.reader.peek()) {
 			s.push(self.reader.next());
@@ -485,8 +478,8 @@ impl<'a> Lexer<'a> {
 		}
 	}
 	
-	fn parse_hex(&mut self) -> JsResult<Token> {
-		let s = self.consume_while(is_hex);
+	fn parse_hex(&mut self, positive: bool) -> JsResult<Token> {
+		let s = self.consume_while(is_hex, positive);
 		if s.len() == 0 {
 			self.fatal("Expected a hex digit")
 		} else if let Some(token) = self.parse_str_number(&s, 16) {
@@ -496,14 +489,49 @@ impl<'a> Lexer<'a> {
 		}
 	}
 	
-	fn parse_oct(&mut self) -> JsResult<Token> {
-		let s = self.consume_while(is_oct);
+	fn parse_oct(&mut self, positive: bool) -> JsResult<Token> {
+		let s = self.consume_while(is_oct, positive);
 		if s.len() == 0 {
 			self.fatal("Expected a oct digit")
 		} else if let Some(token) = self.parse_str_number(&s, 8) {
 			Ok(token)
 		} else {
 			self.fatal(&format!("Cannot parse octal {:?}", s))
+		}
+	}
+	
+	fn parse_number(&mut self, c: char, positive: bool) -> JsResult<Token> {
+		if c == '0' {
+			if self.reader.is_eof() {
+				if positive {
+					Ok(Literal(Lit::Integer(0)))
+				} else {
+					Ok(Literal(Lit::Double(-0f64)))
+				}
+			} else if self.reader.consume('x') || self.reader.consume('X') {
+				self.parse_hex(positive)
+			} else if !self.strict && is_oct(self.reader.peek()) {
+				self.parse_oct(positive)
+			} else if self.reader.consume('.') {
+				let prefix = if positive { "0." } else { "-0." };
+				self.parse_decimal_tail(prefix.to_string())
+			} else if self.reader.peek() == 'e' || self.reader.peek() == 'E' {
+				let prefix = if positive { "0." } else { "-0." };
+				self.parse_decimal_tail(prefix.to_string())
+			} else {
+				if positive {
+					Ok(Literal(Lit::Integer(0)))
+				} else {
+					Ok(Literal(Lit::Double(-0f64)))
+				}
+			}
+		} else {
+			let mut prefix = String::new();
+			if !positive {
+				prefix.push('-');
+			}
+			prefix.push(c);
+			self.parse_decimal(prefix.to_string())
 		}
 	}
 	

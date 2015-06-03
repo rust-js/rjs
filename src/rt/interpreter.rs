@@ -380,7 +380,7 @@ impl<'a> Frame<'a> {
 				self.env.stack.push(*result);
 			}
 			Ir::BitAnd => numeric_bin_op!(self, bit_and),
-			Ir::BitNot => unimplemented!(),
+			Ir::BitNot => numeric_op!(self, bit_not),
 			Ir::BitOr => numeric_bin_op!(self, bit_or),
 			Ir::BitXOr => numeric_bin_op!(self, bit_xor),
 			Ir::Call(count) => local_try!(self.call(count, false)),
@@ -717,7 +717,7 @@ impl<'a> Frame<'a> {
 			Ir::LoadThis => self.env.stack.push(*self.args.this),
 			Ir::LoadTrue => self.env.stack.push(JsValue::new_true()),
 			Ir::LoadUndefined => self.env.stack.push(JsValue::new_undefined()),
-			Ir::Lsh => unimplemented!(),
+			Ir::Lsh => numeric_bin_op!(self, lsh),
 			Ir::Lt => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -810,8 +810,8 @@ impl<'a> Frame<'a> {
 				self.env.stack.drop_frame(frame);
 				return Next::Return(result);
 			}
-			Ir::Rsh => unimplemented!(),
-			Ir::RshZeroFill => unimplemented!(),
+			Ir::Rsh => numeric_bin_op!(self, rsh),
+			Ir::RshZeroFill => numeric_bin_op!(self, unsigned_rsh),
 			Ir::CallEnv(count) => local_try!(self.call(count, true)),
 			Ir::StoreIndex => {
 				let _scope = self.env.heap.new_local_scope();

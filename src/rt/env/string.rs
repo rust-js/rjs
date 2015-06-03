@@ -47,6 +47,24 @@ pub fn String_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>
 	}
 }
 
+// 15.5.4.3 String.prototype.valueOf ( )
+pub fn String_valueOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	match args.this.ty() {
+		JsType::String => Ok(args.this),
+		JsType::Object => {
+			let object = args.this.unwrap_object().as_local(&env.heap);
+			
+			if object.class(env) == Some(name::STRING_CLASS) {
+				// This is safe because the constructor always sets the value.
+				Ok(object.value(env).unwrap())
+			} else {
+				Err(JsError::new_type(env, ::errors::TYPE_INVALID))
+			}
+		}
+		_ => Err(JsError::new_type(env, ::errors::TYPE_INVALID))
+	}
+}
+
 pub fn String_substr(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	unimplemented!();
 }

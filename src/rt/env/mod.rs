@@ -221,6 +221,7 @@ fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	
 	function!(&mut prototype, name::SUBSTR, String_substr, 1, function_prototype, env);
 	function!(&mut prototype, name::TO_STRING, String_toString, 0, function_prototype, env);
+	function!(&mut prototype, name::VALUE_OF, String_valueOf, 0, function_prototype, env);
 }
 
 fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {

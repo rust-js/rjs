@@ -565,6 +565,39 @@ impl JsEnv {
 		let right = try!(rhs.to_int32(self));
 		Ok(func(left, right) as f64)
 	}
+	
+	// 11.4.8 Bitwise NOT Operator ( ~ )
+	pub fn bit_not(&mut self, arg: Local<JsValue>) -> JsResult<f64> {
+		let arg = try!(arg.to_int32(self));
+		Ok((!arg) as f64)
+	}
+	
+	// 11.7.1 The Left Shift Operator ( << )
+	pub fn lsh(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+		let lnum = try!(lhs.to_int32(self));
+		let rnum = try!(rhs.to_uint32(self));
+		let shift_count = rnum & 0x1f;
+		let result = lnum << shift_count;
+		Ok(result as f64)
+	}
+	
+	// 11.7.2 The Signed Right Shift Operator ( >> )
+	pub fn rsh(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+		let lnum = try!(lhs.to_int32(self));
+		let rnum = try!(rhs.to_uint32(self));
+		let shift_count = rnum & 0x1f;
+		let result = lnum >> shift_count;
+		Ok(result as f64)
+	}
+	
+	// 11.7.3 The Unsigned Right Shift Operator ( >>> )
+	pub fn unsigned_rsh(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+		let lnum = try!(lhs.to_uint32(self));
+		let rnum = try!(rhs.to_uint32(self));
+		let shift_count = rnum & 0x1f;
+		let result = lnum >> shift_count;
+		Ok(result as f64)
+	}
 }
 
 fn throw_type_error(env: &mut JsEnv, _: JsArgs) -> JsResult<Local<JsValue>> {

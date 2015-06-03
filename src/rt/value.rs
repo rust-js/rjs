@@ -406,7 +406,7 @@ impl Local<JsValue> {
 		let result = if number.is_nan() || number == 0f64 || number.is_infinite() {
 			0
 		} else {
-			number as i32
+			number as i64 as i32
 		};
 		
 		Ok(result)
