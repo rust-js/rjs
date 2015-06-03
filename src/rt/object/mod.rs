@@ -84,6 +84,14 @@ impl Local<JsObject> {
 		self.value = value.map(|value| *value);
 	}
 	
+	pub fn extensible(&self) -> bool {
+		self.extensible
+	}
+	
+	pub fn set_extensible(&mut self, extensible: bool) {
+		self.extensible = extensible;
+	}
+	
 	pub fn function(&self) -> Option<JsFunction> {
 		self.function.clone()
 	}
@@ -667,9 +675,9 @@ impl Entry {
 	
 	fn from_descriptor(descriptor: &JsDescriptor, name: Name, next: i32) -> Entry {
 		let flags = VALID |
-			if descriptor.writable.unwrap_or(true) { WRITABLE } else { 0 } |
-			if descriptor.configurable.unwrap_or(true) { CONFIGURABLE } else { 0 } |
-			if descriptor.enumerable.unwrap_or(true) { ENUMERABLE } else { 0 } |
+			if descriptor.is_writable() { WRITABLE } else { 0 } |
+			if descriptor.is_configurable() { CONFIGURABLE } else { 0 } |
+			if descriptor.is_enumerable() { ENUMERABLE } else { 0 } |
 			if descriptor.is_accessor() { ACCESSOR } else { 0 };
 		
 		let value1;

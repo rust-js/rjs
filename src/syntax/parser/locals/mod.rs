@@ -275,12 +275,22 @@ impl<'a> LocalResolver<'a> {
 			true
 		});
 	}
+	
+	fn unwrap_paren(&self, expr: &'a Expr) -> &'a Expr {
+		if let Expr::Paren(ref exprs) = *expr {
+			if exprs.exprs.len() == 1 {
+				return &exprs.exprs[0];
+			}
+		}
+		
+		expr
+	}
 }
 
 impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 	fn visit_expr_assign(&mut self, expr: &'a Expr) {
 		if let Expr::Assign(_, ref lhs, ref rhs) = *expr {
-			if let Expr::Ident(ref ident) = **lhs {
+			if let Expr::Ident(ref ident) = *self.unwrap_paren(lhs) {
 				self.resolve_ident(ident, true);
 			} else {
 				self.visit_expr(lhs);

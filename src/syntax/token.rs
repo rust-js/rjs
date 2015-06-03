@@ -301,4 +301,7 @@ declare_idents! {
 	( "Console", CONSOLE_CLASS, 126 );
 	( "console", CONSOLE, 127 );
 	( "log", LOG, 128 );
+	( "preventExtensions", PREVENT_EXTENSIONS, 129 );
+	( "PI", PI, 130 );
+	( "E", E, 131 );
 }

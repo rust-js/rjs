@@ -298,6 +298,10 @@ impl IrContext {
 				ir.push_str(name);
 				ir.push_str("'");
 				
+				if function.block.strict {
+					ir.push_str(" .strict");
+				} 
+				
 				let block_state = function.block.state.borrow();
 				
 				match block_state.build_scope {
@@ -1143,6 +1147,17 @@ impl<'a> IrGenerator<'a> {
 						
 						self.ir.emit(Ir::StoreName(Name::from_index(index as usize)));
 					}
+					IdentState::Scoped => {
+						self.ir.emit(Ir::LoadEnvObjectFor(ident.name));
+						
+						try!(load(self));
+						
+						if leave {
+							self.ir.emit(Ir::Dup);
+						}
+						
+						self.ir.emit(Ir::StoreName(ident.name));
+					}
 					_ => {
 						try!(load(self));
 						
@@ -1182,7 +1197,7 @@ impl<'a> IrGenerator<'a> {
 				
 				self.ir.emit(Ir::StoreIndex);
 			}
-			_ => return self.fatal("Invalid assignment expression")
+			_ => return Err(JsError::Reference("Invalid assignment expression".to_string()))
 		}
 		
 		Ok(())

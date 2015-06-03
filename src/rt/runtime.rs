@@ -86,12 +86,12 @@ impl JsEnv {
 	// 10.4.3 Entering Function Code
 	pub fn call_function(&mut self, args: JsArgs) -> JsResult<Local<JsValue>> {
 		if args.function.ty() != JsType::Object {
-			return Err(JsError::new_type(self, ::errors::TYPE_INVALID));
+			return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
 		};
 		
 		let function = args.function.unwrap_object().as_local(&self.heap).function();
 		if !function.is_some() {
-			return Err(JsError::new_type(self, ::errors::TYPE_INVALID));
+			return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
 		}
 		
 		let function = function.as_ref().unwrap();
@@ -274,10 +274,6 @@ impl JsEnv {
 	}
 	
 	pub fn new_function(&mut self, function_ref: FunctionRef, scope: Option<Local<JsScope>>) -> JsResult<Local<JsValue>> {
-		let mut proto = JsObject::new_local(self, JsStoreType::Hash);
-	
-		proto.set_class(self, Some(name::OBJECT_CLASS));
-		
 		let function_prototype = self.function_prototype.as_local(&self.heap);
 		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), function_prototype).as_value(self);
 		
@@ -285,6 +281,7 @@ impl JsEnv {
 			result.set_scope(self, scope);
 		}
 		
+		let mut proto = self.new_object();
 		let value = proto.as_value(self);
 		try!(result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false));
 		try!(proto.define_own_property(self, name::CONSTRUCTOR, JsDescriptor::new_value(result, true, false, true), false));

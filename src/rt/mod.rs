@@ -196,12 +196,9 @@ impl JsEnv {
 	}
 	
 	fn new_native_function<'a>(&mut self, name: Option<Name>, args: u32, function: &JsFn, prototype: Local<JsObject>) -> Local<JsValue> {
-		let mut proto = JsObject::new_local(self, JsStoreType::Hash);
-		
-		proto.set_class(self, Some(name::OBJECT_CLASS));
-		
 		let mut result = JsObject::new_function(self, JsFunction::Native(name, args, function as *const JsFn, true), prototype).as_value(self);
 		
+		let mut proto = self.new_object();
 		let value = proto.as_value(self);
 		result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false).ok();
 		proto.define_own_property(self, name::CONSTRUCTOR, JsDescriptor::new_value(result, true, false, true), false).ok();
@@ -625,15 +622,15 @@ impl JsDescriptor {
 	}
 	
 	pub fn is_writable(&self) -> bool {
-		self.writable.unwrap_or(true)
+		self.writable.unwrap_or(false)
 	}
 	
 	pub fn is_enumerable(&self) -> bool {
-		self.enumerable.unwrap_or(true)
+		self.enumerable.unwrap_or(false)
 	}
 	
 	pub fn is_configurable(&self) -> bool {
-		self.configurable.unwrap_or(true)
+		self.configurable.unwrap_or(false)
 	}
 	
 	pub fn is_empty(&self) -> bool {

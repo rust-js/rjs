@@ -183,3 +183,16 @@ pub fn Object_getOwnPropertyDescriptor(env: &mut JsEnv, args: JsArgs) -> JsResul
 		}
 	}
 }
+
+// 15.2.3.10 Object.preventExtensions ( O )
+pub fn Object_preventExtensions(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let object = args.arg(env, 0);
+	
+	if object.ty() != JsType::Object {
+		Err(JsError::new_type(env, ::errors::TYPE_INVALID))
+	} else {
+		object.unwrap_object().as_local(&env.heap).set_extensible(false);
+		
+		Ok(object)
+	}
+}

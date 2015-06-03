@@ -120,7 +120,7 @@ fn setup_global(env: &mut JsEnv) {
 	
 	value!(global, name::NAN, JsValue::new_number(f64::NAN), false, false, false, env);
 	value!(global, name::INFINITY, JsValue::new_number(f64::INFINITY), false, false, false, env);
-	value!(global, name::UNDEFINED, JsValue::new_undefined(), true, false, true, env);
+	value!(global, name::UNDEFINED, JsValue::new_undefined(), false, false, false, env);
 }
 
 fn setup_function(env: &mut JsEnv, mut global: Local<JsValue>, object_prototype: Local<JsObject>) -> Local<JsObject> {
@@ -158,6 +158,7 @@ fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut
 	function!(prototype, name::PROPERTY_IS_ENUMERABLE, Object_propertyIsEnumerable, 1, function_prototype, env);
 	function!(prototype, name::GET_PROTOTYPE_OF, Object_getPrototypeOf, 1, function_prototype, env);
 	function!(prototype, name::DEFINE_PROPERTY, Object_defineProperty, 1, function_prototype, env);
+	function!(prototype, name::PREVENT_EXTENSIONS, Object_preventExtensions, 1, function_prototype, env);
 	
 	let constructor = &Object_constructor;
 	let class = JsObject::new_function(env, JsFunction::Native(Some(name::OBJECT_CLASS), 0, constructor as *const JsFn, true), function_prototype);
@@ -270,6 +271,9 @@ fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_proto
 
 fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
 	let mut class = JsObject::new_local(env, JsStoreType::Hash);
+	
+	value!(class, name::PI, JsValue::new_number(f64::consts::PI), false, false, false, env);
+	value!(class, name::E, JsValue::new_number(f64::consts::E), false, false, false, env);
 	
 	class.set_class(env, Some(name::MATH_CLASS));
 	

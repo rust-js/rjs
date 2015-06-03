@@ -246,7 +246,18 @@ impl<'a> Parser<'a> {
 		//   * The end of the file.
 		//
 		
-		let mut index: usize = offset;
+		let mut offset = offset;
+		let mut index = 0;
+		
+		while offset > 0 {
+			match try!(self.peek_any_at(index)) {
+				None => return Ok(true),
+				Some(token) if !token.is_hidden() => offset -= 1,
+				_ => {}
+			}
+			
+			index += 1;
+		}
 		
 		loop {
 			match try!(self.peek_any_at(index)) {
