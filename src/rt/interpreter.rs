@@ -407,11 +407,9 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let arg = frame.get(0).as_local(&self.env.heap);
-				let arguments = arg.class(self.env) == Some(name::ARGUMENTS_CLASS);
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::new_bool(!arguments));
+				self.env.stack.push(JsValue::new_bool(false));
 			}
 			Ir::DeleteIndex => {
 				let _scope = self.env.heap.new_local_scope();
@@ -428,14 +426,16 @@ impl<'a> Frame<'a> {
 				self.env.stack.push(JsValue::new_bool(result));
 			}
 			Ir::DeleteName(name) => {
-				let _scope = self.env.heap.new_local_scope();
-				
-				let frame = self.env.stack.create_frame(1);
-				
-				let result = local_try!(frame.get(0).as_local(&self.env.heap).delete(self.env, name, true));
-				
-				self.env.stack.drop_frame(frame);
-				self.env.stack.push(JsValue::new_bool(result));
+				match local_try!(self.delete(name, false)) {
+					Some(next) => return next,
+					_ => {}
+				}
+			}
+			Ir::DeleteEnvName(name) => {
+				match local_try!(self.delete(name, true)) {
+					Some(next) => return next,
+					_ => {}
+				}
 			}
 			Ir::Divide => numeric_bin_op!(self, divide),
 			Ir::Dup => {
@@ -519,6 +519,20 @@ impl<'a> Frame<'a> {
 				self.env.stack.drop_frame(frame);
 				
 				self.env.stack.push(*result);
+			}
+			Ir::InitEnvName(name) => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(2);
+				let mut target = frame.get(0).as_local(&self.env.heap);
+				let value = frame.get(1).as_local(&self.env.heap);
+				local_try!(target.define_own_property(
+					self.env,
+					name,
+					JsDescriptor::new_value(value, true, true, false),
+					true
+				));
+				self.env.stack.drop_frame(frame);
 			}
 			Ir::InstanceOf => {
 				let _scope = self.env.heap.new_local_scope();
@@ -1074,6 +1088,30 @@ impl<'a> Frame<'a> {
 		self.env.global.as_value(self.env)
 	}
 	
+	fn is_any_scope_object(&self, target: Local<JsValue>) -> bool {
+		if target.ty() != JsType::Object {
+			false
+		} else {
+			if let Some(mut scope) = self.get_scope() {
+				loop {
+					let object = scope.scope_object(self.env);
+					
+					if object.as_ptr() == target.unwrap_object() {
+						return true;
+					}
+					
+					if let Some(parent) = scope.parent(self.env) {
+						scope = parent;
+					} else {
+						break;
+					}
+				}
+			}
+			
+			self.env.global.as_ptr() == target.unwrap_object()
+		}
+	}
+	
 	#[inline(always)]
 	fn call(&mut self, count: u32, scoped: bool) -> JsResult<()> {
 		let _scope = self.env.heap.new_local_scope();
@@ -1130,5 +1168,33 @@ impl<'a> Frame<'a> {
 		self.env.stack.push(result);
 		
 		Ok(())
+	}
+	
+	// 11.4.1 The delete Operator
+	#[inline(always)]
+	fn delete(&mut self, name: Name, must_exist: bool) -> JsResult<Option<Next>> {
+		let _scope = self.env.heap.new_local_scope();
+		
+		let frame = self.env.stack.create_frame(1);
+		
+		let mut target = frame.get(0).as_local(&self.env.heap);
+		
+		let result = if must_exist && !target.has_property(self.env, name) {
+			if self.strict {
+				return Ok(Some(Next::Throw(JsError::new_syntax(self.env, ::errors::SYNTAX_CANNOT_RESOLVE_PROPERTY))));
+			} else {
+				true
+			}
+		} else {
+			match target.delete(self.env, name, self.strict) {
+				Ok(result) => result,
+				Err(error) => return Ok(Some(Next::Throw(error)))
+			}
+		};
+		
+		self.env.stack.drop_frame(frame);
+		self.env.stack.push(JsValue::new_bool(result));
+		
+		Ok(None)
 	}
 }

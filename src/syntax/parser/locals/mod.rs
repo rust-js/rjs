@@ -12,7 +12,8 @@ mod block_walker;
 pub struct LocalResolver<'a> {
 	context: &'a AstContext,
 	walker: BlockWalker<'a, Scope>,
-	illegal_arguments_eval: bool
+	illegal_arguments_eval: bool,
+	illegal_delete: bool
 }
 
 struct Scope {
@@ -26,7 +27,8 @@ impl<'a> LocalResolver<'a> {
 		let mut resolver = LocalResolver {
 			walker: BlockWalker::new(),
 			context: context,
-			illegal_arguments_eval: false
+			illegal_arguments_eval: false,
+			illegal_delete: false
 		};
 		
 		let program = &context.functions[program_ref.usize()];
@@ -35,6 +37,8 @@ impl<'a> LocalResolver<'a> {
 		
 		if resolver.illegal_arguments_eval {
 			Err(JsError::Parse("Illegal arguments or eval in strict mode".to_string()))
+		} else if resolver.illegal_delete {
+			Err(JsError::Parse("Cannot delete declared variable".to_string()))
 		} else {
 			Ok(())
 		}
@@ -121,7 +125,7 @@ impl<'a> LocalResolver<'a> {
 			
 			if scope_idx == 0 && block_idx == 0 {
 				if ident.state.get() == IdentState::None {
-					ident.state.set(IdentState::Global);
+					ident.state.set(IdentState::Global(block.unwrap().locals.contains_key(&ident.name)));
 				}
 				
 				return false;
@@ -369,6 +373,39 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 		
 		if let Some(ref expr) = var.expr {
 			self.visit_expr(expr);
+		}
+	}
+	
+	fn visit_expr_unary(&mut self, expr: &'a Expr) {
+		if let Expr::Unary(op, ref expr) = *expr {
+			self.visit_expr(expr);
+			
+			let strict = self.walker.top_scope().strict;
+			
+			if strict && op == Op::Delete {
+				if let Expr::Ident(ref ident) = **expr {
+					match ident.state.get() {
+						IdentState::Global(true) | IdentState::Slot(..) | IdentState::LiftedSlot(..) => {
+							self.illegal_delete = true;
+						}
+						IdentState::Global(false) => {
+							match ident.name {
+								name::OBJECT_CLASS | name::FUNCTION_CLASS | name::ARRAY_CLASS |
+								name::STRING_CLASS | name::BOOLEAN_CLASS | name::NUMBER_CLASS |
+								name::MATH_CLASS | name::DATE_CLASS | name::REGEXP_CLASS |
+								name::ERROR_CLASS | name::EVAL_ERROR_CLASS | name::RANGE_ERROR_CLASS |
+								name::REFERENCE_ERROR_CLASS | name::SYNTAX_ERROR_CLASS |
+								name::TYPE_ERROR_CLASS | name::URI_ERROR_CLASS | name::NATIVE_ERROR_CLASS |
+								name::JSON_CLASS => {
+									self.illegal_delete = true;
+								}
+								_ => {}
+							}
+						}
+						_ => {}
+					}
+				}
+			}
 		}
 	}
 }

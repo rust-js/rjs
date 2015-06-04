@@ -161,7 +161,7 @@ impl fmt::Debug for Ident {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum IdentState {
 	None,
-	Global,
+	Global(bool),
 	Scoped,
 	Slot(SlotRef),
 	LiftedSlot(FunctionSlotRef),

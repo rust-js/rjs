@@ -16,55 +16,6 @@ use std::rc::Rc;
 use std::fmt::Write;
 use std::io::Read;
 
-// Typeof and delete have special rules regarding references. With with statements in the
-// mix this becomes very complex. However, they are very similar and to limit code
-// duplication a macro implements both.
-macro_rules! typeof_delete {
-	( $generator:expr , $expr:expr , $leave:expr , $on_expr:ident , $on_name:ident , $on_index:ident ) => {
-		match $expr {
-			&Expr::MemberDot(ref expr, name) => {
-				try!($generator.emit_expr(expr, true));
-				$generator.ir.emit(Ir::$on_name(name))
-			}
-			&Expr::MemberIndex(ref expr, ref index) => {
-				try!($generator.emit_expr(expr, true));
-				try!($generator.emit_exprs(index, true));
-				$generator.ir.emit(Ir::$on_index);
-			}
-			expr @ _ => {
-				let matched = if let Some(ident) = $generator.unwrap_ident(&expr) {
-					match ident.state.get() {
-						IdentState::Scoped | IdentState::Global => {
-							$generator.ir.emit(Ir::LoadEnvObjectFor(ident.name));
-							$generator.ir.emit(Ir::$on_name(ident.name));
-							true
-						}
-						IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
-							$generator.emit_load_arguments(ident.state.get());
-							$generator.ir.emit(Ir::$on_name(Name::from_index(index as usize)));
-							true
-						}
-						_ => false
-					}
-				} else {
-					false
-				};
-				
-				if !matched {
-					try!($generator.emit_expr(&expr, true));
-					$generator.ir.emit(Ir::$on_expr);
-				}
-			}
-		}
-		
-		if !$leave {
-			$generator.ir.emit(Ir::Pop);
-		}
-		
-		return Ok(());
-	}
-}
-
 #[derive(Copy, Clone)]
 struct NamedLabel {
 	name: Option<Name>,
@@ -192,7 +143,7 @@ impl IrContext {
 						SlotState::Scoped => {
 							generator.ir.emit(Ir::LoadEnvObject);
 							generator.ir.emit(Ir::LoadParam(arg));
-							generator.ir.emit(Ir::StoreName(slot.name));
+							generator.ir.emit(Ir::InitEnvName(slot.name));
 						}
 						SlotState::Lifted(index) => {
 							generator.ir.emit(Ir::LoadParam(arg));
@@ -217,7 +168,7 @@ impl IrContext {
 							} else {
 								generator.ir.emit(Ir::LoadEnvObject);
 								generator.ir.emit(init);
-								generator.ir.emit(Ir::StoreName(slot.name));
+								generator.ir.emit(Ir::InitEnvName(slot.name));
 							}
 						}
 						SlotState::Lifted(index) => {
@@ -1499,8 +1450,89 @@ impl<'a> IrGenerator<'a> {
 	
 	fn emit_expr_unary(&mut self, op: Op, expr: &'a Expr, leave: bool) -> JsResult<()> {
 		match op {
-			Op::Delete => { typeof_delete!(self, expr, leave, Delete, DeleteName, DeleteIndex); }
-			Op::Typeof => { typeof_delete!(self, expr, leave, Typeof, TypeofName, TypeofIndex); }
+			Op::Delete => {
+				match *expr {
+					Expr::MemberDot(ref expr, name) => {
+						try!(self.emit_expr(expr, true));
+						self.ir.emit(Ir::DeleteName(name))
+					}
+					Expr::MemberIndex(ref expr, ref index) => {
+						try!(self.emit_expr(expr, true));
+						try!(self.emit_exprs(index, true));
+						self.ir.emit(Ir::DeleteIndex);
+					}
+					ref expr @ _ => {
+						if let Some(ident) = self.unwrap_ident(expr) {
+							match ident.state.get() {
+								IdentState::Scoped | IdentState::Global(..) => {
+									self.ir.emit(Ir::LoadEnvObjectFor(ident.name));
+									self.ir.emit(Ir::DeleteEnvName(ident.name));
+								}
+								IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
+									self.emit_load_arguments(ident.state.get());
+									self.ir.emit(Ir::DeleteName(Name::from_index(index as usize)));
+								}
+								IdentState::Slot(..) | IdentState::LiftedSlot(..) => {
+									self.ir.emit(Ir::LoadFalse);
+								}
+								IdentState::None => panic!()
+							}
+						} else {
+							try!(self.emit_expr(expr, true));
+							self.ir.emit(Ir::LoadTrue);
+						};
+					}
+				}
+				
+				if !leave {
+					self.ir.emit(Ir::Pop);
+				}
+				
+				return Ok(());
+			}
+			Op::Typeof => {
+				match *expr {
+					Expr::MemberDot(ref expr, name) => {
+						try!(self.emit_expr(expr, true));
+						self.ir.emit(Ir::TypeofName(name))
+					}
+					Expr::MemberIndex(ref expr, ref index) => {
+						try!(self.emit_expr(expr, true));
+						try!(self.emit_exprs(index, true));
+						self.ir.emit(Ir::TypeofIndex);
+					}
+					ref expr @ _ => {
+						let matched = if let Some(ident) = self.unwrap_ident(expr) {
+							match ident.state.get() {
+								IdentState::Scoped | IdentState::Global(..) => {
+									self.ir.emit(Ir::LoadEnvObjectFor(ident.name));
+									self.ir.emit(Ir::TypeofName(ident.name));
+									true
+								}
+								IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
+									self.emit_load_arguments(ident.state.get());
+									self.ir.emit(Ir::TypeofName(Name::from_index(index as usize)));
+									true
+								}
+								_ => false
+							}
+						} else {
+							false
+						};
+						
+						if !matched {
+							try!(self.emit_expr(expr, true));
+							self.ir.emit(Ir::Typeof);
+						}
+					}
+				}
+				
+				if !leave {
+					self.ir.emit(Ir::Pop);
+				}
+				
+				return Ok(());
+			}
 			Op::PreIncr => {
 				let lhs_ref = try!(self.emit_lhs_load(expr));
 				
@@ -1612,7 +1644,7 @@ impl<'a> IrGenerator<'a> {
 	
 	fn emit_load(&mut self, ident: &'a Ident) {
 		match ident.state.get() {
-			IdentState::Scoped | IdentState::Global => {
+			IdentState::Scoped | IdentState::Global(..) => {
 				if self.env_count > 0 {
 					if
 						ident.name == name::ARGUMENTS &&
@@ -1659,7 +1691,7 @@ impl<'a> IrGenerator<'a> {
 	
 	fn emit_store(&mut self, ident: &'a Ident) {
 		match ident.state.get() {
-			IdentState::Scoped | IdentState::Global => {
+			IdentState::Scoped | IdentState::Global(..) => {
 				if self.env_count > 0 {
 					self.ir.emit(Ir::StoreEnv(ident.name));
 				} else {

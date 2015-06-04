@@ -94,6 +94,9 @@ fn setup_global(env: &mut JsEnv) {
 	let mut object_prototype = JsObject::new_local(&env, JsStoreType::Hash);
 	env.object_prototype = object_prototype.as_root(&env.heap);
 	
+	global.set_prototype(env, Some(object_prototype.as_value(env)));
+	global.set_class(env, Some(name::OBJECT_CLASS));
+	
 	// Constructor setup.
 	
 	let function_prototype = setup_function(env, global, object_prototype);
@@ -172,6 +175,7 @@ fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut
 	
 	function!(class, name::CREATE, Object_create, 1, function_prototype, env);
 	function!(class, name::GET_OWN_PROPERTY_DESCRIPTOR, Object_getOwnPropertyDescriptor, 2, function_prototype, env);
+	function!(class, name::GET_OWN_PROPERTY_NAMES, Object_getOwnPropertyNames, 1, function_prototype, env);
 }
 
 fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
@@ -275,6 +279,12 @@ fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototyp
 	
 	value!(class, name::PI, JsValue::new_number(f64::consts::PI), false, false, false, env);
 	value!(class, name::E, JsValue::new_number(f64::consts::E), false, false, false, env);
+	value!(class, name::LN10, JsValue::new_number(f64::consts::LN_10), false, false, false, env);
+	value!(class, name::LN2, JsValue::new_number(f64::consts::LN_2), false, false, false, env);
+	value!(class, name::LOG2E, JsValue::new_number(f64::consts::LOG2_E), false, false, false, env);
+	value!(class, name::LOG10E, JsValue::new_number(f64::consts::LOG10_E), false, false, false, env);
+	value!(class, name::SQRT1_2, JsValue::new_number(f64::consts::FRAC_1_SQRT_2), false, false, false, env);
+	value!(class, name::SQRT2, JsValue::new_number(f64::consts::SQRT_2), false, false, false, env);
 	
 	class.set_class(env, Some(name::MATH_CLASS));
 	

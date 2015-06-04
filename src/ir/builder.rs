@@ -103,6 +103,10 @@ impl Block {
 					string.push_str("delete.name ");
 					self.print_name(string, name, interner);
 				}
+				Ir::DeleteEnvName(name) => {
+					string.push_str("delete.name.env ");
+					self.print_name(string, name, interner);
+				}
 				Ir::DeleteIndex => string.push_str("delete.index"),
 				Ir::Divide => string.push_str("div"),
 				Ir::Dup => string.push_str("dup"),
@@ -117,6 +121,10 @@ impl Block {
 				Ir::Ge => string.push_str("ge"),
 				Ir::Gt => string.push_str("gt"),
 				Ir::In => string.push_str("in"),
+				Ir::InitEnvName(name) => {
+					string.push_str("init.name.env ");
+					self.print_name(string, name, interner);
+				}
 				Ir::InstanceOf => string.push_str("instof"),
 				Ir::IntoIter(local) => {
 					string.push_str("iter.into ");
@@ -514,6 +522,7 @@ pub enum Ir {
 	Delete,
 	DeleteIndex,
 	DeleteName(Name),
+	DeleteEnvName(Name),
 	Divide,
 	Dup,
 	EndFinally,
@@ -524,6 +533,7 @@ pub enum Ir {
 	Ge,
 	Gt,
 	In,
+	InitEnvName(Name),
 	InstanceOf,
 	IntoIter(Local),
 	Jump(Label),

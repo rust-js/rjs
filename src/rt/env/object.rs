@@ -1,6 +1,9 @@
 use ::{JsResult, JsError};
-use rt::{JsEnv, JsObject, JsArgs, JsValue, JsType, JsItem, JsStoreType, JsString, JsFnMode, JsDescriptor};
+use rt::{JsEnv, JsObject, JsArgs, JsValue, JsType, JsItem, JsStoreType, JsString};
+use rt::{JsFnMode, JsDescriptor};
+use rt::object::JsStoreKey;
 use gc::*;
+use syntax::Name;
 use syntax::token::name;
 
 // 15.2.1 The Object Constructor Called as a Function
@@ -194,5 +197,41 @@ pub fn Object_preventExtensions(env: &mut JsEnv, args: JsArgs) -> JsResult<Local
 		object.unwrap_object().as_local(&env.heap).set_extensible(false);
 		
 		Ok(object)
+	}
+}
+
+// 15.2.3.4 Object.getOwnPropertyNames ( O )
+pub fn Object_getOwnPropertyNames(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let object = args.arg(env, 0);
+	
+	if object.ty() != JsType::Object {
+		Err(JsError::new_type(env, ::errors::TYPE_INVALID))
+	} else {
+		let object = object.unwrap_object().as_local(&env.heap);
+		let mut result = env.new_array();
+		let mut offset = 0usize;
+		
+		for i in 0.. {
+			match object.get_key(env, i) {
+				JsStoreKey::Key(name, enumerable) => {
+					if enumerable {
+						let name = env.ir.interner().get(name);
+						let name = JsString::from_str(env, &*name).as_value(env);
+						try!(result.define_own_property(
+							env,
+							Name::from_index(offset),
+							JsDescriptor::new_simple_value(name),
+							false
+						));
+						
+						offset += 1;
+					}
+				}
+				JsStoreKey::End => break,
+				JsStoreKey::Missing => {}
+			}
+		}
+		
+		Ok(result.as_value(env))
 	}
 }

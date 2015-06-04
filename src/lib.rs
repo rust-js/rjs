@@ -72,6 +72,10 @@ impl JsError {
 		Self::new_runtime(env, name::REFERENCE_ERROR_CLASS, None, None, None)
 	}
 	
+	pub fn new_syntax(env: &mut JsEnv, message: &str) -> JsError {
+		Self::new_runtime(env, name::SYNTAX_ERROR_CLASS, Some(message), None, None)
+	}
+	
 	pub fn as_runtime(&self, env: &mut JsEnv) -> Root<JsValue> {
 		match *self {
 			JsError::Lex(ref message) | JsError::Parse(ref message) => {

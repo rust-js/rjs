@@ -304,4 +304,15 @@ declare_idents! {
 	( "preventExtensions", PREVENT_EXTENSIONS, 129 );
 	( "PI", PI, 130 );
 	( "E", E, 131 );
+	( "LN10", LN10, 132 );
+	( "LN2", LN2, 133 );
+	( "LOG2E", LOG2E, 134 );
+	( "LOG10E", LOG10E, 135 );
+	( "SQRT1_2", SQRT1_2, 136 );
+	( "SQRT2", SQRT2, 137 );
+	( "Error", ERROR_CLASS, 138 );
+	( "EvalError", EVAL_ERROR_CLASS, 139 );
+	( "URIError", URI_ERROR_CLASS, 140 );
+	( "NativeError", NATIVE_ERROR_CLASS, 141 );
+	( "getOwnPropertyNames", GET_OWN_PROPERTY_NAMES, 142 );
 }
