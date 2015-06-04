@@ -277,7 +277,8 @@ impl JsEnv {
 		let function_prototype = self.function_prototype.as_local(&self.heap);
 		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), function_prototype).as_value(self);
 		
-		if self.ir.get_function(function_ref).take_scope {
+		let function = self.ir.get_function(function_ref);
+		if function.take_scope {
 			result.set_scope(self, scope);
 		}
 		

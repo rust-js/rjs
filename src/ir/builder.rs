@@ -91,6 +91,7 @@ impl Block {
 				Ir::BitNot => string.push_str("bit.not"),
 				Ir::BitOr => string.push_str("bit.or"),
 				Ir::BitXOr => string.push_str("bit.xor"),
+				Ir::CastMemberIndex => string.push_str("cast.index"),
 				Ir::Call(args) => { write!(string, "call {}", args).ok(); }
 				Ir::CallEnv(args) => { write!(string, "call.env {}", args).ok(); } 
 				Ir::CurrentIter(local) => {
@@ -274,6 +275,7 @@ impl Block {
 					string.push_str("typeof.name ");
 					self.print_name(string, name, interner);
 				}
+				Ir::ValidateMemberTarget => string.push_str("member.target")
 			}
 			
 			string.push('\n');
@@ -516,6 +518,7 @@ pub enum Ir {
 	BitNot,
 	BitOr,
 	BitXOr,
+	CastMemberIndex,
 	Call(u32),
 	CurrentIter(Local),
 	Debugger,
@@ -608,7 +611,8 @@ pub enum Ir {
 	ToBoolean,
 	Typeof,
 	TypeofIndex,
-	TypeofName(Name)
+	TypeofName(Name),
+	ValidateMemberTarget
 }
 
 impl Ir {

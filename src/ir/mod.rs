@@ -1134,26 +1134,57 @@ impl<'a> IrGenerator<'a> {
 				self.ir.emit(Ir::StoreName(ident));
 			},
 			Expr::MemberIndex(ref expr, ref index) => {
-				if leave {
-					try!(load(self));
-					self.ir.emit(Ir::Dup);
-					try!(self.emit_expr(expr, true));
-					try!(self.emit_exprs(index, true));
-					self.ir.emit(Ir::Pick(2));
-				} else {
-					try!(self.emit_expr(expr, true));
-					try!(self.emit_exprs(index, true));
-					try!(load(self));
-				}
+				let store = |generator: &mut IrGenerator<'a>| {
+					// Store the result in a temporary if we need to leave something
+					// on the stack.
+					
+					if leave {
+						let local = generator.ir.local(None);
+						
+						generator.ir.emit(Ir::Dup);
+						generator.ir.emit(Ir::StoreLocal(local));
+						generator.ir.emit(Ir::LoadLocal(local));
+						
+						// The target and index are still on the stack. Store the result.
+						generator.ir.emit(Ir::StoreIndex);
+						
+						// Load the result of the local.
+						generator.ir.emit(Ir::LoadLocal(local));
+					} else {
+						// The target and index are still on the stack. Store the result.
+						generator.ir.emit(Ir::StoreIndex);
+					}
+				};
 				
-				self.ir.emit(Ir::StoreIndex);
+				if op == Op::Assign {
+					// Load the target and index onto the stack.
+					try!(self.emit_member_target(expr, index));
+					
+					try!(load(self));
+					
+					store(self);
+				} else {
+					// Load target and index onto the stack.
+					try!(self.emit_member_target(expr, index));
+					
+					// Dup both member and index so we can re-use them for the store.
+					self.ir.emit(Ir::Pick(1));
+					self.ir.emit(Ir::Pick(2));
+					
+					// Load the current value.
+					self.ir.emit(Ir::LoadIndex);
+					
+					// Perform the operation.
+					self.emit_op(op);
+					
+					store(self);
+				}
 			}
 			_ => return Err(JsError::Reference("Invalid assignment expression".to_string()))
 		}
 		
 		Ok(())
 	}
-	
 		
 	fn emit_expr_binary(&mut self, op: Op, lhs: &'a Expr, rhs: &'a Expr, leave: bool) -> JsResult<()> {
 		match op {
@@ -1275,8 +1306,7 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_expr_member_index(&mut self, expr: &'a Expr, index: &'a ExprSeq, leave: bool) -> JsResult<()> {
-		try!(self.emit_expr(expr, true));
-		try!(self.emit_exprs(index, true));
+		try!(self.emit_member_target(expr, index));
 		self.ir.emit(Ir::LoadIndex);
 		
 		if !leave {
@@ -1410,8 +1440,7 @@ impl<'a> IrGenerator<'a> {
 				self.ir.emit(Ir::LoadName(ident));
 			}
 			Expr::MemberIndex(ref expr, ref index) => {
-				try!(self.emit_expr(expr, true));
-				try!(self.emit_exprs(index, true));
+				try!(self.emit_member_target(expr, index));
 				self.ir.emit(Ir::Pick(1));
 				self.ir.emit(Ir::Pick(1));
 				self.ir.emit(Ir::LoadIndex);
@@ -1457,8 +1486,7 @@ impl<'a> IrGenerator<'a> {
 						self.ir.emit(Ir::DeleteName(name))
 					}
 					Expr::MemberIndex(ref expr, ref index) => {
-						try!(self.emit_expr(expr, true));
-						try!(self.emit_exprs(index, true));
+						try!(self.emit_member_target(expr, index));
 						self.ir.emit(Ir::DeleteIndex);
 					}
 					ref expr @ _ => {
@@ -1497,8 +1525,7 @@ impl<'a> IrGenerator<'a> {
 						self.ir.emit(Ir::TypeofName(name))
 					}
 					Expr::MemberIndex(ref expr, ref index) => {
-						try!(self.emit_expr(expr, true));
-						try!(self.emit_exprs(index, true));
+						try!(self.emit_member_target(expr, index));
 						self.ir.emit(Ir::TypeofIndex);
 					}
 					ref expr @ _ => {
@@ -1736,6 +1763,16 @@ impl<'a> IrGenerator<'a> {
 		} else {
 			panic!();
 		}
+	}
+	
+	fn emit_member_target(&mut self, expr: &'a Expr, index: &'a ExprSeq) -> JsResult<()> {
+		try!(self.emit_expr(expr, true));
+		try!(self.emit_exprs(index, true));
+		self.ir.emit(Ir::Pick(1));
+		self.ir.emit(Ir::ValidateMemberTarget);
+		self.ir.emit(Ir::CastMemberIndex);
+		
+		Ok(())
 	}
 }
 

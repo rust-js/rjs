@@ -377,16 +377,34 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
+				
 				let arg1 = frame.get(0).as_local(&self.env.heap);
 				let arg2 = frame.get(1).as_local(&self.env.heap);
 				let result = local_try!(self.env.add(arg1, arg2));
+				
 				self.env.stack.drop_frame(frame);
+				
 				self.env.stack.push(*result);
 			}
 			Ir::BitAnd => numeric_bin_op!(self, bit_and),
 			Ir::BitNot => numeric_op!(self, bit_not),
 			Ir::BitOr => numeric_bin_op!(self, bit_or),
 			Ir::BitXOr => numeric_bin_op!(self, bit_xor),
+			Ir::CastMemberIndex => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(1);
+				let value = frame.get(0).as_local(&self.env.heap);
+				
+				let result = match value.ty() {
+					JsType::Number | JsType::String => value,
+					_ => local_try!(value.to_string(self.env)).as_value(self.env)
+				};
+				
+				self.env.stack.drop_frame(frame);
+				
+				self.env.stack.push(*result);
+			}
 			Ir::Call(count) => local_try!(self.call(count, false)),
 			Ir::CurrentIter(local) => {
 				let _scope = self.env.heap.new_local_scope();
@@ -416,10 +434,11 @@ impl<'a> Frame<'a> {
 				
 				let frame = self.env.stack.create_frame(2);
 				
+				let mut target = frame.get(0).as_local(&self.env.heap);
 				let index = frame.get(1).as_local(&self.env.heap);
 				let index = local_try!(self.env.intern_value(index));
 				
-				let result = local_try!(frame.get(0).as_local(&self.env.heap).delete(self.env, index, true));
+				let result = local_try!(target.delete(self.env, index, self.strict));
 				
 				self.env.stack.drop_frame(frame);
 				
@@ -1023,6 +1042,20 @@ impl<'a> Frame<'a> {
 				self.env.stack.drop_frame(frame);
 				
 				self.env.stack.push(JsValue::new_string(result.as_ptr()));
+			}
+			Ir::ValidateMemberTarget => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(1);
+				let target = frame.get(0).as_local(&self.env.heap);
+				
+				let invalid = target.is_null() || target.is_undefined();
+				
+				self.env.stack.drop_frame(frame);
+				
+				if invalid {
+					return Next::Throw(JsError::new_type(self.env, ::errors::TYPE_INVALID));
+				}
 			}
 		}
 		

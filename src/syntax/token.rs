@@ -315,4 +315,6 @@ declare_idents! {
 	( "URIError", URI_ERROR_CLASS, 140 );
 	( "NativeError", NATIVE_ERROR_CLASS, 141 );
 	( "getOwnPropertyNames", GET_OWN_PROPERTY_NAMES, 142 );
+	( "", EMPTY, 143 );
+	( "name", NAME, 144 );
 }

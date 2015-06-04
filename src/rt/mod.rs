@@ -724,6 +724,17 @@ impl JsDescriptor {
 			})
 		}
 	}
+	
+	pub fn merge(&self, other: JsDescriptor) -> JsDescriptor {
+		JsDescriptor {
+			value: self.value.or(other.value),
+			get: self.get.or(other.get),
+			set: self.set.or(other.set),
+			writable: self.writable.or(other.writable),
+			enumerable: self.enumerable.or(other.enumerable),
+			configurable: self.configurable.or(other.configurable)
+		}
+	}
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]

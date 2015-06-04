@@ -1,6 +1,6 @@
 use syntax::Name;
 use syntax::token::name;
-use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, GC_OBJECT};
+use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString, GC_OBJECT};
 use gc::{Local, Ptr, AsPtr, ptr_t};
 use ::{JsResult, JsError};
 use self::hash_store::HashStore;
@@ -51,11 +51,11 @@ impl JsObject {
 	pub fn new_function(env: &mut JsEnv, function: JsFunction, prototype: Local<JsObject>) -> Local<JsObject> {
 		let mut result = Self::new_local(env, JsStoreType::Hash);
 		
-		let args = match function {
-			JsFunction::Native(_, args, _, _) => args,
+		let (name, args) = match function {
+			JsFunction::Native(name, args, _, _) => (name, args),
 			JsFunction::Ir(function_ref) => {
 				let function = env.ir.get_function(function_ref);
-				function.args
+				(function.name, function.args)
 			}
 		};
 		
@@ -66,6 +66,11 @@ impl JsObject {
 		let value = JsValue::new_number(args as f64).as_local(&env.heap);
 		// TODO: This does not seem to be conform the specs. Value should not be configurable.
 		result.define_own_property(env, name::LENGTH, JsDescriptor::new_value(value, false, false, true), false).ok();
+		
+		let name = name.unwrap_or(name::EMPTY);
+		let name = JsString::from_str(env, &*env.ir.interner().get(name)).as_value(env);
+		
+		result.define_own_property(env, name::NAME, JsDescriptor::new_value(name, false, false, true), false).ok();
 		
 		result
 	}
@@ -102,15 +107,23 @@ impl Local<JsObject> {
 
 	// 8.12.9 [[DefineOwnProperty]] (P, Desc, Throw)
 	fn define_own_object_property(&mut self, env: &mut JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
+		fn reject(env: &mut JsEnv, throw: bool) -> JsResult<bool> {
+			if throw { Err(JsError::new_type(env, ::errors::TYPE_NOT_EXTENSIBLE)) } else { Ok(false) }
+		}
+
+		fn is_same(env: &JsEnv, x: &Option<Local<JsValue>>, y: &Option<Local<JsValue>>) -> bool{
+			(x.is_none() && y.is_none()) || (x.is_some() && y.is_some() && env.same_value(x.unwrap(), y.unwrap()))
+		}
+		
 		let current = self.get_own_property(env, property);
 		let extensible = self.is_extensible(env);
 		
 		match current {
 			None => {
-				return if !extensible {
-					if throw { Err(JsError::new_type(env, ::errors::TYPE_NOT_EXTENSIBLE)) } else { Ok(false) }
+				if !extensible {
+					reject(env, throw)
 				} else {
-					if descriptor.is_generic() || descriptor.is_data() {
+					let descriptor = if descriptor.is_generic() || descriptor.is_data() {
 						JsDescriptor {
 							value: Some(descriptor.value(env)),
 							get: None,
@@ -140,78 +153,55 @@ impl Local<JsObject> {
 					return Ok(true);
 				}
 				if current.is_same(env, &descriptor) {
-					return Ok(true);
+					return Ok(true)
 				}
-				
-				fn can_write(env: &JsEnv, current: &JsDescriptor, desc: &JsDescriptor) -> bool {
-					if 
-						!current.is_configurable() &&
-						(desc.configurable == Some(true) || (desc.enumerable == Some(!current.is_enumerable())))
-					{
-						return false;
+				if !current.is_configurable() {
+					if descriptor.is_configurable() {
+						return reject(env, throw);
+					} else if descriptor.enumerable.is_some() && descriptor.is_enumerable() != current.is_enumerable() {
+						return reject(env, throw);
 					}
-					
-					if current.is_generic() {
-						return true;
-					}
-
-					if current.is_data() != desc.is_data() {
+				}
+				if !descriptor.is_generic() {
+					if current.is_data() != descriptor.is_data() {
 						if !current.is_configurable() {
-							return false;
+							return reject(env, throw);
 						}
-						// TODO: Preservation of configurable, enumerable.
-						return true;
-					}
-					
-					if current.is_data() && desc.is_data() {
+						
+						self.store.replace(env, property, &JsDescriptor {
+							enumerable: current.enumerable,
+							configurable: current.configurable,
+							..descriptor
+						});
+						
+						return Ok(true);
+					} else if current.is_data() {
 						if !current.is_configurable() {
-							if desc.writable == Some(!current.is_writable()) {
-								return false;
-							}
 							if !current.is_writable() {
-								if let Some(value) = desc.value {
-									if !env.same_value(current.value(env), value) {
-										return false;
+								if descriptor.is_writable() {
+									return reject(env, throw);
+								} else {
+									if descriptor.value.is_some() && !is_same(env, &descriptor.value, &current.value) {
+										return reject(env, throw);
 									}
 								}
 							}
 						}
-						
-						return true;
-					}
-					
-					if current.is_accessor() && desc.is_accessor() {
+					} else {
 						if !current.is_configurable() {
-							if let Some(set) = desc.set {
-								if !env.same_value(current.set(env), set) {
-									return false;
-								}
-							}
-							if let Some(get) = desc.get {
-								if !env.same_value(current.get(env), get) {
-									return false;
-								}
+							if
+								(descriptor.set.is_some() && !is_same(env, &descriptor.set, &current.set)) ||
+								(descriptor.get.is_some() && !is_same(env, &descriptor.get, &current.get))
+							{
+								return reject(env, throw);
 							}
 						}
 					}
-					
-					true
 				}
 				
-				if !can_write(env, &current, &descriptor) {
-					if throw { Err(JsError::new_type(env, ::errors::TYPE_CANNOT_WRITE)) } else { Ok(false) }
-				} else {
-					let descriptor = JsDescriptor {
-						writable: Some(descriptor.writable.unwrap_or(current.is_writable())),
-						enumerable: Some(descriptor.enumerable.unwrap_or(current.is_enumerable())),
-						configurable: Some(descriptor.configurable.unwrap_or(current.is_configurable())),
-						..descriptor
-					};
-
-					self.store.replace(env, property, &descriptor);
-					
-					Ok(true)
-				}
+				self.store.replace(env, property, &descriptor.merge(current));
+				
+				Ok(true)
 			}
 		}
 	}
