@@ -10,6 +10,7 @@ use rt::stack::StackFrame;
 use syntax::Name;
 use syntax::ast::ScopeType;
 use syntax::token::name;
+use syntax::parser::ParseMode;
 
 enum Next {
 	Next,
@@ -935,7 +936,20 @@ impl<'a> Frame<'a> {
 				self.env.stack.drop_frame(frame);
 			}
 			Ir::StoreSetter(function) => unimplemented!(),
-			Ir::StoreNameSetter(name, function) => unimplemented!(),
+			Ir::StoreNameSetter(name, function) => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(1);
+				let mut object = frame.get(0).as_local(&self.env.heap);
+				
+				let scope = self.get_scope();
+				
+				let function = local_try!(self.env.new_function(function, scope));
+				
+				local_try!(object.define_own_property(self.env, name, JsDescriptor::new_simple_accessor(None, Some(function)), true));
+				
+				self.env.stack.drop_frame(frame);
+			}
 			Ir::StoreParam(index)  => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -1190,7 +1204,7 @@ impl<'a> Frame<'a> {
 				
 				let scope = self.get_scope().unwrap();
 				
-				*try!(self.env.eval_scoped(&js, self.strict, scope, true)).as_local(&self.env.heap)
+				*try!(self.env.eval_scoped(&js, self.strict, scope, ParseMode::DirectEval)).as_local(&self.env.heap)
 			}
 		} else {
 			*try!(function.call(self.env, this, args, self.strict))

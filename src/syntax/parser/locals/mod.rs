@@ -121,11 +121,17 @@ impl<'a> LocalResolver<'a> {
 		let scopes_len = self.walker.scopes_len();
 		
 		self.walker.block_walk_rev(|scope, scope_idx, block, block_idx, state| {
+			let mut block_state = scope.state.borrow_mut();
+			
 			// If we're at the top block of the top scope, it's a global.
 			
 			if scope_idx == 0 && block_idx == 0 {
 				if ident.state.get() == IdentState::None {
-					ident.state.set(IdentState::Global(block.unwrap().locals.contains_key(&ident.name)));
+					if block_state.take_scope {
+						ident.state.set(IdentState::Scoped);
+					} else {
+						ident.state.set(IdentState::Global(block.unwrap().locals.contains_key(&ident.name)));
+					}
 				}
 				
 				return false;
@@ -133,8 +139,6 @@ impl<'a> LocalResolver<'a> {
 			
 			// If this scope builds a thick scope, the identifier is scoped
 			// and we can stop the search.
-			
-			let mut block_state = scope.state.borrow_mut();
 			
 			if block_state.build_scope == ScopeType::Thick {
 				ident.state.set(IdentState::Scoped);
@@ -388,7 +392,7 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 						IdentState::Global(true) | IdentState::Slot(..) | IdentState::LiftedSlot(..) => {
 							self.illegal_delete = true;
 						}
-						IdentState::Global(false) => {
+						IdentState::Global(false) | IdentState::Scoped => {
 							match ident.name {
 								name::OBJECT_CLASS | name::FUNCTION_CLASS | name::ARRAY_CLASS |
 								name::STRING_CLASS | name::BOOLEAN_CLASS | name::NUMBER_CLASS |

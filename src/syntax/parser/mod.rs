@@ -51,6 +51,13 @@ impl RootBlock {
 	}
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum ParseMode {
+	Normal,
+	Eval,
+	DirectEval
+}
+
 impl<'a> Parser<'a> {
 	fn at_global(&self) -> bool {
 		self.scopes.len() == 1 && self.scopes[0].blocks.len() == 1
@@ -270,7 +277,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	pub fn parse_program(context: &'a mut AstContext, lexer: &'a mut Lexer<'a>, interner: &'a StrInterner) -> JsResult<FunctionRef> {
+	pub fn parse_program(context: &'a mut AstContext, lexer: &'a mut Lexer<'a>, interner: &'a StrInterner, mode: ParseMode) -> JsResult<FunctionRef> {
 		let mut parser = Parser {
 			lexer: lexer,
 			context: context,
@@ -279,6 +286,9 @@ impl<'a> Parser<'a> {
 		};
 		
 		parser.push_scope();
+		if mode != ParseMode::Normal {
+			parser.top_scope().deopt = true;
+		}
 		parser.push_block_scope();
 		
 		let mut items = Vec::new();
@@ -305,7 +315,11 @@ impl<'a> Parser<'a> {
 		let end = parser.lexer.last_span().unwrap_or(start);
 		
 		let block = parser.pop_block_scope();
-		let scope = parser.pop_scope();
+		let mut scope = parser.pop_scope();
+		
+		if mode == ParseMode::Normal {
+			scope.deopt = false;
+		}
 		
 		let program = Box::new(Function {
 			name: None,
@@ -319,6 +333,24 @@ impl<'a> Parser<'a> {
 		parser.context.functions.push(program);
 		
 		try!(locals::LocalResolver::resolve(parser.context, program_ref));
+		
+		let program = &parser.context.functions[program_ref.usize()];
+		let mut state = program.block.state.borrow_mut();
+		
+		match mode {
+			ParseMode::DirectEval if !program.block.strict => {
+				state.build_scope = ScopeType::None;
+				assert_eq!(state.take_scope, true);
+			}
+			ParseMode::Eval | ParseMode::DirectEval => {
+				assert_eq!(state.build_scope, ScopeType::Thick);
+				state.take_scope = false;
+			}
+			ParseMode::Normal => {
+				assert_eq!(state.build_scope, ScopeType::None);
+				assert_eq!(state.take_scope, false);
+			}
+		}
 		
 		Ok(program_ref)
 	}

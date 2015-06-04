@@ -21,7 +21,8 @@ impl Block {
 	}
 	
 	fn print_name(&self, string: &mut String, name: Name, interner: &StrInterner) {
-		self.print_string(string, name.as_str(interner))
+		self.print_string(string, name.as_str(interner));
+		write!(string, " ({})", name.value()).ok();
 	}
 	
 	fn print_string(&self, string: &mut String, value: &str) {

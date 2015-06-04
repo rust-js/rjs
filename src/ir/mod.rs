@@ -9,7 +9,7 @@ use self::builder::Ir;
 use util::interner::StrInterner;
 use syntax::token::name;
 use syntax::lexer::Lexer;
-use syntax::parser::Parser;
+use syntax::parser::{Parser, ParseMode};
 use syntax::reader::StringReader;
 use ::{JsResult, JsError};
 use std::rc::Rc;
@@ -32,7 +32,9 @@ struct ReturnTarget {
 pub struct IrContext {
 	interner: StrInterner,
 	ast: AstContext,
-	functions: Vec<Option<Rc<builder::Block>>>
+	functions: Vec<Option<Rc<builder::Block>>>,
+	// TODO: Remove
+	last_printed: usize
 }
 
 pub struct IrFunction {
@@ -53,7 +55,8 @@ impl IrContext {
 		IrContext {
 			interner: name::new_interner(),
 			functions: Vec::new(),
-			ast: AstContext::new()
+			ast: AstContext::new(),
+			last_printed: 0
 		}
 	}
 	
@@ -71,20 +74,20 @@ impl IrContext {
 			return Err(JsError::Io(err));
 		}
 		
-		self.build_ir(&mut StringReader::new(file_name, &js), strict, false, false)
+		self.build_ir(&mut StringReader::new(file_name, &js), strict, ParseMode::Normal)
 	}
 	
-	pub fn parse_string(&mut self, js: &str, strict: bool, direct_eval: bool) -> JsResult<FunctionRef> {
-		self.build_ir(&mut StringReader::new("(global)", js), strict, true, direct_eval)
+	pub fn parse_string(&mut self, js: &str, strict: bool, mode: ParseMode) -> JsResult<FunctionRef> {
+		self.build_ir(&mut StringReader::new("(global)", js), strict, mode)
 	}
 	
 	pub fn get_function_ir(&mut self, function_ref: FunctionRef) -> JsResult<Rc<builder::Block>> {
-		try!(self.build_function_ir(function_ref, false));
+		try!(self.build_function_ir(function_ref, ParseMode::Normal));
 		
 		Ok(self.functions[function_ref.usize()].as_ref().unwrap().clone())
 	}
 	
-	fn build_ir(&mut self, reader: &mut StringReader, strict: bool, eval: bool, direct_eval: bool) -> JsResult<FunctionRef> {
+	fn build_ir(&mut self, reader: &mut StringReader, strict: bool, mode: ParseMode) -> JsResult<FunctionRef> {
 		let offset = self.ast.functions.len();
 		
 		let program_ref = {
@@ -94,22 +97,11 @@ impl IrContext {
 				lexer.set_strict(true);
 			}
 			
-			try!(Parser::parse_program(&mut self.ast, &mut lexer, &self.interner))
+			try!(Parser::parse_program(&mut self.ast, &mut lexer, &self.interner, mode))
 		};
 		
 		// Strict eval programs need to build a thick scope to isolate
 		// their environment.
-		
-		// Borrow scope.
-		{
-			let block = &self.ast.functions[program_ref.usize()].block;
-			
-			block.state.borrow_mut().build_scope = if (strict || block.strict) && eval {
-				ScopeType::Thick
-			} else {
-				ScopeType::None
-			};
-		}
 		
 		// Append the new functions to our functions.
 		
@@ -117,12 +109,12 @@ impl IrContext {
 			self.functions.push(None);
 		}
 		
-		try!(self.build_function_ir(program_ref, direct_eval));
+		try!(self.build_function_ir(program_ref, mode));
 		
 		Ok(program_ref)
 	}
 	
-	fn build_function_ir(&mut self, function_ref: FunctionRef, direct_eval: bool) -> JsResult<()> {
+	fn build_function_ir(&mut self, function_ref: FunctionRef, mode: ParseMode) -> JsResult<()> {
 		if self.functions[function_ref.usize()].is_some() {
 			return Ok(());
 		}
@@ -131,7 +123,7 @@ impl IrContext {
 		
 		let block = {
 			let block_state = &function.block.state.borrow();
-			let mut generator = IrGenerator::new(self, block_state, function.block.strict, direct_eval);
+			let mut generator = IrGenerator::new(self, block_state, function.block.strict, mode);
 			
 			// Build the prolog to move the arguments into the scope and to
 			// declare variables with undefined.
@@ -227,8 +219,8 @@ impl IrContext {
 	}
 	
 	pub fn print_ir(&mut self, ir: &mut String) -> JsResult<()> {
-		for i in 0..self.functions.len() {
-			try!(self.build_function_ir(FunctionRef(i as u32), false));
+		for i in self.last_printed..self.functions.len() {
+			try!(self.build_function_ir(FunctionRef(i as u32), ParseMode::Normal));
 			
 			let function = &self.ast.functions[i];
 			
@@ -238,7 +230,7 @@ impl IrContext {
 			ir.push_str(" ");
 			
 			if function.global {
-				ir.push_str("(global):\n\n");
+				ir.push_str("(global)");
 			} else {
 				let name = match function.name {
 					Some(ref name) => name.as_str(&mut self.interner),
@@ -248,28 +240,30 @@ impl IrContext {
 				ir.push_str("function '");
 				ir.push_str(name);
 				ir.push_str("'");
-				
-				if function.block.strict {
-					ir.push_str(" .strict");
-				} 
-				
-				let block_state = function.block.state.borrow();
-				
-				match block_state.build_scope {
-					ScopeType::Thick => ir.push_str(" .thick_scope"),
-					ScopeType::Thin(size) => { write!(ir, " .thin_scope({})", size).ok(); }
-					_ => {} 
-				}
-				
-				if block_state.take_scope {
-					ir.push_str(" .take_scope");
-				}
-				
-				ir.push_str(":\n\n");
 			}
+			
+			if function.block.strict {
+				ir.push_str(" .strict");
+			} 
+			
+			let block_state = function.block.state.borrow();
+			
+			match block_state.build_scope {
+				ScopeType::Thick => ir.push_str(" .thick_scope"),
+				ScopeType::Thin(size) => { write!(ir, " .thin_scope({})", size).ok(); }
+				_ => {} 
+			}
+			
+			if block_state.take_scope {
+				ir.push_str(" .take_scope");
+			}
+			
+			ir.push_str(":\n\n");
 			
 			self.functions[i].as_ref().unwrap().print(ir, true, &mut self.interner);
 		}
+		
+		self.last_printed = self.functions.len();
 		
 		Ok(())
 	}
@@ -295,7 +289,7 @@ struct IrGenerator<'a> {
 }
 
 impl<'a> IrGenerator<'a> {
-	fn new(ctx: &'a IrContext, block_state: &'a RootBlockState, strict: bool, direct_eval: bool) -> IrGenerator<'a> {
+	fn new(ctx: &'a IrContext, block_state: &'a RootBlockState, strict: bool, mode: ParseMode) -> IrGenerator<'a> {
 		let mut generator = IrGenerator {
 			ctx: ctx,
 			block_state: block_state,
@@ -307,7 +301,7 @@ impl<'a> IrGenerator<'a> {
 			try_catch_depth: 0,
 			return_target: None,
 			strict: strict,
-			env_count: if direct_eval || block_state.build_scope == ScopeType::Thick { 1 } else { 0 }
+			env_count: if mode == ParseMode::DirectEval || block_state.build_scope == ScopeType::Thick { 1 } else { 0 }
 		};
 		
 		// Create locals for all local slots.
@@ -1082,6 +1076,27 @@ impl<'a> IrGenerator<'a> {
 			Ok(())
 		};
 		
+		let store = |generator: &mut IrGenerator<'a>, ir: Ir| {
+			// Store the result in a temporary if we need to leave something
+			// on the stack.
+			
+			if leave {
+				let local = generator.ir.local(None);
+				
+				generator.ir.emit(Ir::Dup);
+				generator.ir.emit(Ir::StoreLocal(local));
+				
+				// Execute the IR that stores the result.
+				generator.ir.emit(ir);
+				
+				// Load the result of the local.
+				generator.ir.emit(Ir::LoadLocal(local));
+			} else {
+				// The target and index are still on the stack. Store the result.
+				generator.ir.emit(ir);
+			}
+		};
+		
 		match *self.unwrap_paren(lhs) {
 			Expr::Ident(ref ident) => {
 				match ident.state.get() {
@@ -1103,11 +1118,7 @@ impl<'a> IrGenerator<'a> {
 						
 						try!(load(self));
 						
-						if leave {
-							self.ir.emit(Ir::Dup);
-						}
-						
-						self.ir.emit(Ir::StoreName(ident.name));
+						store(self, Ir::StoreName(ident.name));
 					}
 					_ => {
 						try!(load(self));
@@ -1121,63 +1132,38 @@ impl<'a> IrGenerator<'a> {
 				}
 			},
 			Expr::MemberDot(ref expr, ident) => {
-				if leave {
-					try!(load(self));
-					self.ir.emit(Ir::Dup);
-					try!(self.emit_expr(expr, true));
-					self.ir.emit(Ir::Swap);
-				} else {
-					try!(self.emit_expr(expr, true));
-					try!(load(self));
-				}
+				try!(self.emit_expr(expr, true));
 				
-				self.ir.emit(Ir::StoreName(ident));
+				try!(load(self));
+				
+				store(self, Ir::StoreName(ident));
 			},
 			Expr::MemberIndex(ref expr, ref index) => {
-				let store = |generator: &mut IrGenerator<'a>| {
-					// Store the result in a temporary if we need to leave something
-					// on the stack.
-					
-					if leave {
-						let local = generator.ir.local(None);
-						
-						generator.ir.emit(Ir::Dup);
-						generator.ir.emit(Ir::StoreLocal(local));
-						generator.ir.emit(Ir::LoadLocal(local));
-						
-						// The target and index are still on the stack. Store the result.
-						generator.ir.emit(Ir::StoreIndex);
-						
-						// Load the result of the local.
-						generator.ir.emit(Ir::LoadLocal(local));
-					} else {
-						// The target and index are still on the stack. Store the result.
-						generator.ir.emit(Ir::StoreIndex);
-					}
-				};
-				
 				if op == Op::Assign {
 					// Load the target and index onto the stack.
 					try!(self.emit_member_target(expr, index));
 					
 					try!(load(self));
 					
-					store(self);
+					store(self, Ir::StoreIndex);
 				} else {
 					// Load target and index onto the stack.
 					try!(self.emit_member_target(expr, index));
 					
 					// Dup both member and index so we can re-use them for the store.
 					self.ir.emit(Ir::Pick(1));
-					self.ir.emit(Ir::Pick(2));
+					self.ir.emit(Ir::Pick(1));
 					
 					// Load the current value.
 					self.ir.emit(Ir::LoadIndex);
 					
+					// Execute the RHS of the assignment.
+					try!(self.emit_expr(rhs, true));
+					
 					// Perform the operation.
 					self.emit_op(op);
 					
-					store(self);
+					store(self, Ir::StoreIndex);
 				}
 			}
 			_ => return Err(JsError::Reference("Invalid assignment expression".to_string()))

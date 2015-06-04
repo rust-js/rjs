@@ -1,6 +1,7 @@
 use ::JsResult;
 use rt::{JsEnv, JsArgs, JsValue, JsType};
 use gc::*;
+use syntax::parser::ParseMode;
 
 pub fn Global_escape(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	unimplemented!();
@@ -40,6 +41,6 @@ pub fn Global_eval(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 		let arg = arg.unwrap_string().as_local(&env.heap).to_string();
 		let global_scope = env.global_scope.as_local(&env.heap);
 		
-		env.eval_scoped(&arg, args.strict, global_scope, false).map(|result| result.as_local(&env.heap))
+		env.eval_scoped(&arg, args.strict, global_scope, ParseMode::Eval).map(|result| result.as_local(&env.heap))
 	}
 }

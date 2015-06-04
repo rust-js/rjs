@@ -7,6 +7,7 @@ use ir::IrContext;
 use syntax::Name;
 use syntax::token::name;
 use syntax::ast::FunctionRef;
+use syntax::parser::ParseMode;
 use ::{JsResult, JsError};
 use std::i32;
 pub use self::value::JsValue;
@@ -126,11 +127,11 @@ impl JsEnv {
 		
 		let global_scope = self.global_scope.as_local(&self.heap);
 		
-		self.eval_scoped(js, false, global_scope, false)
+		self.eval_scoped(js, false, global_scope, ParseMode::Normal)
 	}
 	
-	fn eval_scoped(&mut self, js: &str, strict: bool, scope: Local<JsScope>, direct_eval: bool) -> JsResult<Root<JsValue>> {
-		let function_ref = try!(self.ir.parse_string(js, strict, direct_eval));
+	fn eval_scoped(&mut self, js: &str, strict: bool, scope: Local<JsScope>, mode: ParseMode) -> JsResult<Root<JsValue>> {
+		let function_ref = try!(self.ir.parse_string(js, strict, mode));
 		
 		let mut ir = String::new();
 		try!(self.ir.print_ir(&mut ir));

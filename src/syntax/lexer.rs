@@ -216,7 +216,7 @@ impl<'a> Lexer<'a> {
 					try!(self.parse_block_comment());
 					Comment
 				} else if self.reader.consume('/') {
-					self.skip_while(|c| c != '\n');
+					self.skip_while(|c| !is_line_terminator(c));
 					Comment
 				} else if self.allow_regexp {
 					if let Some(token) = self.parse_regex() {
