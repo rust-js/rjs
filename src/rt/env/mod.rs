@@ -246,7 +246,7 @@ fn setup_number<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	let mut class = env.new_native_function(Some(name::NUMBER_CLASS), 0, &Number_constructor, function_prototype);
 	
 	value!(class, name::MAX_VALUE, JsValue::new_number(f64::MAX), false, false, false, env);
-	value!(class, name::MIN_VALUE, JsValue::new_number(f64::MIN), false, false, false, env);
+	value!(class, name::MIN_VALUE, JsValue::new_number(f64::MIN_POSITIVE), false, false, false, env);
 	value!(class, name::NAN, JsValue::new_number(f64::NAN), false, false, false, env);
 	value!(class, name::NEGATIVE_INFINITY, JsValue::new_number(f64::NEG_INFINITY), false, false, false, env);
 	value!(class, name::POSITIVE_INFINITY, JsValue::new_number(f64::INFINITY), false, false, false, env);
