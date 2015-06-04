@@ -375,6 +375,8 @@ impl<'a> Lexer<'a> {
 			}
 		};
 		
+		debugln!("TOKEN {:?}", token);
+		
 		let (end_line, end_col) = self.reader.last_pos();
 		let span = Span::new(start_line, start_col, end_line, end_col, self.file);
 		

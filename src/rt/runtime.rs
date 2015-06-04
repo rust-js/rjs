@@ -148,7 +148,7 @@ impl JsEnv {
 		})
 	}
 	
-	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.5
+	// 11.8.5 The Abstract Relational Comparison Algorithm
 	pub fn compare(&mut self, x: Local<JsValue>, y: Local<JsValue>, left_first: bool) -> JsResult<ComparisonResult> {
 		let px;
 		let py;
@@ -161,7 +161,9 @@ impl JsEnv {
 			px = try!(x.to_primitive(self, JsPreferredType::Number));
 		}
 		
-		if !(px.ty() == JsType::String && py.ty() == JsType::String) {
+		if px.ty() == JsType::String && py.ty() == JsType::String {
+			Ok(self.compare_string(px, py))
+		} else {
 			let nx = try!(px.to_number(self));
 			let ny = try!(py.to_number(self));
 			
@@ -186,47 +188,46 @@ impl JsEnv {
 			};
 			
 			Ok(result)
-		} else {
-			let px = try!(px.to_string(self)).to_string();
-			let py = try!(py.to_string(self)).to_string();
-			Ok(self.compare_string(&px, &py))
 		}
 	}
 	
 	// 11.8.5 The Abstract Relational Comparison Algorithm
-	pub fn compare_string(&mut self, x: &str, y: &str) -> ComparisonResult {
-		if x.starts_with(y) {
-			ComparisonResult::False
-		} else if y.starts_with(x) {
-			ComparisonResult::True
-		} else {
-			let x = x.chars().collect::<Vec<_>>();
-			let y = y.chars().collect::<Vec<_>>();
-			
-			let len = cmp::min(x.len(), y.len());
-			let mut same = 0usize;
-			
-			for i in 0..len {
-				if x[i] != y[i] {
-					break;
-				}
-				same = i;
+	pub fn compare_string(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> ComparisonResult {
+		assert_eq!(x.ty(), JsType::String);
+		assert_eq!(y.ty(), JsType::String);
+		
+		let x = x.unwrap_string().chars;
+		let y = y.unwrap_string().chars;
+		
+		let x_len = x.len();
+		let y_len = y.len();
+		let len = cmp::min(x_len, y_len);
+		
+		// If there is a character that  differs, return based on that
+		// character.
+		
+		for i in 0..len {
+			if x[i] != y[i] {
+				return if x[i] < y[i] {
+					ComparisonResult::True
+				} else {
+					ComparisonResult::False
+				};
 			}
-			
-			let x_char = x[same];
-			let y_char = y[same];
-			
-			if x_char < y_char { ComparisonResult::True } else { ComparisonResult::False }
+		}
+		
+		// Otherwise, the strings are either the same or differ in length.
+		
+		if x_len >= y_len {
+			ComparisonResult::False
+		} else {
+			ComparisonResult::True
 		}
 	}
 	
-	fn compare_any(&mut self, x: Local<JsValue>, y: Local<JsValue>, left_first: bool) -> JsResult<ComparisonResult> {
-		self.compare(x, y, left_first)
-	}
-	
-	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.1
-	pub fn compare_lt(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> JsResult<bool> {
-		let result = try!(self.compare_any(x, y, false));
+	// 11.8.1 The Less-than Operator ( < )
+	pub fn compare_lt(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<bool> {
+		let result = try!(self.compare(lval, rval, true));
 		
 		Ok(match result {
 			ComparisonResult::True => true,
@@ -234,9 +235,9 @@ impl JsEnv {
 		})
 	}
 	
-	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.2
-	pub fn compare_gt(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> JsResult<bool>  {
-		let result = try!(self.compare_any(y, x, true));
+	// 11.8.2 The Greater-than Operator ( > )
+	pub fn compare_gt(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<bool>  {
+		let result = try!(self.compare(rval, lval, false));
 		
 		Ok(match result {
 			ComparisonResult::True => true,
@@ -244,9 +245,9 @@ impl JsEnv {
 		})
 	}
 	
-	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.3
-	pub fn compare_le(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> JsResult<bool>  {
-		let result = try!(self.compare_any(y, x, false));
+	// 11.8.3 The Less-than-or-equal Operator ( <= )
+	pub fn compare_le(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<bool>  {
+		let result = try!(self.compare(rval, lval, false));
 		
 		Ok(match result {
 			ComparisonResult::True | ComparisonResult::Undefined => false,
@@ -254,9 +255,9 @@ impl JsEnv {
 		})
 	}
 	
-	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.4
-	pub fn compare_ge(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> JsResult<bool>  {
-		let result = try!(self.compare_any(x, y, true));
+	// 11.8.4 The Greater-than-or-equal Operator ( >= )
+	pub fn compare_ge(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<bool>  {
+		let result = try!(self.compare(lval, rval, true));
 		
 		Ok(match result {
 			ComparisonResult::True | ComparisonResult::Undefined => false,

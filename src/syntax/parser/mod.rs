@@ -327,14 +327,18 @@ impl<'a> Parser<'a> {
 		let was_strict = self.lexer.strict();
 		
 		let mut strict = false;
+		let mut offset = 0;
 		
-		while let Some(Token::Literal(Lit::String(name, exact))) = try!(self.peek()) {
-			if !try!(self.is_eos_at(1)) {
+		while let Some(Token::Literal(Lit::String(name, exact))) = try!(self.peek_at(offset)) {
+			if !try!(self.is_eos_at(offset + 1)) {
 				break;
 			}
 			
-			try!(self.next());
-			try!(self.expect_eos());
+			offset += 1;
+			
+			if try!(self.peek_at(offset)) == Some(Token::SemiColon) {
+				offset += 1;
+			}
 			
 			if name == name::USE_STRICT && exact {
 				strict = true;
