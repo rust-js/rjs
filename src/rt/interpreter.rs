@@ -761,7 +761,7 @@ impl<'a> Frame<'a> {
 				let frame = self.env.stack.create_frame(2);
 				let arg1 = frame.get(0).as_local(&self.env.heap);
 				let arg2 = frame.get(1).as_local(&self.env.heap);
-				let result = local_try!(self.env.compare_gt(arg1, arg2));
+				let result = local_try!(self.env.compare_lt(arg1, arg2));
 				self.env.stack.drop_frame(frame);
 				self.env.stack.push(JsValue::new_bool(result));
 			}

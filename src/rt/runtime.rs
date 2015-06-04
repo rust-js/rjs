@@ -171,10 +171,6 @@ impl JsEnv {
 				ComparisonResult::Undefined
 			} else if nx == ny {
 				ComparisonResult::False
-			} else if nx.is_positive_zero() && ny.is_negative_zero() {
-				ComparisonResult::False
-			} else if nx.is_negative_zero() && ny.is_positive_zero() {
-				ComparisonResult::False
 			} else if nx == f64::INFINITY {
 				ComparisonResult::False
 			} else if ny == f64::INFINITY {
@@ -230,8 +226,8 @@ impl JsEnv {
 		let result = try!(self.compare(lval, rval, true));
 		
 		Ok(match result {
-			ComparisonResult::True => true,
-			_ => false
+			ComparisonResult::Undefined | ComparisonResult::False => false,
+			_ => true
 		})
 	}
 	
@@ -240,8 +236,8 @@ impl JsEnv {
 		let result = try!(self.compare(rval, lval, false));
 		
 		Ok(match result {
-			ComparisonResult::True => true,
-			_ => false
+			ComparisonResult::Undefined | ComparisonResult::False => false,
+			_ => true
 		})
 	}
 	
@@ -282,7 +278,7 @@ impl JsEnv {
 		Ok(result)
 	}
 	
-	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.6
+	// 11.8.6 The instanceof operator
 	pub fn instanceof(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<Local<JsValue>> {
 		let result = try!(rval.has_instance(self, lval));
 		Ok(JsValue::new_bool(result).as_local(&self.heap))
