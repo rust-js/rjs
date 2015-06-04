@@ -359,22 +359,7 @@ impl Local<JsValue> {
 			JsType::Null => 0f64,
 			JsType::Boolean => if self.unwrap_bool() { 1f64 } else { 0f64 },
 			JsType::Number => self.unwrap_number(),
-			JsType::String => {
-				let mut reader = StringReader::new("", &self.unwrap_string().to_string());
-				if let Ok(mut lexer) = Lexer::new(&mut reader, env.ir.interner()) {
-					if let Some(token) = try!(lexer.peek(0)) {
-						if try!(lexer.peek(1)).is_none() {
-							if let Token::Literal(lit) = token.token {
-								if let Some(value) = lit.to_number() {
-									return Ok(value);
-								}
-							}
-						}
-					}
-				}
-				
-				f64::NAN
-			},
+			JsType::String => try!(self.get_number_from_string(env)),
 			JsType::Object => {
 				let value = try!(self.to_primitive(env, JsPreferredType::Number));
 				try!(value.to_number(env))
@@ -383,6 +368,47 @@ impl Local<JsValue> {
 		};
 		
 		Ok(result)
+	}
+	
+	fn get_number_from_string(&self, env: &JsEnv) -> JsResult<f64> {
+		let mut reader = StringReader::new("", &self.unwrap_string().to_string());
+		if let Ok(mut lexer) = Lexer::new(&mut reader, env.ir.interner()) {
+			// Skip over the + sign if we have one.
+			
+			if let Some(token) = try!(lexer.peek(0)) {
+				if token.token == Token::Plus {
+					try!(lexer.next());
+				}
+			} else {
+				// The empty string results in 0.
+				
+				return Ok(0f64);
+			}
+			
+			// Verify that the next token is a number literal.
+			
+			let mut result = None;
+			
+			if let Some(token) = try!(lexer.peek(0)) {
+				if let Token::Literal(lit) = token.token {
+					if let Some(value) = lit.to_number() {
+						result = Some(value);
+						
+						try!(lexer.next());
+					}
+				}
+			}
+			
+			// Verify that we're at the end of the stream.
+			
+			if let Some(result) = result {
+				if try!(lexer.peek(0)).is_none() {
+					return Ok(result);
+				}
+			}
+		}
+		
+		Ok(f64::NAN)
 	}
 	
 	// 9.4 ToInteger

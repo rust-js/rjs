@@ -1211,14 +1211,13 @@ impl<'a> IrGenerator<'a> {
 			}
 			_ => {}
 		}
+
+		try!(self.emit_expr(lhs, true));
+		try!(self.emit_expr(rhs, true));
+		self.emit_op(op);
 		
-		if leave {
-			try!(self.emit_expr(lhs, true));
-			try!(self.emit_expr(rhs, true));
-			self.emit_op(op);
-		} else {
-			try!(self.emit_expr(lhs, false));
-			try!(self.emit_expr(rhs, false));
+		if !leave {
+			self.ir.emit(Ir::Pop);
 		}
 		
 		Ok(())
