@@ -499,7 +499,7 @@ impl<'a> Parser<'a> {
 			_ => return Ok(None)
 		};
 		
-		try!(self.next());
+		try!(self.bump());
 		
 		Ok(Some(name))
 	}
@@ -803,13 +803,29 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr_unary(&mut self) -> JsResult<Expr> {
+		// This is a very dirty hack. We are not implementing a proper grammar.
+		// Most of this we can work around (e.g. rebalancing binary expressions).
+		// However, "new" is an issue. We solve this here with a very dirty
+		// hack. We start with counting the number of consecutive "new" tokens
+		// we can find. Then, any time we encounter a call expression, we
+		// eat a new and convert the call expression into a new expression.
+		// If we have "new" tokens left at the end of the method, we wrap
+		// the complete result into new expressions until we've exhausted the
+		// matched "new" tokens.
+		
+		let mut news = 0;
+		
+		while let Some(Token::New) = try!(self.peek()) {
+			try!(self.bump());
+			news += 1;
+		}
+		
 		let mut expr = try!(match try!(self.peek()) {
 			Some(Token::Function) => {
 				try!(self.bump());
 				
 				Ok(Expr::Function(try!(self.parse_function())))
 			},
-			Some(Token::New) => self.parse_expr_new(),
 			Some(Token::Delete) => self.parse_expr_unary_pre(Op::Delete),
 			Some(Token::Void) => self.parse_expr_unary_pre(Op::Void),
 			Some(Token::Typeof) => self.parse_expr_unary_pre(Op::Typeof),
@@ -841,12 +857,26 @@ impl<'a> Parser<'a> {
 			expr = try!(match try!(self.peek()) {
 				Some(Token::OpenBracket) => self.parse_expr_member_index(expr),
 				Some(Token::Dot) => self.parse_expr_member_dot(expr),
-				Some(Token::OpenParen) => self.parse_expr_call(expr),
+				Some(Token::OpenParen) => {
+					let mut call = try!(self.parse_expr_call(expr));
+					if news > 0 {
+						news -= 1;
+						call = Expr::New(Box::new(call));
+					}
+					Ok(call)
+				},
 				Some(Token::PlusPlus) if !is_eos => self.parse_expr_unary_post(expr, Op::PostIncr),
 				Some(Token::MinusMinus) if !is_eos => self.parse_expr_unary_post(expr, Op::PostDecr),
-				_ => return Ok(expr)
+				_ => break
 			});
 		}
+		
+		while news > 0 {
+			news -= 1;
+			expr = Expr::New(Box::new(expr));
+		}
+		
+		Ok(expr)
 	}
 	
 	fn parse_expr_member_index(&mut self, expr: Expr) -> JsResult<Expr> {
@@ -905,12 +935,6 @@ impl<'a> Parser<'a> {
 		let else_ = try!(self.parse_expr());
 		
 		Ok(Expr::Ternary(Box::new(expr), Box::new(then), Box::new(else_)))
-	}
-	
-	fn parse_expr_new(&mut self) -> JsResult<Expr> {
-		try!(self.bump());
-		
-		Ok(Expr::New(Box::new(try!(self.parse_expr_unary()))))
 	}
 	
 	fn parse_expr_unary_pre(&mut self, op: Op) -> JsResult<Expr> {

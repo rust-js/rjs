@@ -92,7 +92,6 @@ impl Block {
 				Ir::BitNot => string.push_str("bit.not"),
 				Ir::BitOr => string.push_str("bit.or"),
 				Ir::BitXOr => string.push_str("bit.xor"),
-				Ir::CastMemberIndex => string.push_str("cast.index"),
 				Ir::Call(args) => { write!(string, "call {}", args).ok(); }
 				Ir::CallEnv(args) => { write!(string, "call.env {}", args).ok(); } 
 				Ir::CurrentIter(local) => {
@@ -229,17 +228,18 @@ impl Block {
 				Ir::Return => string.push_str("ret"),
 				Ir::Rsh => string.push_str("rsh"),
 				Ir::RshZeroFill => string.push_str("rsh.zf"),
-				Ir::StoreGetter(function) => { write!(string, "st.getter {}", function.usize()).ok(); }
+				Ir::StoreGetterUnchecked(function) => { write!(string, "st.this.getter {}", function.usize()).ok(); }
 				Ir::StoreGlobal(name) => {
 					string.push_str("st.global ");
 					self.print_name(string, name, interner);
 				}
-				Ir::StoreNameGetter(name, function) => {
-					string.push_str("st.getter.name ");
+				Ir::StoreNameGetterUnchecked(name, function) => {
+					string.push_str("st.this.getter.name ");
 					self.print_name(string, name, interner);
 					write!(string, ", {}", function.usize()).ok();
 				}
 				Ir::StoreIndex => string.push_str("st.idx"),
+				Ir::StoreIndexUnchecked => string.push_str("st.this.idx"),
 				Ir::StoreLifted(index, depth) => {
 					string.push_str("st.lifted ");
 					write!(string, "{} {}", index, depth).ok();
@@ -252,15 +252,19 @@ impl Block {
 					string.push_str("st.name ");
 					self.print_name(string, name, interner);
 				}
+				Ir::StoreNameUnchecked(name) => {
+					string.push_str("st.this.name ");
+					self.print_name(string, name, interner);
+				}
 				Ir::StoreParam(index) => { write!(string, "st.arg {}", index).ok(); }
 				Ir::StoreEnv(name) => {
 					string.push_str("st.env ");
 					self.print_name(string, name, interner);
 				}
 				Ir::StoreEnvArguments => string.push_str("st.env.args"),
-				Ir::StoreSetter(function) => { write!(string, "st.setter {}", function.usize()).ok(); }
-				Ir::StoreNameSetter(name, function) => {
-					string.push_str("st.setter.name ");
+				Ir::StoreSetterUnchecked(function) => { write!(string, "st.this.setter {}", function.usize()).ok(); }
+				Ir::StoreNameSetterUnchecked(name, function) => {
+					string.push_str("st.this.setter.name ");
 					self.print_name(string, name, interner);
 					write!(string, ", {}", function.usize()).ok();
 				}
@@ -270,6 +274,8 @@ impl Block {
 				Ir::Swap => string.push_str("swap"),
 				Ir::Throw => string.push_str("throw"),
 				Ir::ToBoolean => string.push_str("cast.bool"),
+				Ir::ToMemberIndex => string.push_str("cast.index"),
+				Ir::ToNumber => string.push_str("cast.number"),
 				Ir::Typeof => string.push_str("typeof"),
 				Ir::TypeofIndex => string.push_str("typeof.index"),
 				Ir::TypeofName(name) => {
@@ -519,7 +525,6 @@ pub enum Ir {
 	BitNot,
 	BitOr,
 	BitXOr,
-	CastMemberIndex,
 	Call(u32),
 	CurrentIter(Local),
 	Debugger,
@@ -592,24 +597,28 @@ pub enum Ir {
 	Rsh,
 	RshZeroFill,
 	CallEnv(u32),
-	StoreGetter(FunctionRef),
+	StoreGetterUnchecked(FunctionRef),
 	StoreGlobal(Name),
 	StoreIndex,
+	StoreIndexUnchecked,
 	StoreLifted(u32, u32),
 	StoreLocal(Local),
 	StoreName(Name),
-	StoreNameGetter(Name, FunctionRef),
-	StoreNameSetter(Name, FunctionRef),
+	StoreNameUnchecked(Name),
+	StoreNameGetterUnchecked(Name, FunctionRef),
+	StoreNameSetterUnchecked(Name, FunctionRef),
 	StoreParam(u32),
 	StoreEnv(Name),
 	StoreEnvArguments,
-	StoreSetter(FunctionRef),
+	StoreSetterUnchecked(FunctionRef),
 	StrictEq,
 	StrictNe,
 	Subtract,
 	Swap,
 	Throw,
 	ToBoolean,
+	ToMemberIndex,
+	ToNumber,
 	Typeof,
 	TypeofIndex,
 	TypeofName(Name),

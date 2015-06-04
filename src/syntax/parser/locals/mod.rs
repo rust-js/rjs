@@ -393,6 +393,16 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 	
 	fn visit_expr_unary(&mut self, expr: &'a Expr) {
 		if let Expr::Unary(op, ref expr) = *expr {
+			match op {
+				Op::PreIncr | Op::PreDecr | Op::PostIncr | Op::PostDecr => {
+					if let Expr::Ident(ref ident) = *self.unwrap_paren(expr) {
+						self.resolve_ident(ident, true);
+						return;
+					}
+				}
+				_ => {}
+			}
+			
 			self.visit_expr(expr);
 			
 			let strict = self.walker.top_scope().strict;

@@ -1141,14 +1141,14 @@ impl<'a> IrGenerator<'a> {
 			Expr::MemberIndex(ref expr, ref index) => {
 				if op == Op::Assign {
 					// Load the target and index onto the stack.
-					try!(self.emit_member_target(expr, index));
+					try!(self.emit_member_target(expr, index, false));
 					
 					try!(load(self));
 					
 					store(self, Ir::StoreIndex);
 				} else {
 					// Load target and index onto the stack.
-					try!(self.emit_member_target(expr, index));
+					try!(self.emit_member_target(expr, index, false));
 					
 					// Dup both member and index so we can re-use them for the store.
 					self.ir.emit(Ir::Pick(1));
@@ -1210,13 +1210,20 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_expr_call(&mut self, expr: &'a Expr, args: &'a Vec<Expr>, leave: bool) -> JsResult<()> {
-		if let Expr::MemberDot(ref expr, ident) = *expr {
-			try!(self.emit_expr(expr, true));
-			self.ir.emit(Ir::Dup);
-			self.ir.emit(Ir::LoadName(ident));
-		} else {
-			self.ir.emit(Ir::LoadGlobalObject);
-			try!(self.emit_expr(expr, true));
+		match *expr {
+			Expr::MemberDot(ref expr, ident) => {
+				try!(self.emit_expr(expr, true));
+				self.ir.emit(Ir::Dup);
+				self.ir.emit(Ir::LoadName(ident));
+			}
+			Expr::MemberIndex(ref expr, ref index) => {
+				try!(self.emit_member_target(expr, index, true));
+				self.ir.emit(Ir::LoadIndex);
+			}
+			_ => {
+				self.ir.emit(Ir::LoadGlobalObject);
+				try!(self.emit_expr(expr, true));
+			}
 		}
 		
 		for arg in args {
@@ -1291,7 +1298,7 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_expr_member_index(&mut self, expr: &'a Expr, index: &'a ExprSeq, leave: bool) -> JsResult<()> {
-		try!(self.emit_member_target(expr, index));
+		try!(self.emit_member_target(expr, index, false));
 		self.ir.emit(Ir::LoadIndex);
 		
 		if !leave {
@@ -1335,27 +1342,27 @@ impl<'a> IrGenerator<'a> {
 						match *key {
 							PropertyKey::Ident(ident) => {
 								try!(self.emit_expr(&*expr, true));
-								self.ir.emit(Ir::StoreName(ident))
+								self.ir.emit(Ir::StoreNameUnchecked(ident))
 							}
 							PropertyKey::Literal(ref lit) => {
 								try!(self.emit_expr_literal(&*lit, true));
 								try!(self.emit_expr(&*expr, true));
-								self.ir.emit(Ir::StoreIndex);
+								self.ir.emit(Ir::StoreIndexUnchecked);
 							}
 						}
 					}
 					Property::Getter(ref ident, function_ref) => {
 						if let Some(ident) = *ident {
-							self.ir.emit(Ir::StoreNameGetter(ident, function_ref));
+							self.ir.emit(Ir::StoreNameGetterUnchecked(ident, function_ref));
 						} else {
-							self.ir.emit(Ir::StoreGetter(function_ref));
+							self.ir.emit(Ir::StoreGetterUnchecked(function_ref));
 						}
 					}
 					Property::Setter(ref ident, function_ref) => {
 						if let Some(ident) = *ident {
-							self.ir.emit(Ir::StoreNameSetter(ident, function_ref));
+							self.ir.emit(Ir::StoreNameSetterUnchecked(ident, function_ref));
 						} else {
-							self.ir.emit(Ir::StoreSetter(function_ref));
+							self.ir.emit(Ir::StoreSetterUnchecked(function_ref));
 						}
 					}
 				}
@@ -1425,7 +1432,7 @@ impl<'a> IrGenerator<'a> {
 				self.ir.emit(Ir::LoadName(ident));
 			}
 			Expr::MemberIndex(ref expr, ref index) => {
-				try!(self.emit_member_target(expr, index));
+				try!(self.emit_member_target(expr, index, false));
 				self.ir.emit(Ir::Pick(1));
 				self.ir.emit(Ir::Pick(1));
 				self.ir.emit(Ir::LoadIndex);
@@ -1471,7 +1478,7 @@ impl<'a> IrGenerator<'a> {
 						self.ir.emit(Ir::DeleteName(name))
 					}
 					Expr::MemberIndex(ref expr, ref index) => {
-						try!(self.emit_member_target(expr, index));
+						try!(self.emit_member_target(expr, index, false));
 						self.ir.emit(Ir::DeleteIndex);
 					}
 					ref expr @ _ => {
@@ -1510,7 +1517,7 @@ impl<'a> IrGenerator<'a> {
 						self.ir.emit(Ir::TypeofName(name))
 					}
 					Expr::MemberIndex(ref expr, ref index) => {
-						try!(self.emit_member_target(expr, index));
+						try!(self.emit_member_target(expr, index, false));
 						self.ir.emit(Ir::TypeofIndex);
 					}
 					ref expr @ _ => {
@@ -1547,14 +1554,15 @@ impl<'a> IrGenerator<'a> {
 			}
 			Op::PreIncr => {
 				let lhs_ref = try!(self.emit_lhs_load(expr));
+				self.ir.emit(Ir::ToNumber);
 				
 				if leave {
 					let local = self.ir.local(None);
 					
 					self.ir.emit(Ir::LoadI32(1));
 					self.ir.emit(Ir::Add);
+					self.ir.emit(Ir::Dup);
 					self.ir.emit(Ir::StoreLocal(local));
-					self.ir.emit(Ir::LoadLocal(local));
 					try!(self.emit_lhs_store(lhs_ref));
 					self.ir.emit(Ir::LoadLocal(local));
 				} else {
@@ -1567,12 +1575,13 @@ impl<'a> IrGenerator<'a> {
 			}
 			Op::PostIncr => {
 				let lhs_ref = try!(self.emit_lhs_load(expr));
+				self.ir.emit(Ir::ToNumber);
 				
 				if leave {
 					let local = self.ir.local(None);
 					
+					self.ir.emit(Ir::Dup);
 					self.ir.emit(Ir::StoreLocal(local));
-					self.ir.emit(Ir::LoadLocal(local));
 					self.ir.emit(Ir::LoadI32(1));
 					self.ir.emit(Ir::Add);
 					try!(self.emit_lhs_store(lhs_ref));
@@ -1587,14 +1596,15 @@ impl<'a> IrGenerator<'a> {
 			}
 			Op::PreDecr => {
 				let lhs_ref = try!(self.emit_lhs_load(expr));
+				self.ir.emit(Ir::ToNumber);
 				
 				if leave {
 					let local = self.ir.local(None);
 					
 					self.ir.emit(Ir::LoadI32(1));
 					self.ir.emit(Ir::Subtract);
+					self.ir.emit(Ir::Dup);
 					self.ir.emit(Ir::StoreLocal(local));
-					self.ir.emit(Ir::LoadLocal(local));
 					try!(self.emit_lhs_store(lhs_ref));
 					self.ir.emit(Ir::LoadLocal(local));
 				} else {
@@ -1607,12 +1617,13 @@ impl<'a> IrGenerator<'a> {
 			}
 			Op::PostDecr => {
 				let lhs_ref = try!(self.emit_lhs_load(expr));
+				self.ir.emit(Ir::ToNumber);
 				
 				if leave {
 					let local = self.ir.local(None);
 					
+					self.ir.emit(Ir::Dup);
 					self.ir.emit(Ir::StoreLocal(local));
-					self.ir.emit(Ir::LoadLocal(local));
 					self.ir.emit(Ir::LoadI32(1));
 					self.ir.emit(Ir::Subtract);
 					try!(self.emit_lhs_store(lhs_ref));
@@ -1750,12 +1761,15 @@ impl<'a> IrGenerator<'a> {
 		}
 	}
 	
-	fn emit_member_target(&mut self, expr: &'a Expr, index: &'a ExprSeq) -> JsResult<()> {
+	fn emit_member_target(&mut self, expr: &'a Expr, index: &'a ExprSeq, dup_target: bool) -> JsResult<()> {
 		try!(self.emit_expr(expr, true));
+		if dup_target {
+			self.ir.emit(Ir::Dup);
+		}
 		try!(self.emit_exprs(index, true));
 		self.ir.emit(Ir::Pick(1));
 		self.ir.emit(Ir::ValidateMemberTarget);
-		self.ir.emit(Ir::CastMemberIndex);
+		self.ir.emit(Ir::ToMemberIndex);
 		
 		Ok(())
 	}
