@@ -37,8 +37,6 @@ pub enum ComparisonResult {
 impl JsEnv {
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.6.1
 	pub fn add(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<Local<JsValue>> {
-		let lhs = self.get_value(lhs);
-		let rhs = self.get_value(rhs);
 		let lprim = try!(lhs.to_primitive(self, JsPreferredType::None));
 		let rprim = try!(rhs.to_primitive(self, JsPreferredType::None));
 		
@@ -57,8 +55,6 @@ impl JsEnv {
 	
 	// 11.6.2 The Subtraction Operator ( - )
 	pub fn subtract(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
-		let lhs = self.get_value(lhs);
-		let rhs = self.get_value(rhs);
 		let lnum = try!(lhs.to_number(self));
 		let rnum = try!(rhs.to_number(self));
 		
@@ -137,11 +133,6 @@ impl JsEnv {
 				try!((*callback as &JsFn)(self, args))
 			}
 		})
-	}
-	
-	// http://ecma-international.org/ecma-262/5.1/#sec-8.7.1
-	pub fn get_value(&mut self, value: Local<JsValue>) -> Local<JsValue> {
-		value
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.4.3
@@ -291,32 +282,25 @@ impl JsEnv {
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.8.6
-	pub fn instanceof(&mut self, lref: Local<JsValue>, rref: Local<JsValue>) -> JsResult<Local<JsValue>> {
-		let lval = self.get_value(lref);
-		let rval = self.get_value(rref);
-		
+	pub fn instanceof(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<Local<JsValue>> {
 		let result = try!(rval.has_instance(self, lval));
 		Ok(JsValue::new_bool(result).as_local(&self.heap))
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.4.9
-	pub fn logical_not(&mut self, arg: Local<JsValue>) -> Local<JsValue> {
-		let value = self.get_value(arg);
+	pub fn logical_not(&mut self, value: Local<JsValue>) -> Local<JsValue> {
 		let value = value.to_boolean();
 		JsValue::new_bool(!value).as_local(&self.heap)
 	}
 	
 	// 11.9.1 The Equals Operator ( == )
 	// 11.9.3 The Abstract Equality Comparison Algorithm
-	pub fn eq(&mut self, lref: Local<JsValue>, rref: Local<JsValue>) -> JsResult<bool> {
-		let lval = self.get_value(lref);
-		let rval = self.get_value(rref);
-		
+	pub fn eq(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<bool> {
 		let lty = lval.ty();
 		let rty = rval.ty();
 		
 		if lty == rty {
-			Ok(self.strict_eq(lref, rref))
+			Ok(self.strict_eq(lval, rval))
 		} else if
 			(lty == JsType::Null && rty == JsType::Undefined) ||
 			(lty == JsType::Undefined && rty == JsType::Null)
@@ -357,10 +341,7 @@ impl JsEnv {
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.9.4
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.9.5
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.9.6
-	pub fn strict_eq(&mut self, lref: Local<JsValue>, rref: Local<JsValue>) -> bool {
-		let lval = self.get_value(lref);
-		let rval = self.get_value(rref);
-		
+	pub fn strict_eq(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> bool {
 		if lval.ty() != rval.ty() {
 			false
 		} else {

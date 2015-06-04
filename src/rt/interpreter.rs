@@ -1157,7 +1157,6 @@ impl<'a> Frame<'a> {
 		
 		let this = frame.get(0).as_local(&self.env.heap);
 		let function = frame.get(1).as_local(&self.env.heap);
-		let function = self.env.get_value(function);
 		
 		// If this is a scoped call (i.e. eval) we need to double check to make
 		// sure that this actually is a direct eval call. Otherwise the
