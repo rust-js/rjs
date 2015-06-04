@@ -36,6 +36,10 @@ Error.prototype.toString = function () {
 // http://ecma-international.org/ecma-262/5.1/#sec-15.11.6.1
 
 function EvalError(message) {
+	if (!(this instanceof EvalError)) {
+		return new EvalError(message);
+	}
+	
 	Error.call(this, message);
 }
 
@@ -48,6 +52,10 @@ EvalError.prototype.constructor = EvalError;
 // http://ecma-international.org/ecma-262/5.1/#sec-15.11.6.2
 
 function RangeError(message) {
+	if (!(this instanceof RangeError)) {
+		return new RangeError(message);
+	}
+	
 	Error.call(this, message);
 }
 
@@ -60,6 +68,10 @@ RangeError.prototype.constructor = RangeError;
 //http://ecma-international.org/ecma-262/5.1/#sec-15.11.6.3
 
 function ReferenceError(message) {
+	if (!(this instanceof ReferenceError)) {
+		return new ReferenceError(message);
+	}
+	
 	Error.call(this, message);
 }
 
@@ -72,6 +84,10 @@ ReferenceError.prototype.constructor = ReferenceError;
 //http://ecma-international.org/ecma-262/5.1/#sec-15.11.6.4
 
 function SyntaxError(message) {
+	if (!(this instanceof SyntaxError)) {
+		return new SyntaxError(message);
+	}
+	
 	Error.call(this, message);
 }
 
@@ -84,6 +100,10 @@ SyntaxError.prototype.constructor = SyntaxError;
 //http://ecma-international.org/ecma-262/5.1/#sec-15.11.6.5
 
 function TypeError(message) {
+	if (!(this instanceof TypeError)) {
+		return new TypeError(message);
+	}
+	
 	Error.call(this, message);
 }
 
@@ -96,6 +116,10 @@ TypeError.prototype.constructor = TypeError;
 //http://ecma-international.org/ecma-262/5.1/#sec-15.11.6.6
 
 function URIError(message) {
+	if (!(this instanceof URIError)) {
+		return new URIError(message);
+	}
+	
 	Error.call(this, message);
 }
 
