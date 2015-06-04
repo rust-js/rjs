@@ -286,9 +286,11 @@ impl<'a> Parser<'a> {
 		};
 		
 		parser.push_scope();
+		
 		if mode != ParseMode::Normal {
 			parser.top_scope().deopt = true;
 		}
+		
 		parser.push_block_scope();
 		
 		let mut items = Vec::new();

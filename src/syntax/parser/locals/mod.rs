@@ -33,7 +33,9 @@ impl<'a> LocalResolver<'a> {
 		
 		let program = &context.functions[program_ref.usize()];
 		
-		resolver.resolve_scope(&program.block, program_ref, true);
+		if !resolver.illegal_arguments_eval {
+			resolver.resolve_scope(&program.block, program_ref, true);
+		}
 		
 		if resolver.illegal_arguments_eval {
 			Err(JsError::Parse("Illegal arguments or eval in strict mode".to_string()))
@@ -51,6 +53,15 @@ impl<'a> LocalResolver<'a> {
 	}
 
 	fn resolve_scope(&mut self, block: &'a RootBlock, function_ref: FunctionRef, global: bool) {
+		if block.strict {
+			for arg in &block.args {
+				if *arg == name::ARGUMENTS || *arg == name::EVAL {
+					self.illegal_arguments_eval = true;
+					return;
+				}
+			}
+		}
+		
 		self.walker.push_scope(
 			&block,
 			Scope {
