@@ -552,7 +552,7 @@ impl<'a> Parser<'a> {
 			Some(Token::Debugger) => name::DEBUGGER,
 			Some(Token::Function) => name::FUNCTION,
 			Some(Token::This) => name::THIS,
-			Some(Token::With) => name::WHILE,
+			Some(Token::With) => name::WITH,
 			Some(Token::Default) => name::DEFAULT,
 			Some(Token::If) => name::IF,
 			Some(Token::Throw) => name::THROW,
@@ -941,6 +941,36 @@ impl<'a> Parser<'a> {
 		try!(self.bump());
 		
 		let expr = try!(self.parse_expr_unary());
+		
+		if op == Op::Negative {
+			match expr {
+				Expr::Literal(Lit::Integer(value)) => {
+					if value == 0 {
+						return Ok(Expr::Literal(Lit::Double(-0f64)));
+					}
+					if value > 0 {
+						return Ok(Expr::Literal(Lit::Integer(-value)));
+					}
+				}
+				Expr::Literal(Lit::Long(value)) => {
+					if value == 0 {
+						return Ok(Expr::Literal(Lit::Double(-0f64)));
+					}
+					if value > 0 {
+						return Ok(Expr::Literal(Lit::Long(-value)));
+					}
+				}
+				Expr::Literal(Lit::Double(value)) => {
+					if value == 0f64 && !value.is_sign_negative() {
+						return Ok(Expr::Literal(Lit::Double(-0f64)));
+					}
+					if value > 0f64 {
+						return Ok(Expr::Literal(Lit::Double(-value)));
+					}
+				}
+				_ => {}
+			}
+		}
 		
 		Ok(Expr::Unary(op, Box::new(expr)))
 	}

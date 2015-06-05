@@ -242,13 +242,7 @@ impl<'a> Lexer<'a> {
 				} else if self.reader.consume('-') {
 					MinusMinus
 				} else {
-					match self.reader.peek() {
-						'0'...'9' => {
-							let c = self.reader.next();
-							try!(self.parse_number(c, false))
-						}
-						_ => Minus
-					}
+					Minus
 				}
 			},
 			'>' => {
@@ -623,7 +617,8 @@ impl<'a> Lexer<'a> {
 						self.reader.consume('\n');
 					}
 				} else {
-					s.push_str(&self.parse_escape())
+					let parsed = try!(self.parse_escape());
+					s.push_str(&parsed)
 				}
 			} else {
 				s.push(c);
@@ -633,29 +628,26 @@ impl<'a> Lexer<'a> {
 		Ok(Literal(Lit::String(self.interner.intern(&s), exact)))
 	}
 	
-	fn parse_escape(&mut self) -> String {
-		match self.reader.next() {
+	fn parse_escape(&mut self) -> JsResult<String> {
+		let result = match self.reader.next() {
 			'\'' => "'".to_string(),
 			'"' => "\"".to_string(),
-			'b' => "\u{7}".to_string(),
+			'b' => "\u{8}".to_string(),
 			'f' => "\u{C}".to_string(),
 			'n' => "\n".to_string(),
 			'r' => "\r".to_string(),
 			't' => "\t".to_string(),
 			'v' => "\u{B}".to_string(),
-			'x' => self.parse_escape_hex(2).to_string(),
-			'u' => self.parse_escape_hex(4).to_string(),
-			c @ _ => {
-				// TODO: Is this OK? We're just pushing back the original contents.
-				
-				let mut s = "\\".to_string();
-				s.push(c);
-				s
-			}
-		}
+			'x' => try!(self.parse_escape_hex(2)).to_string(),
+			'u' => try!(self.parse_escape_hex(4)).to_string(),
+			c @ '0'...'9' => try!(self.parse_escape_octal(c)),
+			c @ _ => c.to_string()
+		};
+		
+		Ok(result)
 	}
 	
-	fn parse_escape_hex(&mut self, length: i32) -> char {
+	fn parse_escape_hex(&mut self, length: i32) -> JsResult<char> {
 		let mut value : u32 = 0;
 		
 		for _ in 0..length {
@@ -669,9 +661,7 @@ impl<'a> Lexer<'a> {
 			} else if c >= 'A' && c <= 'F' {
 				digit = (c as u32) - ('A' as u32) + 10u32;
 			} else {
-				// TODO: Is this OK? We're just parsing what we can; even when it's too short.
-				
-				break;
+				return self.fatal("Cannot parse hex escape sequence");
 			}
 			
 			value <<= 4;
@@ -679,10 +669,53 @@ impl<'a> Lexer<'a> {
 		}
 		
 		if let Some(c) = char::from_u32(value) {
-			c
+			Ok(c)
 		} else {
 			// TODO: What to do when we get an invalid unicode code point?
-			'?'
+			Ok('�')
+		}
+	}
+	
+	fn parse_escape_octal(&mut self, c1: char) -> JsResult<String> {
+		if c1 <= '3' {
+			let c2 = self.reader.peek();
+			if c2 >= '0' && c2 <= '7' {
+				self.reader.next();
+				let c3 = self.reader.peek();
+				if c3 >= '0' && c3 <= '7' {
+					self.reader.next();
+					self.parse_octal(&[c1, c2, c3])
+				} else {
+					self.parse_octal(&[c1, c2])
+				}
+			} else {
+				self.parse_octal(&[c1])
+			}
+		} else if c1 <= '7' {
+			let c2 = self.reader.peek();
+			if c2 >= '0' && c2 <= '7' {
+				self.reader.next();
+				self.parse_octal(&[c1, c2])
+			} else {
+				self.parse_octal(&[c1])
+			}
+		} else {
+			Ok(c1.to_string())
+		}
+	}
+	
+	fn parse_octal(&mut self, chars: &[char]) -> JsResult<String> {
+		if self.strict {
+			self.fatal("Octal escape sequence is illegal in strict mode")
+		} else {
+			let mut value = 0;
+			
+			for char in chars {
+				value *= 8;
+				value += char.to_digit(8).unwrap();
+			}
+			
+			Ok(char::from_u32(value).unwrap_or('�').to_string())
 		}
 	}
 	
@@ -697,11 +730,16 @@ impl<'a> Lexer<'a> {
 				
 				// TODO: Invalid unicode sequences will be parsed incorrectly.
 				
-				let c = self.parse_escape_hex(4);
+				let c = try!(self.parse_escape_hex(4));
 				
 				// TODO: There probably is a more generic case that applies here.
 				
-				if is_line_terminator(c) {
+				let illegal = match c {
+					'-' | '!' | '%' | '&' | '(' | ')' | '*' | ',' | '.' | '/' | ':' | ';' | '?' | '[' | ']' | '^' | '{' | '|' | '}' | '~' | '+' | '<' | '=' | '>' => true,
+					c @ _ => is_line_terminator(c)
+				};
+
+				if illegal {
 					return self.fatal("Invalid token");
 				}
 				
@@ -745,7 +783,7 @@ impl<'a> Lexer<'a> {
 	fn parse_regex(&mut self) -> JsResult<Option<Token>> {
 		let pos = self.reader.offset();
 		
-		let expression = match self.parse_regex_expression() {
+		let expression = match try!(self.parse_regex_expression()) {
 			Some(expression) => expression,
 			None => {
 				// Regular expressions are parsed by attempt. If parsing fails, reset the
@@ -765,18 +803,19 @@ impl<'a> Lexer<'a> {
 		Ok(Some(Literal(Lit::Regex(expression, flags))))
 	}
 	
-	fn parse_regex_expression(&mut self) -> Option<String> {
+	fn parse_regex_expression(&mut self) -> JsResult<Option<String>> {
 		let mut s = String::new();
 		
 		while !self.reader.is_eof() {
 			match self.reader.next() {
-				'/' => return Some(s),
+				'/' => return Ok(Some(s)),
 				'\\' => {
 					if is_line_terminator(self.reader.peek()) {
-						return None;
+						return Ok(None);
 					}
 					
-					s.push_str(&self.parse_escape());
+					let parsed = try!(self.parse_escape());
+					s.push_str(&parsed);
 				},
 				'[' => {
 					s.push('[');
@@ -789,14 +828,15 @@ impl<'a> Lexer<'a> {
 							},
 							'\\' => {
 								if is_line_terminator(self.reader.peek()) {
-									return None;
+									return Ok(None);
 								}
 								
-								s.push_str(&self.parse_escape());
+								let parsed = try!(self.parse_escape());
+								s.push_str(&parsed);
 							},
 							c @ _ => {
 								if is_line_terminator(c) {
-									return None;
+									return Ok(None);
 								}
 								
 								s.push(c);
@@ -806,7 +846,7 @@ impl<'a> Lexer<'a> {
 				},
 				c @ _ => {
 					if is_line_terminator(c) {
-						return None;
+						return Ok(None);
 					}
 					
 					s.push(c);
@@ -814,7 +854,7 @@ impl<'a> Lexer<'a> {
 			}
 		}
 		
-		None
+		Ok(None)
 	}
 	
 	fn parse_regex_flags(&mut self) -> JsResult<String> {
