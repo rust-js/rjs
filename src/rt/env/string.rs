@@ -2,6 +2,7 @@ use ::{JsResult, JsError};
 use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsString, JsType, JsDescriptor};
 use gc::*;
 use syntax::token::name;
+use std::char;
 
 // 15.5.1 The String Constructor Called as a Function
 // 15.5.2 The String Constructor
@@ -79,4 +80,20 @@ pub fn String_fromCharCode(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVa
 	}
 	
 	Ok(result.as_value(env))
+}
+
+// 15.5.4.4 String.prototype.charAt (pos)
+pub fn String_charAt(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let this = try!(args.this.to_string(env));
+	let position = try!(args.arg(env, 0).to_integer(env)) as i32;
+	
+	let chars = this.chars;
+	
+	let result = if position < 0 || position >= chars.len() as i32 {
+		"".to_string()
+	} else {
+		char::from_u32(chars[position as usize] as u32).unwrap().to_string()
+	};
+	
+	Ok(JsString::from_str(env, &result).as_value(env))
 }

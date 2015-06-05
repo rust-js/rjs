@@ -1,7 +1,9 @@
 use gc::{Array, Local};
-use rt::{JsEnv, JsValue, JsItem, GC_STRING, GC_U16};
+use rt::{JsEnv, JsValue, JsItem, JsDescriptor, GC_STRING, GC_U16};
 use rt::utf;
 use gc::Ptr;
+use syntax::Name;
+use syntax::token::name;
 
 pub struct JsString {
 	// TODO: Make private.
@@ -93,5 +95,14 @@ impl JsItem for Local<JsString> {
 	
 	fn prototype(&self, env: &JsEnv) -> Option<Local<JsValue>> {
 		Some(env.string_prototype.as_value(env))
+	}
+	
+	fn get_own_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
+		if property == name::LENGTH {
+			let value = JsValue::new_number(self.chars.len() as f64).as_local(&env.heap);
+			Some(JsDescriptor::new_simple_value(value))
+		} else {
+			None
+		}
 	}
 }
