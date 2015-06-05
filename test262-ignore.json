@@ -153,5 +153,6 @@
   "language/literals/regexp/S7.8.5_A3.1_T8.js": "RegExp has not yet been implemented.",
   "language/literals/regexp/S7.8.5_A3.1_T9.js": "RegExp has not yet been implemented.",
   "language/literals/regexp/S7.8.5_A4.1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A4.2.js": "RegExp has not yet been implemented."
+  "language/literals/regexp/S7.8.5_A4.2.js": "RegExp has not yet been implemented.",
+  "language/statements/do-while/S12.6.1_A8.js": "String has not yet been implemented."
 }

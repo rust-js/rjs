@@ -307,11 +307,8 @@ impl<'a> Parser<'a> {
 		
 		let len = items.len();
 		if len > 0 {
-			if let Item::ExprStmt(..) = items[len - 1] {
-				if let Item::ExprStmt(exprs) = items.pop().unwrap() {
-					items.push(Item::Return(Some(exprs)));
-				}
-			}
+			let item = items.pop().unwrap();
+			items.push(Item::Leave(Box::new(item)));
 		}
 		
 		let end = parser.lexer.last_span().unwrap_or(start);
@@ -908,7 +905,11 @@ impl<'a> Parser<'a> {
 			}
 		}
 		
-		Ok(Expr::Call(Box::new(expr), args))
+		if let Expr::Function(..) = expr {
+			self.fatal("Cannot call a function declaration")
+		} else {
+			Ok(Expr::Call(Box::new(expr), args))
+		}
 	}
 	
 	fn mark_deopt(&mut self) {

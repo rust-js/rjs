@@ -284,7 +284,8 @@ struct IrGenerator<'a> {
 	locals: Vec<Option<builder::Local>>,
 	try_catch_depth: i32,
 	return_target: Option<ReturnTarget>,
-	env_count: usize
+	env_count: usize,
+	leave: Option<builder::Local>
 }
 
 impl<'a> IrGenerator<'a> {
@@ -299,7 +300,8 @@ impl<'a> IrGenerator<'a> {
 			locals: Vec::new(),
 			try_catch_depth: 0,
 			return_target: None,
-			env_count: if mode == ParseMode::DirectEval || block_state.build_scope == ScopeType::Thick { 1 } else { 0 }
+			env_count: if mode == ParseMode::DirectEval || block_state.build_scope == ScopeType::Thick { 1 } else { 0 },
+			leave: None
 		};
 		
 		// Create locals for all local slots.
@@ -443,6 +445,7 @@ impl<'a> IrGenerator<'a> {
 			Item::ForVarIn(ref label, ref var, ref in_, ref stmt) => self.emit_for_var_in(label, var, in_, stmt),
 			Item::Function(ref ident, function_ref) => self.emit_function(ident, function_ref),
 			Item::If(ref test, ref then, ref else_) => self.emit_if(test, then, if let Some(ref else_) = *else_ { Some(else_) } else { None }),
+			Item::Leave(ref item) => self.emit_leave(item),
 			Item::Return(ref exprs) => self.emit_return(exprs),
 			Item::Switch(ref label, ref exprs, ref clauses) => self.emit_switch(label, exprs, clauses),
 			Item::Throw(ref exprs) => self.emit_throw(exprs),
@@ -498,7 +501,16 @@ impl<'a> IrGenerator<'a> {
 	}
 
 	fn emit_expr_stmt(&mut self, exprs: &'a ExprSeq) -> JsResult<()> {
-		self.emit_exprs(exprs, false)
+		let leave = self.leave;
+		self.leave = None;
+		
+		try!(self.emit_exprs(exprs, leave.is_some()));
+		
+		if let Some(leave) = leave {
+			self.ir.emit(Ir::StoreLocal(leave));
+		}
+		
+		Ok(())
 	}
 	
 	fn emit_for(&mut self, label: &'a Option<Label>, init: &'a Option<ExprSeq>, test: &'a Option<ExprSeq>, incr: &'a Option<ExprSeq>, stmt: &'a Item) -> JsResult<()> {
@@ -675,6 +687,18 @@ impl<'a> IrGenerator<'a> {
 			
 			self.ir.mark(after_label);
 		}
+		
+		Ok(())
+	}
+	
+	fn emit_leave(&mut self, item: &'a Item) -> JsResult<()> {
+		let local = self.ir.local(None);
+		self.leave = Some(local);
+		
+		try!(self.emit_stmt(item));
+		
+		self.ir.emit(Ir::LoadLocal(local));
+		self.ir.emit(Ir::Return);
 		
 		Ok(())
 	}

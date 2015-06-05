@@ -122,6 +122,7 @@ pub enum Item {
 	ForVarIn(Option<Label>, Ident, ExprSeq, Box<Item>),
 	Function(Ident, FunctionRef),
 	If(ExprSeq, Box<Item>, Option<Box<Item>>),
+	Leave(Box<Item>),
 	Return(Option<ExprSeq>),
 	Switch(Option<Label>, ExprSeq, Vec<SwitchClause>),
 	Throw(ExprSeq),

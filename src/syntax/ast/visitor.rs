@@ -30,6 +30,7 @@ pub trait AstVisitor<'a> {
 			Item::ForVarIn(..) => self.visit_item_for_var_in(item),
 			Item::Function(..) => self.visit_item_function(item),
 			Item::If(..) => self.visit_item_if(item),
+			Item::Leave(..) => self.visit_item_leave(item),
 			Item::Return(..) => self.visit_item_return(item),
 			Item::Switch(..) => self.visit_item_switch(item),
 			Item::Throw(..) => self.visit_item_throw(item),
@@ -144,6 +145,12 @@ pub trait AstVisitor<'a> {
 			if let Some(ref else_) = *else_ {
 				self.visit_item(else_);
 			}
+		}
+	}
+	
+	fn visit_item_leave(&mut self, item: &'a Item) {
+		if let Item::Leave(ref item) = *item {
+			self.visit_item(item);
 		}
 	}
 	
