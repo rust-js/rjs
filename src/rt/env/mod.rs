@@ -227,6 +227,9 @@ fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	function!(&mut prototype, name::TO_STRING, String_toString, 0, function_prototype, env);
 	function!(&mut prototype, name::VALUE_OF, String_valueOf, 0, function_prototype, env);
 	function!(&mut prototype, name::CHAR_AT, String_charAt, 1, function_prototype, env);
+	function!(&mut prototype, name::CHAR_CODE_AT, String_charCodeAt, 1, function_prototype, env);
+	function!(&mut prototype, name::INDEX_OF, String_indexOf, 1, function_prototype, env);
+	function!(&mut prototype, name::LAST_INDEX_OF, String_lastIndexOf, 1, function_prototype, env);
 }
 
 fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {

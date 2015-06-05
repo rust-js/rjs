@@ -3,6 +3,8 @@ use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsString, JsType, JsDescripto
 use gc::*;
 use syntax::token::name;
 use std::char;
+use std::f64;
+use std::cmp::{min, max};
 
 // 15.5.1 The String Constructor Called as a Function
 // 15.5.2 The String Constructor
@@ -96,4 +98,100 @@ pub fn String_charAt(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 	};
 	
 	Ok(JsString::from_str(env, &result).as_value(env))
+}
+
+// 15.5.4.5 String.prototype.charCodeAt (pos)
+pub fn String_charCodeAt(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let this = try!(args.this.to_string(env));
+	let position = try!(args.arg(env, 0).to_integer(env)) as i32;
+	
+	let chars = this.chars;
+	
+	let result = if position < 0 || position >= chars.len() as i32 {
+		f64::NAN
+	} else {
+		chars[position as usize] as f64
+	};
+	
+	Ok(JsValue::new_number(result).as_local(&env.heap))
+}
+
+// 15.5.4.7 String.prototype.indexOf (searchString, position)
+// 15.5.4.8 String.prototype.lastIndexOf (searchString, position)
+fn index_of(env: &mut JsEnv, args: JsArgs, reverse: bool) -> JsResult<Local<JsValue>> {
+	let string = try!(args.this.to_string(env));
+	let search = try!(args.arg(env, 0).to_string(env));
+	
+	let len = string.chars.len();
+	
+	let position = {
+		let position = args.arg(env, 1);
+		if !reverse {
+			if position.is_undefined() {
+				0
+			} else {
+				try!(position.to_integer(env)) as i32
+			}
+		} else {
+			let position = try!(position.to_number(env));
+			if position.is_nan() {
+				len as i32
+			} else {
+				position as i32
+			}
+		}
+	};
+	
+	let start = min(max(position, 0), len as i32) as usize;
+	let string = string.chars;
+	let search = search.chars;
+	
+	fn matches(string: &[u16], search: &[u16], index: usize) -> bool {
+		for i in 0..search.len() {
+			if string[index + i] != search[i] {
+				return false;
+			}
+		}
+		
+		true
+	}
+	
+	let end = string.len() - search.len();
+	
+	let index = if !reverse {
+		let mut result = -1;
+		
+		for i in start..end {
+			if matches(&string, &search, i) {
+				result = i;
+				break;
+			}
+		}
+		
+		result
+	} else {
+		let mut result = -1;
+		let start = min(start, end);
+		
+		for i in (0..start).rev() {
+			if matches(&string, &search, i) {
+				result = i;
+				break;
+			}
+		}
+		
+		result
+	};
+	
+	Ok(JsValue::new_number(index as f64).as_local(&env.heap))
+}
+
+// 15.5.4.7 String.prototype.indexOf (searchString, position)
+pub fn String_indexOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	index_of(env, args, false)
+}
+
+// 15.5.4.8 String.prototype.lastIndexOf (searchString, position)
+pub fn String_lastIndexOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	index_of(env, args, true)
 }

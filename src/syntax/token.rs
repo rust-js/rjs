@@ -319,4 +319,5 @@ declare_idents! {
 	( "name", NAME, 144 );
 	( "toFixed", TO_FIXED, 145 );
 	( "charAt", CHAR_AT, 146 );
+	( "charCodeAt", CHAR_CODE_AT, 147 );
 }
