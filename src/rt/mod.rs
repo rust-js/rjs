@@ -117,30 +117,32 @@ impl JsEnv {
 		
 		let _scope = self.heap.new_local_scope();
 		
+		let global = self.global.as_value(self);
 		let global_scope = self.global_scope.as_local(&self.heap);
 		
-		self.call(function_ref, global_scope)
+		self.call(function_ref, global, global_scope)
 	}
 	
 	pub fn eval(&mut self, js: &str) -> JsResult<Root<JsValue>> {
 		let _scope = self.heap.new_local_scope();
 		
+		let global = self.global.as_value(self);
 		let global_scope = self.global_scope.as_local(&self.heap);
 		
-		self.eval_scoped(js, false, global_scope, ParseMode::Normal)
+		self.eval_scoped(js, false, global, global_scope, ParseMode::Normal)
 	}
 	
-	fn eval_scoped(&mut self, js: &str, strict: bool, scope: Local<JsScope>, mode: ParseMode) -> JsResult<Root<JsValue>> {
+	fn eval_scoped(&mut self, js: &str, strict: bool, this: Local<JsValue>, scope: Local<JsScope>, mode: ParseMode) -> JsResult<Root<JsValue>> {
 		let function_ref = try!(self.ir.parse_string(js, strict, mode));
 		
 		let mut ir = String::new();
 		try!(self.ir.print_ir(&mut ir));
 		debugln!("{}", ir);
 		
-		self.call(function_ref, scope)
+		self.call(function_ref, this, scope)
 	}
 	
-	fn call(&mut self, function_ref: FunctionRef, scope: Local<JsScope>) -> JsResult<Root<JsValue>> {
+	fn call(&mut self, function_ref: FunctionRef, this: Local<JsValue>, scope: Local<JsScope>) -> JsResult<Root<JsValue>> {
 		let function = self.ir.get_function(function_ref);
 		let name = if let Some(name) = function.name {
 			self.ir.interner().get(name).to_string()
@@ -153,11 +155,17 @@ impl JsEnv {
 		
 		let block = try!(self.ir.get_function_ir(function_ref));
 		
+		let this = if !function.strict && this.is_undefined() {
+			self.global.as_local(&self.heap).as_value(self)
+		} else {
+			this
+		};
+		
 		// TODO: Validate. Function is just coerced to undefined because
 		// we don't have it here.
 		let args = JsArgs {
 			function: JsValue::new_undefined().as_local(&self.heap),
-			this: self.global.as_value(self),
+			this: this,
 			args: Vec::new(),
 			strict: function.strict,
 			mode: JsFnMode::Call

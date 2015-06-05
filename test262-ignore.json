@@ -77,5 +77,8 @@
   "language/expressions/prefix-increment/S11.4.4_A5_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
   "language/expressions/prefix-increment/S11.4.4_A5_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
   "language/expressions/prefix-increment/S11.4.4_A5_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/prefix-increment/S11.4.4_A5_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover."
+  "language/expressions/prefix-increment/S11.4.4_A5_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+  "language/expressions/property-accessors/S11.2.1_A4_T5.js": "String has not yet been implemented.",
+  "language/expressions/property-accessors/S11.2.1_A4_T8.js": "Math has not yet been implemented.",
+  "language/expressions/property-accessors/S11.2.1_A4_T9.js": "Date has not yet been implemented."
 }

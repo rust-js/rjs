@@ -21,6 +21,13 @@ enum Next {
 	EndFinally
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum CallMode {
+	Global,
+	Eval,
+	This
+}
+
 macro_rules! local_try {
 	( $expr:expr ) => {
 		match $expr {
@@ -392,7 +399,9 @@ impl<'a> Frame<'a> {
 			Ir::BitNot => numeric_op!(self, bit_not),
 			Ir::BitOr => numeric_bin_op!(self, bit_or),
 			Ir::BitXOr => numeric_bin_op!(self, bit_xor),
-			Ir::Call(count) => local_try!(self.call(count, false)),
+			Ir::Call(count) => local_try!(self.call(count, CallMode::Global)),
+			Ir::CallEval(count) => local_try!(self.call(count, CallMode::Eval)),
+			Ir::CallThis(count) => local_try!(self.call(count, CallMode::This)),
 			Ir::CurrentIter(local) => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -836,7 +845,6 @@ impl<'a> Frame<'a> {
 			}
 			Ir::Rsh => numeric_bin_op!(self, rsh),
 			Ir::RshZeroFill => numeric_bin_op!(self, unsigned_rsh),
-			Ir::CallEnv(count) => local_try!(self.call(count, true)),
 			Ir::StoreIndex => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -1194,23 +1202,29 @@ impl<'a> Frame<'a> {
 	}
 	
 	#[inline(always)]
-	fn call(&mut self, count: u32, scoped: bool) -> JsResult<()> {
+	fn call(&mut self, count: u32, mode: CallMode) -> JsResult<()> {
 		let _scope = self.env.heap.new_local_scope();
 		
-		let frame = self.env.stack.create_frame(count as usize + 2);
+		let offset = if mode == CallMode::This { 2 } else { 1 };
+		
+		let frame = self.env.stack.create_frame(count as usize + offset);
 		let mut args = Vec::new();
 		for i in 0..count as usize {
-			args.push(frame.get(i + 2).as_local(&self.env.heap));
+			args.push(frame.get(i + offset).as_local(&self.env.heap));
 		}
 		
-		let this = frame.get(0).as_local(&self.env.heap);
-		let function = frame.get(1).as_local(&self.env.heap);
+		let this = if mode == CallMode::This {
+			frame.get(0).as_local(&self.env.heap)
+		} else {
+			JsValue::new_undefined().as_local(&self.env.heap)
+		};
+		let function = frame.get(offset - 1).as_local(&self.env.heap);
 		
 		// If this is a scoped call (i.e. eval) we need to double check to make
 		// sure that this actually is a direct eval call. Otherwise the
 		// scope is not inherited.
 		
-		let is_eval = if function.ty() == JsType::Object && scoped {
+		let is_eval = if function.ty() == JsType::Object && mode == CallMode::Eval {
 			let global = self.env.global.as_local(&self.env.heap);
 			if let Ok(eval) = global.get(&mut self.env, name::EVAL) {
 				function.unwrap_object() == eval.unwrap_object()
@@ -1236,9 +1250,13 @@ impl<'a> Frame<'a> {
 			} else {
 				let js = js.unwrap_string().as_local(&self.env.heap).to_string();
 				
-				let scope = self.get_scope().unwrap();
+				let scope = if self.strict {
+					self.env.global_scope.as_local(&self.env.heap)
+				} else {
+					self.get_scope().unwrap()
+				};
 				
-				*try!(self.env.eval_scoped(&js, self.strict, scope, ParseMode::DirectEval)).as_local(&self.env.heap)
+				*try!(self.env.eval_scoped(&js, self.strict, self.args.this, scope, ParseMode::DirectEval)).as_local(&self.env.heap)
 			}
 		} else {
 			*try!(function.call(self.env, this, args, self.strict))

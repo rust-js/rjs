@@ -123,7 +123,7 @@ impl IrContext {
 		
 		let block = {
 			let block_state = &function.block.state.borrow();
-			let mut generator = IrGenerator::new(self, block_state, function.block.strict, mode);
+			let mut generator = IrGenerator::new(self, block_state, mode);
 			
 			// Build the prolog to move the arguments into the scope and to
 			// declare variables with undefined.
@@ -284,12 +284,11 @@ struct IrGenerator<'a> {
 	locals: Vec<Option<builder::Local>>,
 	try_catch_depth: i32,
 	return_target: Option<ReturnTarget>,
-	strict: bool,
 	env_count: usize
 }
 
 impl<'a> IrGenerator<'a> {
-	fn new(ctx: &'a IrContext, block_state: &'a RootBlockState, strict: bool, mode: ParseMode) -> IrGenerator<'a> {
+	fn new(ctx: &'a IrContext, block_state: &'a RootBlockState, mode: ParseMode) -> IrGenerator<'a> {
 		let mut generator = IrGenerator {
 			ctx: ctx,
 			block_state: block_state,
@@ -300,7 +299,6 @@ impl<'a> IrGenerator<'a> {
 			locals: Vec::new(),
 			try_catch_depth: 0,
 			return_target: None,
-			strict: strict,
 			env_count: if mode == ParseMode::DirectEval || block_state.build_scope == ScopeType::Thick { 1 } else { 0 }
 		};
 		
@@ -1210,36 +1208,38 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_expr_call(&mut self, expr: &'a Expr, args: &'a Vec<Expr>, leave: bool) -> JsResult<()> {
-		match *expr {
+		let have_this = match *expr {
 			Expr::MemberDot(ref expr, ident) => {
 				try!(self.emit_expr(expr, true));
 				self.ir.emit(Ir::Dup);
 				self.ir.emit(Ir::LoadName(ident));
+				true
 			}
 			Expr::MemberIndex(ref expr, ref index) => {
 				try!(self.emit_member_target(expr, index, true));
 				self.ir.emit(Ir::LoadIndex);
+				true
 			}
 			_ => {
-				self.ir.emit(Ir::LoadGlobalObject);
 				try!(self.emit_expr(expr, true));
+				false
 			}
-		}
+		};
 		
 		for arg in args {
 			try!(self.emit_expr(arg, true));
 		}
 		
-		let is_eval = if self.strict {
-			false
-		} else if let Expr::Ident(ref ident) = *expr {
+		let is_eval = if let Expr::Ident(ref ident) = *expr {
 			ident.name == name::EVAL
 		} else {
 			false
 		};
 		
 		if is_eval {
-			self.ir.emit(Ir::CallEnv(args.len() as u32));
+			self.ir.emit(Ir::CallEval(args.len() as u32));
+		} else if have_this {
+			self.ir.emit(Ir::CallThis(args.len() as u32));
 		} else {
 			self.ir.emit(Ir::Call(args.len() as u32));
 		}
