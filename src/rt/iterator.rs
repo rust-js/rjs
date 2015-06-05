@@ -17,12 +17,16 @@ impl JsIterator {
 	pub fn new_local(env: &JsEnv, target: Local<JsValue>) -> Local<JsIterator> {
 		let mut result = env.heap.alloc_local::<JsIterator>(GC_ITERATOR);
 		
-		let target = if target.ty() == JsType::Object {
-			target.unwrap_object().as_local(&env.heap).as_ptr()
-		} else if let Some(prototype) = target.prototype(env) {
-			prototype.unwrap_object().as_local(&env.heap).as_ptr()
-		} else {
-			Ptr::null()
+		let target = match target.ty() {
+			JsType::Object => target.unwrap_object().as_local(&env.heap).as_ptr(),
+			JsType::Null | JsType::Undefined => Ptr::null(),
+			_ => {
+				if let Some(prototype) = target.prototype(env) {
+					prototype.unwrap_object().as_local(&env.heap).as_ptr()
+				} else {
+					Ptr::null()
+				}
+			}
 		};
 		
 		let seen = env.heap.alloc_array_local::<Name>(GC_U32, INITIAL_SEEN);
