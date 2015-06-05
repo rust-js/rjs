@@ -317,4 +317,5 @@ declare_idents! {
 	( "getOwnPropertyNames", GET_OWN_PROPERTY_NAMES, 142 );
 	( "", EMPTY, 143 );
 	( "name", NAME, 144 );
+	( "toFixed", TO_FIXED, 145 );
 }

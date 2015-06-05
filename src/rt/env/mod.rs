@@ -259,6 +259,7 @@ fn setup_number<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 
 	function!(&mut prototype, name::VALUE_OF, Number_valueOf, 0, function_prototype, env);
 	function!(&mut prototype, name::TO_STRING, Number_toString, 0, function_prototype, env);
+	function!(&mut prototype, name::TO_FIXED, Number_toFixed, 1, function_prototype, env);
 }
 
 fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
