@@ -4,6 +4,8 @@ use syntax::ast::FunctionRef;
 use syntax::parser::ParseMode;
 use gc::*;
 use std::fmt::Write;
+use syntax::Name;
+use syntax::token::name;
 
 pub fn Function_baseConstructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	// Nothing to do. The default result already is undefined.
@@ -61,8 +63,31 @@ pub fn Function_call(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 	}
 }
 
+// 15.3.4.3 Function.prototype.apply (thisArg, argArray)
 pub fn Function_apply(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	unimplemented!();
+	let func = args.this;
+	if !func.is_callable(env) {
+		Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION))
+	} else {
+		let this_arg = args.arg(env, 0);
+		
+		let call_args = args.arg(env, 1);
+		let call_args = if call_args.is_null() || call_args.is_undefined() {
+			Vec::new()
+		} else {
+			let len = try!(call_args.get(env, name::LENGTH));
+			let len = try!(len.to_uint32(env));
+			let mut result = Vec::new();
+			
+			for i in 0..len {
+				result.push(try!(call_args.get(env, Name::from_index(i as usize))));
+			}
+			
+			result
+		};
+		
+		func.call(env, this_arg, call_args, false)
+	}
 }
 
 // 15.3.4.2 Function.prototype.toString ( )

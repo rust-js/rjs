@@ -66,14 +66,25 @@ macro_rules! value {
 	}
 }
 
-pub fn setup(ctx: &mut JsEnv) -> JsResult<()> {
+pub fn setup(env: &mut JsEnv) -> JsResult<()> {
 	// Setup the native environment.
 	
-	setup_global(ctx);
+	setup_global(env);
 	
-	// Run setup to initialize the rest.
+	// Run setup to initialize the rest. We concatenate the contents of all
+	// files in release mode for performance.
 	
-	try!(ctx.eval(include_str!("setup.js")));
+	if cfg!(ndebug) {
+		let mut js = String::new();
+		
+		js.push_str(include_str!("error.js"));
+		js.push_str(include_str!("function.js"));
+		
+		try!(env.eval(&js));
+	} else {
+		try!(env.eval(include_str!("error.js")));
+		try!(env.eval(include_str!("function.js")));
+	}
 	
 	Ok(())
 }

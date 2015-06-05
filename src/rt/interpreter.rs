@@ -1201,7 +1201,6 @@ impl<'a> Frame<'a> {
 		}
 	}
 	
-	#[inline(always)]
 	fn call(&mut self, count: u32, mode: CallMode) -> JsResult<()> {
 		let _scope = self.env.heap.new_local_scope();
 		
@@ -1249,12 +1248,7 @@ impl<'a> Frame<'a> {
 				*js
 			} else {
 				let js = js.unwrap_string().as_local(&self.env.heap).to_string();
-				
-				let scope = if self.strict {
-					self.env.global_scope.as_local(&self.env.heap)
-				} else {
-					self.get_scope().unwrap()
-				};
+				let scope = self.get_scope().unwrap();
 				
 				*try!(self.env.eval_scoped(&js, self.strict, self.args.this, scope, ParseMode::DirectEval)).as_local(&self.env.heap)
 			}
@@ -1269,20 +1263,21 @@ impl<'a> Frame<'a> {
 	}
 	
 	// 11.4.1 The delete Operator
-	#[inline(always)]
-	fn delete(&mut self, name: Name, must_exist: bool) -> JsResult<Option<Next>> {
+	fn delete(&mut self, name: Name, env: bool) -> JsResult<Option<Next>> {
 		let _scope = self.env.heap.new_local_scope();
 		
 		let frame = self.env.stack.create_frame(1);
 		
 		let mut target = frame.get(0).as_local(&self.env.heap);
 		
-		let result = if must_exist && !target.has_property(self.env, name) {
-			if self.strict {
-				return Ok(Some(Next::Throw(JsError::new_syntax(self.env, ::errors::SYNTAX_CANNOT_RESOLVE_PROPERTY))));
-			} else {
-				true
-			}
+		self.env.stack.drop_frame(frame);
+		
+		if env && self.strict {
+			return Ok(Some(Next::Throw(JsError::new_syntax(self.env, ::errors::SYNTAX_CANNOT_RESOLVE_PROPERTY))));
+		}
+		
+		let result = if env && !target.has_property(self.env, name) {
+			true
 		} else {
 			match target.delete(self.env, name, self.strict) {
 				Ok(result) => result,
@@ -1290,7 +1285,6 @@ impl<'a> Frame<'a> {
 			}
 		};
 		
-		self.env.stack.drop_frame(frame);
 		self.env.stack.push(JsValue::new_bool(result));
 		
 		Ok(None)
