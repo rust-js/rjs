@@ -1769,7 +1769,7 @@ impl<'a> IrGenerator<'a> {
 		try!(self.emit_exprs(index, true));
 		self.ir.emit(Ir::Pick(1));
 		self.ir.emit(Ir::ValidateMemberTarget);
-		self.ir.emit(Ir::ToMemberIndex);
+		self.ir.emit(Ir::ToPropertyKey);
 		
 		Ok(())
 	}

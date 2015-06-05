@@ -1,6 +1,7 @@
 #![allow(unused_variables)]
 
-use rt::{JsEnv, JsValue, JsString, JsItem, JsIterator, JsScope, JsType, JsArgs, JsDescriptor};
+use rt::{JsEnv, JsValue, JsString, JsItem, JsIterator, JsScope, JsType, JsArgs};
+use rt::{JsDescriptor, JsPreferredType};
 use gc::*;
 use ::{JsResult, JsError};
 use ir::IrFunction;
@@ -1025,21 +1026,6 @@ impl<'a> Frame<'a> {
 				
 				self.env.stack.push(JsValue::new_bool(result));
 			}
-			Ir::ToMemberIndex => {
-				let _scope = self.env.heap.new_local_scope();
-				
-				let frame = self.env.stack.create_frame(1);
-				let value = frame.get(0).as_local(&self.env.heap);
-				
-				let result = match value.ty() {
-					JsType::Number | JsType::String => value,
-					_ => local_try!(value.to_string(self.env)).as_value(self.env)
-				};
-				
-				self.env.stack.drop_frame(frame);
-				
-				self.env.stack.push(*result);
-			}
 			Ir::ToNumber => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -1049,6 +1035,16 @@ impl<'a> Frame<'a> {
 				self.env.stack.drop_frame(frame);
 				
 				self.env.stack.push(JsValue::new_number(result));
+			}
+			Ir::ToPropertyKey => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(1);
+				let arg = frame.get(0).as_local(&self.env.heap);
+				let result = local_try!(arg.to_primitive(self.env, JsPreferredType::String));
+				self.env.stack.drop_frame(frame);
+				
+				self.env.stack.push(*result);
 			}
 			Ir::Typeof => {
 				let _scope = self.env.heap.new_local_scope();
