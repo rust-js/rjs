@@ -678,10 +678,11 @@ impl<'a> Frame<'a> {
 				
 				let frame = self.env.stack.create_frame(2);
 				
+				let target = frame.get(0).as_local(&self.env.heap);
 				let index = frame.get(1).as_local(&self.env.heap);
 				let index = local_try!(self.env.intern_value(index));
 				
-				let result = local_try!(frame.get(0).as_local(&self.env.heap).get(self.env, index));
+				let result = local_try!(target.get(self.env, index));
 				
 				self.env.stack.drop_frame(frame);
 				

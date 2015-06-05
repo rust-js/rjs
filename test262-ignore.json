@@ -80,5 +80,11 @@
   "language/expressions/prefix-increment/S11.4.4_A5_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
   "language/expressions/property-accessors/S11.2.1_A4_T5.js": "String has not yet been implemented.",
   "language/expressions/property-accessors/S11.2.1_A4_T8.js": "Math has not yet been implemented.",
-  "language/expressions/property-accessors/S11.2.1_A4_T9.js": "Date has not yet been implemented."
+  "language/expressions/property-accessors/S11.2.1_A4_T9.js": "Date has not yet been implemented.",
+  "language/function-code/10.4.3-1-100-s.js": "String has not yet been implemented.",
+  "language/function-code/10.4.3-1-100gs.js": "String has not yet been implemented.",
+  "language/function-code/10.4.3-1-101-s.js": "String has not yet been implemented.",
+  "language/function-code/10.4.3-1-101gs.js": "String has not yet been implemented.",
+  "language/function-code/10.4.3-1-102-s.js": "String has not yet been implemented.",
+  "language/function-code/10.4.3-1-102gs.js": "String has not yet been implemented."
 }

@@ -331,12 +331,6 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn fatal<T>(&self, message: &str) -> JsResult<T> {
-		// Panic here under debug to get a stack trace.
-		
-		if cfg!(not(ndebug)) {
-			panic!(message.to_string());
-		}
-		
 		Err(JsError::Parse(message.to_string()))
 	}
 	

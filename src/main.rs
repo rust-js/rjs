@@ -247,8 +247,11 @@ fn run_safe(file: String) {
 	if let Some(header) = header.headers.get("features") {
 		if let Header::List(ref items) = *header {
 			for item in items {
-				if item == "arrow-function" {
-					is_es6 = true;
+				match &**item {
+					"arrow-function" | "generators" => {
+						is_es6 = true;
+					}
+					_ => {}
 				}
 			}
 		}

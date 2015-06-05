@@ -137,7 +137,7 @@ pub fn utf32_to_utf16(source: &[u32], strict: bool) -> Vec<u16> {
 		let ch = source[i];
 		i += 1;
 		
-		if ch < UNI_MAX_BMP { // Target is a character <= 0xFFFF
+		if ch <= UNI_MAX_BMP { // Target is a character <= 0xFFFF
 			// UTF-16 surrogate values are illegal in UTF-32; 0xffff or 0xfffe are both reserved values
 			
 			if ch >= UNI_SUR_HIGH_START && ch <= UNI_SUR_LOW_END {

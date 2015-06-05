@@ -100,9 +100,18 @@ impl JsItem for Local<JsString> {
 	fn get_own_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
 		if property == name::LENGTH {
 			let value = JsValue::new_number(self.chars.len() as f64).as_local(&env.heap);
-			Some(JsDescriptor::new_simple_value(value))
-		} else {
-			None
+			return Some(JsDescriptor::new_simple_value(value));
 		}
+		if let Some(index) = property.index() {
+			let chars = self.chars;
+			if index < chars.len() {
+				let char = chars[index];
+				let mut string = JsString::new_local(env, 1);
+				string.chars[0] = char;
+				return Some(JsDescriptor::new_simple_value(string.as_value(env)));
+			}
+		}
+		
+		None
 	}
 }

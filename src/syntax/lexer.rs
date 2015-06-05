@@ -187,15 +187,7 @@ impl<'a> Lexer<'a> {
 	fn fatal<T>(&self, message: &str) -> JsResult<T> {
 		let (line, col) = self.reader.pos();
 		
-		let message = format!("{}:{}: {}", line, col, message.to_string());
-		
-		// Panic here under debug to get a stack trace.
-		
-		if cfg!(not(ndebug)) {
-			panic!(message);
-		}
-		
-		Err(JsError::Lex(message))
+		Err(JsError::Lex(format!("{}:{}: {}", line, col, message.to_string())))
 	}
 	
 	fn parse(&mut self) -> JsResult<TokenAndSpan> {
@@ -219,7 +211,7 @@ impl<'a> Lexer<'a> {
 					self.skip_while(|c| !is_line_terminator(c));
 					Comment
 				} else if self.allow_regexp {
-					if let Some(token) = self.parse_regex() {
+					if let Some(token) = try!(self.parse_regex()) {
 						token
 					} else {
 						Divide
@@ -357,8 +349,8 @@ impl<'a> Lexer<'a> {
 				}
 			},
 			c @ '0' ... '9' => try!(self.parse_number(c, true)),
-			'"' => self.parse_string('"'),
-			'\'' => self.parse_string('\''),
+			'"' => try!(self.parse_string('"')),
+			'\'' => try!(self.parse_string('\'')),
 			c @ _ if is_line_terminator(c) => Newline,
 			c @ _ if is_whitespace(c) => {
 				self.skip_while(is_whitespace);
@@ -367,7 +359,7 @@ impl<'a> Lexer<'a> {
 			_ => {
 				self.reader.skip(-1);
 				
-				if let Some(identifier) = self.parse_identifier(true) {
+				if let Some(identifier) = try!(self.parse_identifier(true)) {
 					self.token_from_identifier(identifier)
 				} else {
 					return self.fatal("Cannot parse");
@@ -605,12 +597,17 @@ impl<'a> Lexer<'a> {
 		}
 	}
 	
-	fn parse_string(&mut self, quote: char) -> Token {
+	fn parse_string(&mut self, quote: char) -> JsResult<Token> {
 		let mut s = String::new();
 		let mut exact = true;
 		
 		while !self.reader.is_eof() {
 			let c = self.reader.next();
+			
+			if is_line_terminator(c) {
+				return self.fatal("Newline cannot appear in string constant");
+			}
+			
 			if c == quote {
 				break;
 			} else if c == '\\' {
@@ -633,7 +630,7 @@ impl<'a> Lexer<'a> {
 			}
 		}
 		
-		Literal(Lit::String(self.interner.intern(&s), exact))
+		Ok(Literal(Lit::String(self.interner.intern(&s), exact)))
 	}
 	
 	fn parse_escape(&mut self) -> String {
@@ -689,7 +686,7 @@ impl<'a> Lexer<'a> {
 		}
 	}
 	
-	fn parse_identifier(&mut self, require_start: bool) -> Option<String> {
+	fn parse_identifier(&mut self, require_start: bool) -> JsResult<Option<String>> {
 		let mut s = String::new();
 		let mut had_one = !require_start;
 		
@@ -700,7 +697,15 @@ impl<'a> Lexer<'a> {
 				
 				// TODO: Invalid unicode sequences will be parsed incorrectly.
 				
-				s.push(self.parse_escape_hex(4));
+				let c = self.parse_escape_hex(4);
+				
+				// TODO: There probably is a more generic case that applies here.
+				
+				if is_line_terminator(c) {
+					return self.fatal("Invalid token");
+				}
+				
+				s.push(c);
 			} else {
 				s.push(self.reader.next());
 			}
@@ -708,11 +713,11 @@ impl<'a> Lexer<'a> {
 			had_one = true;
 		}
 		
-		if s.is_empty() {
+		Ok(if s.is_empty() {
 			None
 		} else {
 			Some(s)
-		}
+		})
 	}
 	
 	fn is_identifier_letter(&mut self, start: bool) -> bool {
@@ -737,7 +742,7 @@ impl<'a> Lexer<'a> {
 		}
 	}
 	
-	fn parse_regex(&mut self) -> Option<Token> {
+	fn parse_regex(&mut self) -> JsResult<Option<Token>> {
 		let pos = self.reader.offset();
 		
 		let expression = match self.parse_regex_expression() {
@@ -748,16 +753,16 @@ impl<'a> Lexer<'a> {
 				
 				self.reader.seek(pos);
 				
-				return None;
+				return Ok(None);
 			}
 		};
 		
-		let flags = self.parse_regex_flags();
+		let flags = try!(self.parse_regex_flags());
 		
 		let expression = self.interner.intern(&expression);
 		let flags = self.interner.intern(&flags);
 		
-		Some(Literal(Lit::Regex(expression, flags)))
+		Ok(Some(Literal(Lit::Regex(expression, flags))))
 	}
 	
 	fn parse_regex_expression(&mut self) -> Option<String> {
@@ -812,12 +817,12 @@ impl<'a> Lexer<'a> {
 		None
 	}
 	
-	fn parse_regex_flags(&mut self) -> String {
-		if let Some(flags) = self.parse_identifier(false) {
+	fn parse_regex_flags(&mut self) -> JsResult<String> {
+		Ok(if let Some(flags) = try!(self.parse_identifier(false)) {
 			flags
 		} else {
 			"".to_string()
-		}
+		})
 	}
 }
 	
