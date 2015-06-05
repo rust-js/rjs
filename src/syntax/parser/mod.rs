@@ -1290,34 +1290,38 @@ impl<'a> Parser<'a> {
 				// If the expression sequence is followed by a semi colon, we have a For.
 				// Otherwise we have a ForIn.
 				
-				if try!(self.consume(Token::SemiColon)) {
-					let (test, incr, stmt) = try!(self.parse_for_tail());
-					
-					Ok(Item::For(label, Some(expr), test, incr, Box::new(stmt)))
-				} else {
-					// A ForIn can only have a single expression.
-					
-					if expr.exprs.len() != 1 {
-						return self.fatal("For in must have a single expression");
+				let is_in = if expr.exprs.len() == 1 {
+					if let Expr::Binary(Op::In, _, _) = expr.exprs[0] {
+						true
+					} else {
+						false
 					}
-					
+				} else {
+					false
+				};
+				
+				if is_in {
 					// Simple in's are parsed as an In binary expression.
 					
 					let expr = expr.exprs.single();
 					
-					if let Expr::Binary(op, left, right) = expr {
-						if op == Op::In {
-							try!(self.expect(Token::CloseParen));
-							
-							let stmt = try!(self.parse_stmt(None));
-							
-							let in_ = ExprSeq { exprs: vec![*right] };
-							
-							return Ok(Item::ForIn(label, left, in_, Box::new(stmt)));
-						}
+					if let Expr::Binary(Op::In, left, right) = expr {
+						try!(self.expect(Token::CloseParen));
+						
+						let stmt = try!(self.parse_stmt(None));
+						
+						let in_ = ExprSeq { exprs: vec![*right] };
+						
+						Ok(Item::ForIn(label, left, in_, Box::new(stmt)))
+					} else {
+						panic!();
 					}
+				} else if try!(self.consume(Token::SemiColon)) {
+					let (test, incr, stmt) = try!(self.parse_for_tail());
 					
-					self.fatal("Expected in expression")
+					Ok(Item::For(label, Some(expr), test, incr, Box::new(stmt)))
+				} else {
+					self.fatal("Expected token ;")
 				}
 			}
 		}
