@@ -95,8 +95,10 @@ impl StrInterner {
     }
     
     fn parse_index(&self, val: &str) -> Option<usize> {
+    	// TODO: Improve. We shouldn't have to create a string again. Instead we
+    	// should parse the val to verify that it will be equal to the index.
     	if let Ok(index) = u32::from_str(val) {
-    		if index <= i32::MAX as u32 {
+    		if val == index.to_string() && index <= i32::MAX as u32 {
 	    		return Some(index as usize);
     		}
     	}
