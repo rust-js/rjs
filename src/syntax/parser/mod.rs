@@ -393,6 +393,16 @@ impl<'a> Parser<'a> {
 		
 		let block = try!(self.parse_function_block(args));
 		
+		if block.strict {
+			for i in 0..block.args.len() {
+				for j in (i + 1)..block.args.len() {
+					if block.args[i] == block.args[j] {
+						return self.fatal("Duplicate parameter");
+					}
+				}
+			}
+		}
+		
 		let end = self.lexer.last_span().unwrap();
 		
 		let function = Box::new(Function {
@@ -905,11 +915,7 @@ impl<'a> Parser<'a> {
 			}
 		}
 		
-		if let Expr::Function(..) = expr {
-			self.fatal("Cannot call a function declaration")
-		} else {
-			Ok(Expr::Call(Box::new(expr), args))
-		}
+		Ok(Expr::Call(Box::new(expr), args))
 	}
 	
 	fn mark_deopt(&mut self) {
@@ -1554,6 +1560,12 @@ impl<'a> Parser<'a> {
 		let expr = try!(self.parse_expr_seq());
 		
 		try!(self.expect_eos());
+		
+		if let Expr::Call(ref expr, _) = expr.exprs[0] {
+			if let Expr::Function(..) = **expr {
+				return self.fatal("Unexpected token )");
+			}
+		}
 		
 		Ok(Item::ExprStmt(expr))
 	}

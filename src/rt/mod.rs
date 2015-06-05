@@ -205,7 +205,7 @@ impl JsEnv {
 	}
 	
 	fn new_native_function<'a>(&mut self, name: Option<Name>, args: u32, function: &JsFn, prototype: Local<JsObject>) -> Local<JsValue> {
-		let mut result = JsObject::new_function(self, JsFunction::Native(name, args, function as *const JsFn, true), prototype).as_value(self);
+		let mut result = JsObject::new_function(self, JsFunction::Native(name, args, function as *const JsFn, true), prototype, false).as_value(self);
 		
 		let mut proto = self.new_object();
 		let value = proto.as_value(self);

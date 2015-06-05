@@ -175,7 +175,7 @@ fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut
 	function!(prototype, name::PREVENT_EXTENSIONS, Object_preventExtensions, 1, function_prototype, env);
 	
 	let constructor = &Object_constructor;
-	let class = JsObject::new_function(env, JsFunction::Native(Some(name::OBJECT_CLASS), 0, constructor as *const JsFn, true), function_prototype);
+	let class = JsObject::new_function(env, JsFunction::Native(Some(name::OBJECT_CLASS), 0, constructor as *const JsFn, true), function_prototype, false);
 	let mut class = class.as_value(env);
 	
 	property!(global, name::OBJECT_CLASS, class, true, false, true, env);
@@ -339,5 +339,5 @@ fn setup_console<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_proto
 }
 
 fn new_naked_function<'a>(env: &mut JsEnv, name: Option<Name>, args: u32, function: &JsFn, prototype: Local<JsObject>, can_construct: bool) -> Local<JsValue> {
-	JsObject::new_function(env, JsFunction::Native(name, args, function as *const JsFn, can_construct), prototype).as_value(env)
+	JsObject::new_function(env, JsFunction::Native(name, args, function as *const JsFn, can_construct), prototype, false).as_value(env)
 }

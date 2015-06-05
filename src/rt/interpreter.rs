@@ -640,7 +640,7 @@ impl<'a> Frame<'a> {
 				
 				let scope = self.get_scope();
 				
-				let function = *local_try!(self.env.new_function(function, scope));
+				let function = *local_try!(self.env.new_function(function, scope, self.strict));
 				self.env.stack.push(function);
 			}
 			Ir::LoadEnvObject => {
@@ -919,7 +919,7 @@ impl<'a> Frame<'a> {
 				
 				let scope = self.get_scope();
 				
-				let function = local_try!(self.env.new_function(function, scope));
+				let function = local_try!(self.env.new_function(function, scope, self.strict));
 				
 				local_try!(object.define_own_property(self.env, name, JsDescriptor::new_simple_accessor(Some(function), None), true));
 				
@@ -967,7 +967,7 @@ impl<'a> Frame<'a> {
 				
 				let scope = self.get_scope();
 				
-				let function = local_try!(self.env.new_function(function, scope));
+				let function = local_try!(self.env.new_function(function, scope, self.strict));
 				
 				local_try!(object.define_own_property(self.env, name, JsDescriptor::new_simple_accessor(None, Some(function)), true));
 				

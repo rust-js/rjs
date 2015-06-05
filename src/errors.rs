@@ -14,5 +14,6 @@ pub static TYPE_UNDEFINED : &'static str = "Invalid operation on undefined";
 pub static TYPE_NULL : &'static str = "Invalid operation on null";
 pub static TYPE_IN_RHS_NOT_OBJECT : &'static str = "Target of in must be an object";
 pub static TYPE_CANNOT_ACCESS_ARGUMENTS_PROPERTY : &'static str = "Cannot access caller or callee of arguments";
+pub static TYPE_CANNOT_ACCESS_FUNCTION_PROPERTY : &'static str = "Cannot access caller or arguments of function";
 pub static TYPE_CANNOT_CALL_TO_STRING : &'static str = "Cannot call toString";
 pub static SYNTAX_CANNOT_RESOLVE_PROPERTY : &'static str = "Cannot resolve property";

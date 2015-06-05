@@ -49,6 +49,16 @@ impl<'a> LocalResolver<'a> {
 	fn resolve_function(&mut self, function_ref: FunctionRef) {
 		let function = &self.context.functions[function_ref.usize()];
 		
+		if function.block.strict {
+			match function.name {
+				Some(name::ARGUMENTS) | Some(name::EVAL) => {
+					self.illegal_arguments_eval = true;
+					return;
+				}
+				_ => {}
+			}
+		}
+		
 		self.resolve_scope(&function.block, function_ref, false);
 	}
 
@@ -346,6 +356,7 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 	
 	fn visit_expr_function(&mut self, expr: &'a Expr) {
 		if let Expr::Function(function_ref) = *expr {
+			
 			self.resolve_function(function_ref);
 		}
 	}

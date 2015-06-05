@@ -156,14 +156,14 @@ fn index_of(env: &mut JsEnv, args: JsArgs, reverse: bool) -> JsResult<Local<JsVa
 		true
 	}
 	
-	let end = string.len() - search.len();
+	let end = string.len() - search.len() + 1;
 	
 	let index = if !reverse {
 		let mut result = -1;
 		
 		for i in start..end {
 			if matches(&string, &search, i) {
-				result = i;
+				result = i as i32;
 				break;
 			}
 		}
@@ -175,7 +175,7 @@ fn index_of(env: &mut JsEnv, args: JsArgs, reverse: bool) -> JsResult<Local<JsVa
 		
 		for i in (0..start).rev() {
 			if matches(&string, &search, i) {
-				result = i;
+				result = i as i32;
 				break;
 			}
 		}

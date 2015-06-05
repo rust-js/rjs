@@ -261,9 +261,9 @@ impl JsEnv {
 		})
 	}
 	
-	pub fn new_function(&mut self, function_ref: FunctionRef, scope: Option<Local<JsScope>>) -> JsResult<Local<JsValue>> {
+	pub fn new_function(&mut self, function_ref: FunctionRef, scope: Option<Local<JsScope>>, strict: bool) -> JsResult<Local<JsValue>> {
 		let function_prototype = self.function_prototype.as_local(&self.heap);
-		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), function_prototype).as_value(self);
+		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), function_prototype, strict).as_value(self);
 		
 		let function = self.ir.get_function(function_ref);
 		if function.take_scope {
@@ -272,9 +272,9 @@ impl JsEnv {
 		
 		let mut proto = self.new_object();
 		let value = proto.as_value(self);
-		try!(result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false));
+		try!(result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, false), false));
 		try!(proto.define_own_property(self, name::CONSTRUCTOR, JsDescriptor::new_value(result, true, false, true), false));
-		
+
 		Ok(result)
 	}
 	

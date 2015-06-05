@@ -1,6 +1,6 @@
 use syntax::Name;
 use syntax::token::name;
-use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString, GC_OBJECT};
+use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString, JsArgs, GC_OBJECT};
 use gc::{Local, Ptr, AsPtr, ptr_t};
 use ::{JsResult, JsError};
 use self::hash_store::HashStore;
@@ -48,14 +48,14 @@ impl JsObject {
 		result
 	}
 	
-	pub fn new_function(env: &mut JsEnv, function: JsFunction, prototype: Local<JsObject>) -> Local<JsObject> {
+	pub fn new_function(env: &mut JsEnv, function: JsFunction, prototype: Local<JsObject>, strict: bool) -> Local<JsObject> {
 		let mut result = Self::new_local(env, JsStoreType::Hash);
 		
-		let (name, args) = match function {
-			JsFunction::Native(name, args, _, _) => (name, args),
+		let (name, args, function_strict) = match function {
+			JsFunction::Native(name, args, _, _) => (name, args, false),
 			JsFunction::Ir(function_ref) => {
 				let function = env.ir.get_function(function_ref);
-				(function.name, function.args)
+				(function.name, function.args, function.strict)
 			}
 		};
 		
@@ -72,8 +72,19 @@ impl JsObject {
 		
 		result.define_own_property(env, name::NAME, JsDescriptor::new_value(name, false, false, true), false).ok();
 		
+		if strict || function_strict {
+			let thrower = env.new_native_function(None, 0, &throw_type_error, prototype);
+			
+			result.define_own_property(env, name::CALLER, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false).ok();
+			result.define_own_property(env, name::ARGUMENTS, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false).ok();
+		}
+		
 		result
 	}
+}
+
+fn throw_type_error(env: &mut JsEnv, _: JsArgs) -> JsResult<Local<JsValue>> {
+	Err(JsError::new_type(env, ::errors::TYPE_CANNOT_ACCESS_FUNCTION_PROPERTY))
 }
 
 impl Local<JsObject> {
