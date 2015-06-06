@@ -162,5 +162,7 @@
   "language/statements/function/S13_A13_T3.js": "Writing a non-writable attributes member will create a new binding for the varaible. This has not yet been implemented.",
   "language/statements/function/S13_A18.js": "Math has not yet been implemented.",
   "language/statements/return/S12.9_A4.js": "Math has not yet been implemented.",
-  "language/statements/while/S12.6.2_A8.js": "String has not yet been implemented."
+  "language/statements/while/S12.6.2_A8.js": "String has not yet been implemented.",
+  "language/types/number/8.5.1.js": "Floating point parsing in Rust is inaccurate and we're not going to build a floating point parser for this project. See #24557.",
+  "language/types/number/S8.5_A13_T2.js": "Floating point parsing in Rust is inaccurate and we're not going to build a floating point parser for this project. See #24557."
 }

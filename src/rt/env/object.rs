@@ -103,18 +103,27 @@ pub fn Object_hasOwnProperty(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<Js
 
 // 15.2.4.6 Object.prototype.isPrototypeOf (V)
 pub fn Object_isPrototypeOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let arg = args.arg(env, 0);
+	let mut arg = args.arg(env, 0);
 	
 	let result = if arg.ty() != JsType::Object {
 		false
 	} else {
-		if let Some(prototype) = arg.prototype(env) {
-			let object = try!(args.this.to_object(env));
-			
-			prototype.unwrap_object() == object.unwrap_object()
-		} else {
-			false
+		let object = try!(args.this.to_object(env));
+		let mut result = false;
+		
+		loop {
+			if let Some(prototype) = arg.prototype(env) {
+				arg = prototype;
+				if object.unwrap_object() == arg.unwrap_object() {
+					result = true;
+					break;
+				}
+			} else {
+				break;
+			}
 		}
+		
+		result
 	};
 	
 	Ok(JsValue::new_bool(result).as_local(&env.heap))
@@ -137,9 +146,11 @@ pub fn Object_propertyIsEnumerable(env: &mut JsEnv, args: JsArgs) -> JsResult<Lo
 
 // 15.2.3.2 Object.getPrototypeOf ( O )
 pub fn Object_getPrototypeOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	if args.this.ty() != JsType::Object {
+	let arg = args.arg(env, 0);
+	
+	if arg.ty() != JsType::Object {
 		Err(JsError::new_type(env, ::errors::TYPE_INVALID))
-	} else if let Some(prototype) = args.this.prototype(env) {
+	} else if let Some(prototype) = arg.prototype(env) {
 		Ok(prototype)
 	} else {
 		Ok(JsValue::new_undefined().as_local(&env.heap))

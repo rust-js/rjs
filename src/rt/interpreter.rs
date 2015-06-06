@@ -562,12 +562,14 @@ impl<'a> Frame<'a> {
 				let frame = self.env.stack.create_frame(2);
 				let mut target = frame.get(0).as_local(&self.env.heap);
 				let value = frame.get(1).as_local(&self.env.heap);
-				local_try!(target.define_own_property(
-					self.env,
-					name,
-					JsDescriptor::new_value(value, true, true, false),
-					true
-				));
+				if !target.has_property(self.env, name) {
+					local_try!(target.define_own_property(
+						self.env,
+						name,
+						JsDescriptor::new_value(value, true, true, false),
+						true
+					));
+				}
 				self.env.stack.drop_frame(frame);
 			}
 			Ir::InstanceOf => {

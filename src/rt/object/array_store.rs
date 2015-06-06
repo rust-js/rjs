@@ -34,8 +34,8 @@ impl ArrayStore {
 	
 	fn grow_entries(&mut self, env: &JsEnv, count: usize) {
 		if self.items.is_null() {
-			self.capacity = INITIAL_ARRAY_SIZE;
-			self.items = unsafe { env.heap.alloc_array(GC_ENTRY, INITIAL_ARRAY_SIZE) };
+			self.capacity = cmp::max(INITIAL_ARRAY_SIZE, count);
+			self.items = unsafe { env.heap.alloc_array(GC_ENTRY, self.capacity) };
 		} else {
 			self.capacity = cmp::max(self.capacity * 2, count);
 			
