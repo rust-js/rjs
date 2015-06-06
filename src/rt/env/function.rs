@@ -1,9 +1,11 @@
 use ::{JsResult, JsError};
 use rt::{JsEnv, JsString, JsFnMode, JsArgs, JsValue, JsItem, JsFunction, JsType};
+use rt::{JsScope, JsDescriptor, JsObject};
 use syntax::ast::FunctionRef;
 use syntax::parser::ParseMode;
 use gc::*;
 use std::fmt::Write;
+use std::cmp::max;
 use syntax::Name;
 use syntax::token::name;
 
@@ -95,20 +97,28 @@ pub fn Function_apply(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>>
 pub fn Function_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	if args.this.ty() == JsType::Object {
 		if let Some(ref function) = args.this.unwrap_object().as_local(&env.heap).function() {
-			let name;
-			let args;
-			
-			match *function {
-				JsFunction::Ir(function_ref) => {
-					let description = env.ir.get_function(function_ref);
-					name = description.name;
-					args = None;
-				}
-				JsFunction::Native(name_, args_, _, _) => {
-					name = name_;
-					args = Some(args_);
+			fn get_function_details(env: &mut JsEnv, this: Local<JsValue>, function: &JsFunction) -> JsResult<(Option<Name>, Option<u32>)> {
+				match *function {
+					JsFunction::Ir(function_ref) => {
+						let description = env.ir.get_function(function_ref);
+						Ok((description.name, None))
+					}
+					JsFunction::Native(name, args, _, _) => {
+						Ok((name, Some(args)))
+					}
+					JsFunction::Bound => {
+						let scope = this.scope(env).unwrap();
+						let target = scope.get(env, 0);
+						if let Some(ref function) = target.unwrap_object().as_local(&env.heap).function() {
+							get_function_details(env, target, function)
+						} else {
+							Err(JsError::new_type(env, ::errors::TYPE_INVALID))
+						}
+					}
 				}
 			}
+			
+			let (name, args) = try!(get_function_details(env, args.this, function));
 			
 			let mut code = String::new();
 		
@@ -146,4 +156,43 @@ pub fn Function_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 
 pub fn Function_toLocaleString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	unimplemented!();
+}
+
+// 15.3.4.5 Function.prototype.bind (thisArg [, arg1 [, arg2, …]])
+pub fn Function_bind(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+	if !args.this.is_callable(env) {
+		Err(JsError::new_type(env, ::errors::TYPE_NOT_CALLABLE))
+	} else {
+		let mut scope = JsScope::new_local_thin(env, max(args.args.len() + 1, 2), None);
+		
+		scope.set(0, args.this);
+		scope.set(1, args.arg(env, 0));
+		
+		if args.args.len() > 1 {
+			for i in 0..args.args.len() - 1 {
+				scope.set(i + 2, args.args[i + 1]);
+			}
+		}
+		
+		let function_prototype = env.function_prototype.as_local(&env.heap);
+		let mut result = JsObject::new_function(env, JsFunction::Bound, function_prototype, true);
+		
+		let length = if args.this.class(env) == Some(name::FUNCTION_CLASS) {
+			let length = try!(args.this.get(env, name::LENGTH)).unwrap_number() as usize;
+			if length > 0 && args.args.len() > 1 {
+				length - (args.args.len() - 1)
+			} else {
+				length
+			}
+		} else {
+			0
+		};
+		
+		let length = JsValue::new_number(length as f64).as_local(&env.heap);
+		result.define_own_property(env, name::LENGTH, JsDescriptor::new_value(length, false, false, true), false).ok();
+		
+		result.set_scope(env, Some(scope));
+		
+		Ok(result.as_value(env))
+	}
 }

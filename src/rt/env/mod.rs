@@ -78,12 +78,10 @@ pub fn setup(env: &mut JsEnv) -> JsResult<()> {
 		let mut js = String::new();
 		
 		js.push_str(include_str!("error.js"));
-		js.push_str(include_str!("function.js"));
 		
 		try!(env.eval(&js));
 	} else {
 		try!(env.eval(include_str!("error.js")));
-		try!(env.eval(include_str!("function.js")));
 	}
 	
 	Ok(())
@@ -155,6 +153,7 @@ fn setup_function(env: &mut JsEnv, mut global: Local<JsValue>, object_prototype:
 	
 	function!(prototype, name::CALL, Function_call, 1, prototype, env);
 	function!(prototype, name::APPLY, Function_apply, 2, prototype, env);
+	function!(prototype, name::BIND, Function_bind, 1, prototype, env);
 	function!(prototype, name::TO_STRING, Function_toString, 0, prototype, env);
 	function!(prototype, name::TO_LOCALE_STRING, Function_toLocaleString, 0, prototype, env);
 	

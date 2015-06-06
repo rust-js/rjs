@@ -42,6 +42,7 @@ pub struct Function {
 #[derive(Copy, Clone, Debug)]
 pub struct Slot {
 	pub name: Name,
+	pub arguments: bool,
 	pub arg: Option<u32>,
 	pub state: SlotState
 }
@@ -139,6 +140,7 @@ pub struct Label {
 
 pub struct Ident {
 	pub name: Name,
+	pub arguments: bool,
 	pub state: Cell<IdentState>
 }
 
@@ -168,7 +170,8 @@ pub enum IdentState {
 	LiftedSlot(FunctionSlotRef),
 	ScopedArg(u32, u32),
 	Arg(SlotRef, u32),
-	LiftedArg(FunctionSlotRef, u32)
+	LiftedArg(FunctionSlotRef, u32),
+	LoadFunction(FunctionRef)
 }
 
 impl IdentState {

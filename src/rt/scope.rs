@@ -69,6 +69,10 @@ impl Local<JsScope> {
 		self.raw_set(2, arguments);
 	}
 	
+	pub fn len(&self) -> usize {
+		self.items.len() - 1
+	}
+	
 	pub fn get(&self, env: &JsEnv, index: usize) -> Local<JsValue> {
 		self.raw_get(env, index + 1)
 	}

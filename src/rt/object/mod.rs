@@ -51,28 +51,37 @@ impl JsObject {
 	pub fn new_function(env: &mut JsEnv, function: JsFunction, prototype: Local<JsObject>, strict: bool) -> Local<JsObject> {
 		let mut result = Self::new_local(env, JsStoreType::Hash);
 		
-		let (name, args, function_strict) = match function {
-			JsFunction::Native(name, args, _, _) => (name, args, false),
+		let (name, args, strict) = match function {
+			JsFunction::Native(name, args, _, _) => (name, args, strict),
 			JsFunction::Ir(function_ref) => {
 				let function = env.ir.get_function(function_ref);
-				(function.name, function.args, function.strict)
+				(function.name, function.args, strict || function.strict)
+			}
+			JsFunction::Bound => {
+				(None, 0, strict)
 			}
 		};
 		
 		result.prototype = prototype.as_ptr();
 		result.class = Some(name::FUNCTION_CLASS);
-		result.function = Some(function);
 		
 		let value = JsValue::new_number(args as f64).as_local(&env.heap);
-		// TODO: This does not seem to be conform the specs. Value should not be configurable.
-		result.define_own_property(env, name::LENGTH, JsDescriptor::new_value(value, false, false, true), false).ok();
 		
+		// TODO: This does not seem to be conform the specs. Value should not be configurable.
+		// Don't set the length on bound functions. The caller will take care of this.
+		
+		if function != JsFunction::Bound {
+			result.define_own_property(env, name::LENGTH, JsDescriptor::new_value(value, false, false, true), false).ok();
+		}
+		
+		result.function = Some(function);
+
 		let name = name.unwrap_or(name::EMPTY);
 		let name = JsString::from_str(env, &*env.ir.interner().get(name)).as_value(env);
 		
 		result.define_own_property(env, name::NAME, JsDescriptor::new_value(name, false, false, true), false).ok();
 		
-		if strict || function_strict {
+		if strict {
 			let thrower = env.new_native_function(None, 0, &throw_type_error, prototype);
 			
 			result.define_own_property(env, name::CALLER, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false).ok();
@@ -463,18 +472,27 @@ impl JsItem for Local<JsObject> {
 	}
 	
 	// 15.3.5.3 [[HasInstance]] (V)
+	// 15.3.4.5.3 [[HasInstance]] (V)
 	fn has_instance(&self, env: &mut JsEnv, object: Local<JsValue>) -> JsResult<bool> {
 		if self.function.is_none() {
 			Err(JsError::new_type(env, ::errors::TYPE_CANNOT_HAS_INSTANCE))
 		} else if object.ty() != JsType::Object {
 			Ok(false)
 		} else {
-			let prototype = try!(self.get(env, name::PROTOTYPE));
+			let prototype = if *self.function.as_ref().unwrap() == JsFunction::Bound {
+				let scope = self.scope(env).unwrap();
+				let target = scope.get(env, 0);
+				
+				try!(target.get(env, name::PROTOTYPE))
+			} else {
+				try!(self.get(env, name::PROTOTYPE))
+			};
+			
+			let mut object = object;
+			
 			if prototype.ty() != JsType::Object {
 				Err(JsError::new_type(env, ::errors::TYPE_CANNOT_HAS_INSTANCE))
 			} else {
-				let mut object = object;
-				
 				loop {
 					if let Some(object_) = object.prototype(env) {
 						object = object_;

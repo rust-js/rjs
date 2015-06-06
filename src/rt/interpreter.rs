@@ -906,6 +906,7 @@ impl<'a> Frame<'a> {
 				let frame = self.env.stack.create_frame(2);
 				let mut target = frame.get(0).as_local(&self.env.heap);
 				let value = frame.get(1).as_local(&self.env.heap);
+				
 				local_try!(target.define_own_property(self.env, name, JsDescriptor::new_simple_value(value), true));
 				
 				self.env.stack.drop_frame(frame);
@@ -984,6 +985,7 @@ impl<'a> Frame<'a> {
 				
 				let frame = self.env.stack.create_frame(1);
 				let value = frame.get(0).as_local(&self.env.heap);
+				self.env.stack.drop_frame(frame);
 				
 				self.args.args[index] = value;
 			}

@@ -92,7 +92,7 @@ impl JsEnv {
 		
 		let function = function.as_ref().unwrap();
 		
-		Ok(match *function {
+		match *function {
 			JsFunction::Ir(function_ref) => {
 				let block = try!(self.ir.get_function_ir(function_ref));
 				
@@ -123,16 +123,43 @@ impl JsEnv {
 				
 				debugln!("EXIT {}", location);
 				
-				result
+				Ok(result)
 			}
 			JsFunction::Native(_, _, ref callback, can_construct) => {
 				if !can_construct && args.mode == JsFnMode::New {
 					return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_CONSTRUCTOR));
 				}
 				
-				try!((*callback as &JsFn)(self, args))
+				Ok(try!((*callback as &JsFn)(self, args)))
 			}
-		})
+			JsFunction::Bound => {
+				// 15.3.4.5.1 [[Call]]
+				
+				let scope = args.function.scope(self).unwrap();
+				let target = scope.get(self, 0);
+				let bound_this = scope.get(self, 1);
+				
+				let mut target_args = Vec::new();
+				
+				for i in 2..scope.len() {
+					target_args.push(scope.get(self, i));
+				}
+				
+				for arg in args.args {
+					target_args.push(arg);
+				}
+				
+				let args = JsArgs {
+					function: target,
+					this: bound_this,
+					args: target_args,
+					strict: args.strict,
+					mode: args.mode
+				};
+				
+				self.call_function(args)
+			}
+		}
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.4.3

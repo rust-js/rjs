@@ -144,9 +144,7 @@ impl IrContext {
 						_ => {}
 					}
 				} else if function.block.block.locals.contains_key(&slot.name) {
-					let is_arguments = slot.name == name::ARGUMENTS;
-					
-					let init = if is_arguments {
+					let init = if slot.arguments {
 						Ir::NewArguments
 					} else {
 						Ir::LoadUndefined
@@ -154,7 +152,7 @@ impl IrContext {
 					
 					match slot.state {
 						SlotState::Scoped => {
-							if is_arguments {
+							if slot.arguments {
 								generator.ir.emit(init);
 								generator.ir.emit(Ir::StoreEnvArguments);
 							} else {
@@ -1510,7 +1508,7 @@ impl<'a> IrGenerator<'a> {
 									self.emit_load_arguments(ident.state.get());
 									self.ir.emit(Ir::DeleteName(Name::from_index(index as usize)));
 								}
-								IdentState::Slot(..) | IdentState::LiftedSlot(..) => {
+								IdentState::Slot(..) | IdentState::LiftedSlot(..) | IdentState::LoadFunction(..) => {
 									self.ir.emit(Ir::LoadFalse);
 								}
 								IdentState::None => panic!()
@@ -1688,7 +1686,7 @@ impl<'a> IrGenerator<'a> {
 			IdentState::Scoped | IdentState::Global(..) => {
 				if self.env_count > 0 {
 					if
-						ident.name == name::ARGUMENTS &&
+						ident.arguments &&
 						self.block_state.build_scope == ScopeType::Thick
 					{
 						self.ir.emit(Ir::LoadEnvArguments(0));
@@ -1705,6 +1703,7 @@ impl<'a> IrGenerator<'a> {
 				self.emit_load_arguments(ident.state.get());
 				self.ir.emit(Ir::LoadName(Name::from_index(index as usize)));
 			}
+			IdentState::LoadFunction(function_ref) => self.ir.emit(Ir::LoadFunction(function_ref)),
 			IdentState::None => panic!()
 		}
 	}
@@ -1745,6 +1744,7 @@ impl<'a> IrGenerator<'a> {
 				self.emit_load_arguments(ident.state.get());
 				self.ir.emit(Ir::StoreName(Name::from_index(index as usize)));
 			}
+			IdentState::LoadFunction(..) => self.ir.emit(Ir::Pop),
 			IdentState::None => panic!()
 		}
 	}

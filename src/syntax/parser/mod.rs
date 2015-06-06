@@ -22,6 +22,7 @@ pub struct Parser<'a> {
 struct Scope {
 	slots: Vec<Slot>,
 	blocks: Vec<BlockScope>,
+	has_arguments_param: bool,
 	has_arguments: bool,
 	deopt: bool
 }
@@ -63,10 +64,11 @@ impl<'a> Parser<'a> {
 		self.scopes.len() == 1 && self.scopes[0].blocks.len() == 1
 	}
 	
-	fn push_scope(&mut self) {
+	fn push_scope(&mut self, has_arguments_param: bool) {
 		self.scopes.push(Scope {
 			slots: Vec::new(),
 			blocks: Vec::new(),
+			has_arguments_param: has_arguments_param,
 			has_arguments: false,
 			deopt: false
 		})
@@ -91,7 +93,7 @@ impl<'a> Parser<'a> {
 		self.top_scope().blocks.pop().unwrap()
 	}
 	
-	fn register_local(&mut self, name: Name, throwarg: bool, global: bool) {
+	fn register_local(&mut self, name: Name, arguments: bool, throwarg: bool, global: bool) {
 		// TODO: Validate performance. We expect that most locals set will be relatively small.
 		// Changing this into a HashSet will very likely not make sense. However, this will
 		// give issues in functions/scopes with many globals (probably more than 20 or 30).
@@ -101,7 +103,7 @@ impl<'a> Parser<'a> {
 				
 		let scope = self.top_scope();
 		
-		let block = if name == name::ARGUMENTS {
+		let block = if arguments {
 			&mut scope.blocks[0]
 		} else if throwarg {
 			let len = scope.blocks.len();
@@ -122,6 +124,7 @@ impl<'a> Parser<'a> {
 		
 		let slot = Slot {
 			name: name,
+			arguments: arguments,
 			arg: None,
 			state: if global { SlotState::Scoped } else { SlotState::Local }
 		};
@@ -285,7 +288,7 @@ impl<'a> Parser<'a> {
 			interner: interner
 		};
 		
-		parser.push_scope();
+		parser.push_scope(false);
 		
 		if mode != ParseMode::Normal {
 			parser.top_scope().deopt = true;
@@ -302,8 +305,7 @@ impl<'a> Parser<'a> {
 		while !try!(parser.is_eof()) {
 			items.push(try!(parser.parse_stmt(None)));
 		}
-		
-		// If the last statement is an expression, turn it into a return.
+		// Turn the last statement into a return.
 		
 		let len = items.len();
 		if len > 0 {
@@ -346,8 +348,8 @@ impl<'a> Parser<'a> {
 				state.take_scope = false;
 			}
 			ParseMode::Normal => {
-				assert_eq!(state.build_scope, ScopeType::None);
-				assert_eq!(state.take_scope, false);
+				state.build_scope = ScopeType::None;
+				state.take_scope = false;
 			}
 		}
 		
@@ -420,7 +422,7 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_function_block(&mut self, args: Vec<Name>) -> JsResult<RootBlock> {
-		self.push_scope();
+		self.push_scope(args.contains(&name::ARGUMENTS));
 		
 		try!(self.expect(Token::OpenBrace));
 		
@@ -457,6 +459,7 @@ impl<'a> Parser<'a> {
 		
 			let slot = Slot {
 				name: name,
+				arguments: false,
 				arg: Some(i as u32),
 				state: SlotState::Local
 			};
@@ -514,15 +517,26 @@ impl<'a> Parser<'a> {
 	fn parse_ident(&mut self) -> JsResult<Ident> {
 		let name = try!(self.parse_name());
 		
-		if name == name::ARGUMENTS && !self.top_scope().has_arguments {
-			self.top_scope().has_arguments = true;
+		let (arguments, register) = {
+			let top_scope = self.top_scope();
+			let arguments = !top_scope.has_arguments_param && name == name::ARGUMENTS;
 			
+			if arguments && !top_scope.has_arguments {
+				top_scope.has_arguments = true;
+				(arguments, true)
+			} else {
+				(arguments, false)
+			}
+		};
+		
+		if register {
 			let at_global = self.at_global();
-			self.register_local(name, false, at_global);
+			self.register_local(name, arguments, false, at_global);
 		}
 		
 		Ok(Ident {
 			name: name,
+			arguments: arguments,
 			state: Cell::new(IdentState::None)
 		})
 	}
@@ -629,10 +643,11 @@ impl<'a> Parser<'a> {
 				let name = self.context.functions[function_ref.usize()].name.unwrap();
 				
 				let at_global = self.at_global();
-				self.register_local(name, false, at_global);
+				self.register_local(name, false, false, at_global);
 				
 				let ident = Ident {
 					name: name,
+					arguments: false,
 					state: Cell::new(IdentState::None)
 				};
 				
@@ -704,7 +719,7 @@ impl<'a> Parser<'a> {
 			let ident = try!(self.parse_ident());
 			
 			let at_global = self.at_global();
-			self.register_local(ident.name, false, at_global);
+			self.register_local(ident.name, ident.arguments, false, at_global);
 			
 			let expr = if try!(self.consume(Token::Assign)) {
 				Some(Box::new(try!(self.parse_expr())))
@@ -1507,7 +1522,7 @@ impl<'a> Parser<'a> {
 			
 			let ident = try!(self.parse_ident());
 			
-			self.register_local(ident.name, true, false);
+			self.register_local(ident.name, false, true, false);
 			
 			try!(self.expect(Token::CloseParen));
 			

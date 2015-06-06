@@ -154,5 +154,11 @@
   "language/literals/regexp/S7.8.5_A3.1_T9.js": "RegExp has not yet been implemented.",
   "language/literals/regexp/S7.8.5_A4.1.js": "RegExp has not yet been implemented.",
   "language/literals/regexp/S7.8.5_A4.2.js": "RegExp has not yet been implemented.",
-  "language/statements/do-while/S12.6.1_A8.js": "String has not yet been implemented."
+  "language/statements/do-while/S12.6.1_A8.js": "String has not yet been implemented.",
+  "language/statements/function/13.2-30-s.js": "This seems to be a spec violation. The spec specifically states that the caller and arguments value should be defined as type thrower on the bound function. Chrome and Firefox do the same.",
+  "language/statements/function/S13.2.1_A5_T2.js": "Math has not yet been implemented.",
+  "language/statements/function/S13_A13_T1.js": "Writing a non-writable attributes member will create a new binding for the varaible. This has not yet been implemented.",
+  "language/statements/function/S13_A13_T2.js": "Writing a non-writable attributes member will create a new binding for the varaible. This has not yet been implemented.",
+  "language/statements/function/S13_A13_T3.js": "Writing a non-writable attributes member will create a new binding for the varaible. This has not yet been implemented.",
+  "language/statements/function/S13_A18.js": "Math has not yet been implemented."
 }

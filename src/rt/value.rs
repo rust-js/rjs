@@ -373,17 +373,24 @@ impl Local<JsValue> {
 	fn get_number_from_string(&self, env: &JsEnv) -> JsResult<f64> {
 		let mut reader = StringReader::new("", &self.unwrap_string().to_string());
 		if let Ok(mut lexer) = Lexer::new(&mut reader, env.ir.interner()) {
-			// Skip over the + sign if we have one.
+			// Skip over the + or - sign if we have one.
 			
-			if let Some(token) = try!(lexer.peek(0)) {
-				if token.token == Token::Plus {
-					try!(lexer.next());
+			let sign = match try!(lexer.peek(0)).map(|token| token.token) {
+				Some(Token::Plus) => {
+					try!(lexer.bump());
+					1f64
 				}
-			} else {
-				// The empty string results in 0.
-				
-				return Ok(0f64);
-			}
+				Some(Token::Minus) => {
+					try!(lexer.bump());
+					-1f64
+				}
+				None => {
+					// The empty string results in 0.
+					
+					return Ok(0f64);
+				}
+				_ => 1f64
+			};
 			
 			// Verify that the next token is a number literal.
 			
@@ -403,7 +410,7 @@ impl Local<JsValue> {
 			
 			if let Some(result) = result {
 				if try!(lexer.peek(0)).is_none() {
-					return Ok(result);
+					return Ok(result * sign);
 				}
 			}
 		}

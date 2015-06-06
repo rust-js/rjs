@@ -17,3 +17,4 @@ pub static TYPE_CANNOT_ACCESS_ARGUMENTS_PROPERTY : &'static str = "Cannot access
 pub static TYPE_CANNOT_ACCESS_FUNCTION_PROPERTY : &'static str = "Cannot access caller or arguments of function";
 pub static TYPE_CANNOT_CALL_TO_STRING : &'static str = "Cannot call toString";
 pub static SYNTAX_CANNOT_RESOLVE_PROPERTY : &'static str = "Cannot resolve property";
+pub static TYPE_NOT_CALLABLE : &'static str = "Target must be callable";

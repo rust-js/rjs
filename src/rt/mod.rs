@@ -441,7 +441,33 @@ pub trait JsItem {
 	}
 	
 	// 13.2.2 [[Construct]]
+	// 15.3.4.5.2 [[Construct]]
 	fn construct(&self, env: &mut JsEnv, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>> {
+		let is_bound = if self.class(env) == Some(name::FUNCTION_CLASS) {
+			let object = self.as_value(env).unwrap_object().as_local(&env.heap);
+			let function = object.function().unwrap();
+			function == JsFunction::Bound
+		} else {
+			false
+		};
+		
+		if is_bound {
+			let scope = self.scope(env).unwrap();
+			let target = scope.get(env, 0);
+			
+			let mut target_args = Vec::new();
+			
+			for i in 2..scope.len() {
+				target_args.push(scope.get(env, i));
+			}
+			
+			for arg in args {
+				target_args.push(arg);
+			}
+			
+			return target.construct(env, target_args);
+		}
+		
 		let mut obj = JsObject::new_local(env, JsStoreType::Hash);
 		obj.set_class(env, Some(name::OBJECT_CLASS));
 		let proto = try!(self.get(env, name::PROTOTYPE));
@@ -808,17 +834,43 @@ impl JsArgs {
 
 pub type JsFn = Fn(&mut JsEnv, JsArgs) -> JsResult<Local<JsValue>>;
 
-
 pub enum JsFunction {
 	Ir(FunctionRef),
-	Native(Option<Name>, u32, *const JsFn, bool)
+	Native(Option<Name>, u32, *const JsFn, bool),
+	Bound
 }
 
 impl Clone for JsFunction {
 	fn clone(&self) -> JsFunction {
 		match *self {
 			JsFunction::Ir(function_ref) => JsFunction::Ir(function_ref),
-			JsFunction::Native(name, args, callback, can_construct) => JsFunction::Native(name, args, callback, can_construct)
+			JsFunction::Native(name, args, callback, can_construct) => JsFunction::Native(name, args, callback, can_construct),
+			JsFunction::Bound => JsFunction::Bound
+		}
+	}
+}
+
+impl PartialEq for JsFunction {
+	fn eq(&self, other: &JsFunction) -> bool {
+		match *self {
+			JsFunction::Ir(function_ref) => {
+				if let JsFunction::Ir(other_function_ref) = *other {
+					function_ref == other_function_ref
+				} else {
+					false
+				}
+			}
+			JsFunction::Native(..) => {
+				// TODO: Unable to compare pointer types (results in an ICE).
+				false
+			}
+			JsFunction::Bound => {
+				if let JsFunction::Bound = *other {
+					true
+				} else {
+					false
+				}
+			}
 		}
 	}
 }

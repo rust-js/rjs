@@ -1,6 +1,7 @@
 use syntax::ast::*;
 use syntax::ast::visitor::AstVisitor;
 use self::block_walker::*;
+use syntax::Name;
 use syntax::token::name;
 use ::{JsResult, JsError};
 
@@ -17,6 +18,7 @@ pub struct LocalResolver<'a> {
 }
 
 struct Scope {
+	name: Option<Name>,
 	function_ref: FunctionRef,
 	lifted_slot_count: usize,
 	arguments: Option<SlotRef>
@@ -34,7 +36,7 @@ impl<'a> LocalResolver<'a> {
 		let program = &context.functions[program_ref.usize()];
 		
 		if !resolver.illegal_arguments_eval {
-			resolver.resolve_scope(&program.block, program_ref, true);
+			resolver.resolve_scope(&program.block, program_ref, None, true);
 		}
 		
 		if resolver.illegal_arguments_eval {
@@ -46,7 +48,7 @@ impl<'a> LocalResolver<'a> {
 		}
 	}
 	
-	fn resolve_function(&mut self, function_ref: FunctionRef) {
+	fn resolve_function(&mut self, function_ref: FunctionRef, expr: bool) {
 		let function = &self.context.functions[function_ref.usize()];
 		
 		if function.block.strict {
@@ -59,10 +61,12 @@ impl<'a> LocalResolver<'a> {
 			}
 		}
 		
-		self.resolve_scope(&function.block, function_ref, false);
+		let name = if expr { function.name } else { None };
+		
+		self.resolve_scope(&function.block, function_ref, name, false);
 	}
 
-	fn resolve_scope(&mut self, block: &'a RootBlock, function_ref: FunctionRef, global: bool) {
+	fn resolve_scope(&mut self, block: &'a RootBlock, function_ref: FunctionRef, name: Option<Name>, global: bool) {
 		if block.strict {
 			for arg in &block.args {
 				if *arg == name::ARGUMENTS || *arg == name::EVAL {
@@ -72,12 +76,27 @@ impl<'a> LocalResolver<'a> {
 			}
 		}
 		
+		let arguments_slot_ref = {
+			if let Some(slot_ref) = block.block.locals.get(&name::ARGUMENTS) {
+				let block_state = block.state.borrow();
+				let slot = block_state.slots[slot_ref.usize()];
+				if slot.arguments {
+					Some(*slot_ref)
+				} else {
+					None
+				}
+			} else {
+				None
+			}
+		};
+		
 		self.walker.push_scope(
 			&block,
 			Scope {
+				name: name,
 				function_ref: function_ref,
 				lifted_slot_count: 0,
-				arguments: block.block.locals.get(&name::ARGUMENTS).map(|p| *p)
+				arguments: arguments_slot_ref
 			}
 		);
 		
@@ -158,6 +177,14 @@ impl<'a> LocalResolver<'a> {
 				return false;
 			}
 			
+			// If it matches the current function name, it's a load of that function.
+			
+			if Some(ident.name) == state.name {
+				ident.state.set(IdentState::LoadFunction(state.function_ref));
+				
+				return false;
+			}
+			
 			// If this scope builds a thick scope, the identifier is scoped
 			// and we can stop the search.
 			
@@ -212,6 +239,10 @@ impl<'a> LocalResolver<'a> {
 					
 					return false;
 				}
+			} else {
+				ident.state.set(IdentState::Scoped);
+				
+				return false;
 			}
 			
 			true
@@ -338,26 +369,25 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
 	fn visit_item_function(&mut self, item: &'a Item) {
 		if let Item::Function(ref ident, function_ref) = *item {
 			self.resolve_ident(ident, true);
-			self.resolve_function(function_ref);
+			self.resolve_function(function_ref, false);
 		}
 	}
 	
 	fn visit_property_getter(&mut self, property: &'a Property) {
 		if let Property::Getter(_, function_ref) = *property {
-			self.resolve_function(function_ref);
+			self.resolve_function(function_ref, false);
 		}
 	}
 	
 	fn visit_property_setter(&mut self, property: &'a Property) {
 		if let Property::Setter(_, function_ref) = *property {
-			self.resolve_function(function_ref);
+			self.resolve_function(function_ref, false);
 		}
 	}
 	
 	fn visit_expr_function(&mut self, expr: &'a Expr) {
 		if let Expr::Function(function_ref) = *expr {
-			
-			self.resolve_function(function_ref);
+			self.resolve_function(function_ref, true);
 		}
 	}
 	
