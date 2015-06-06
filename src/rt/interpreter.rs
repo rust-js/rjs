@@ -575,7 +575,20 @@ impl<'a> Frame<'a> {
 				self.ip = label.offset();
 				return Next::Next;
 			}
-			Ir::JumpEq(label) => unimplemented!(),
+			Ir::JumpStrictEq(label) => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let frame = self.env.stack.create_frame(2);
+				let arg1 = frame.get(0).as_local(&self.env.heap);
+				let arg2 = frame.get(1).as_local(&self.env.heap);
+				let jump = self.env.strict_eq(arg1, arg2);
+				self.env.stack.drop_frame(frame);
+				
+				if jump {
+					self.ip  = label.offset();
+					return Next::Next;
+				}
+			}
 			Ir::JumpFalse(label) => {
 				let frame = self.env.stack.create_frame(1);
 				let jump = !frame.get(0).as_local(&self.env.heap).to_boolean();

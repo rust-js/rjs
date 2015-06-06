@@ -751,7 +751,7 @@ impl<'a> IrGenerator<'a> {
 					
 					self.ir.emit(Ir::LoadLocal(local));
 					try!(self.emit_exprs(exprs, true));
-					self.ir.emit(Ir::JumpEq(label));
+					self.ir.emit(Ir::JumpStrictEq(label));
 				}
 				SwitchClause::Default(..) => {
 					let label = self.ir.label();

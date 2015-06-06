@@ -160,5 +160,6 @@
   "language/statements/function/S13_A13_T1.js": "Writing a non-writable attributes member will create a new binding for the varaible. This has not yet been implemented.",
   "language/statements/function/S13_A13_T2.js": "Writing a non-writable attributes member will create a new binding for the varaible. This has not yet been implemented.",
   "language/statements/function/S13_A13_T3.js": "Writing a non-writable attributes member will create a new binding for the varaible. This has not yet been implemented.",
-  "language/statements/function/S13_A18.js": "Math has not yet been implemented."
+  "language/statements/function/S13_A18.js": "Math has not yet been implemented.",
+  "language/statements/return/S12.9_A4.js": "Math has not yet been implemented."
 }

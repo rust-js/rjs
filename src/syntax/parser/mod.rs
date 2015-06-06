@@ -60,8 +60,12 @@ pub enum ParseMode {
 }
 
 impl<'a> Parser<'a> {
-	fn at_global(&self) -> bool {
-		self.scopes.len() == 1 && self.scopes[0].blocks.len() == 1
+	fn at_global_scope(&self) -> bool {
+		self.scopes.len() == 1
+	}
+	
+	fn at_global_block(&self) -> bool {
+		self.at_global_scope() && self.scopes[0].blocks.len() == 1
 	}
 	
 	fn push_scope(&mut self, has_arguments_param: bool) {
@@ -530,8 +534,8 @@ impl<'a> Parser<'a> {
 		};
 		
 		if register {
-			let at_global = self.at_global();
-			self.register_local(name, arguments, false, at_global);
+			let global = self.at_global_block();
+			self.register_local(name, arguments, false, global);
 		}
 		
 		Ok(Ident {
@@ -642,8 +646,8 @@ impl<'a> Parser<'a> {
 				let function_ref = try!(self.parse_function());
 				let name = self.context.functions[function_ref.usize()].name.unwrap();
 				
-				let at_global = self.at_global();
-				self.register_local(name, false, false, at_global);
+				let global = self.at_global_block();
+				self.register_local(name, false, false, global);
 				
 				let ident = Ident {
 					name: name,
@@ -718,8 +722,8 @@ impl<'a> Parser<'a> {
 		while !try!(self.is_eof()) {
 			let ident = try!(self.parse_ident());
 			
-			let at_global = self.at_global();
-			self.register_local(ident.name, ident.arguments, false, at_global);
+			let global = self.at_global_block();
+			self.register_local(ident.name, ident.arguments, false, global);
 			
 			let expr = if try!(self.consume(Token::Assign)) {
 				Some(Box::new(try!(self.parse_expr())))
@@ -1415,17 +1419,21 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_return(&mut self) -> JsResult<Item> {
-		try!(self.bump());
-		
-		let expr = if try!(self.is_eos()) {
-			None
+		if self.at_global_scope() {
+			self.fatal("Illegal return statement")
 		} else {
-			Some(try!(self.parse_expr_seq()))
-		};
-		
-		try!(self.expect_eos());
-		
-		Ok(Item::Return(expr))
+			try!(self.bump());
+			
+			let expr = if try!(self.is_eos()) {
+				None
+			} else {
+				Some(try!(self.parse_expr_seq()))
+			};
+			
+			try!(self.expect_eos());
+			
+			Ok(Item::Return(expr))
+		}
 	}
 	
 	fn parse_with(&mut self) -> JsResult<Item> {

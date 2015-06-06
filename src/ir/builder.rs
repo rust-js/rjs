@@ -136,7 +136,7 @@ impl Block {
 					string.push_str("jmp ");
 					self.print_label(string, label);
 				}
-				Ir::JumpEq(label) => {
+				Ir::JumpStrictEq(label) => {
 					string.push_str("jmp.eq ");
 					self.print_label(string, label);
 				}
@@ -547,7 +547,7 @@ pub enum Ir {
 	InstanceOf,
 	IntoIter(Local),
 	Jump(Label),
-	JumpEq(Label),
+	JumpStrictEq(Label),
 	JumpFalse(Label),
 	JumpTrue(Label),
 	Le,
@@ -631,7 +631,7 @@ impl Ir {
 	fn fixup_label(&mut self, labels: &[IrOffset]) {
 		match self {
 			&mut Ir::Jump(ref mut target) |
-			&mut Ir::JumpEq(ref mut target) |
+			&mut Ir::JumpStrictEq(ref mut target) |
 			&mut Ir::JumpFalse(ref mut target) |
 			&mut Ir::JumpTrue(ref mut target) |
 			&mut Ir::Leave(ref mut target) |
