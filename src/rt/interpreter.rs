@@ -188,6 +188,10 @@ impl JsEnv {
 					let mut found = false;
 					let mut next = false;
 					
+					// A leave from anywhere will suppress the thrown exception.
+					
+					frame.thrown = None;
+					
 					for try_catch in &block.try_catches {
 						if next {
 							// If the leave instruction falls inside this frame, we
@@ -322,6 +326,7 @@ impl JsEnv {
 						
 						if leave_ == frame.ip + 1 {
 							frame.ip = leave_;
+							leave = None;
 							continue;
 						}
 						
@@ -368,9 +373,25 @@ impl JsEnv {
 						
 						if !found {
 							frame.ip = leave_;
+							leave = None;
 						}
 					} else {
-						panic!("End finaly without pending error or leave");
+						// If we don't have a pending leave, we're leaving the finally block
+						// because an exception was thrown in this block that was suppressed
+						// by a caught exception in the finally block. In that case, we can
+						// just continue with the next statement, like:
+						//
+						// try {
+						//   throw '';
+						// } finally {
+						//   try {
+						//     throw '';
+						//   catch (e) {
+						//   }
+						// }
+						//
+						
+						frame.ip += 1;
 					}
 				}
 			}

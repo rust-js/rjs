@@ -75,7 +75,7 @@ impl<'a> Lexer<'a> {
 			
 			Ok(Span::new(0, 0, 0, 0, self.file))
 		} else {
-			panic!("end of stream");
+			self.fatal("Unexpected end of input")
 		}
 	}
 	
@@ -96,7 +96,7 @@ impl<'a> Lexer<'a> {
 			let hidden = if let Some(token) = try!(self.peek_any(0)) {
 				token.token.is_hidden()
 			} else {
-				panic!("end of stream");
+				return self.fatal("Unexpected end of input");
 			};
 			
 			try!(self.next_any());
@@ -111,12 +111,12 @@ impl<'a> Lexer<'a> {
 	
 	pub fn bump_any(&mut self) -> JsResult<()> {
 		if try!(self.is_any_eof()) {
-			panic!("end of stream");
+			self.fatal("Unexpected end of input")
+		} else {
+			try!(self.next_any());
+			
+			Ok(())
 		}
-		
-		try!(self.next_any());
-		
-		Ok(())
 	}
 	
 	pub fn next(&mut self) -> JsResult<TokenAndSpan> {
@@ -138,7 +138,7 @@ impl<'a> Lexer<'a> {
 			
 			Ok(token)
 		} else {
-			panic!("end of stream");
+			self.fatal("Unexpected end of input")
 		}
 	}
 	
