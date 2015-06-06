@@ -20,7 +20,7 @@ pub fn Number_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVal
 		let mut this = args.this.unwrap_object().as_local(&env.heap);
 		
 		this.set_class(env, Some(name::NUMBER_CLASS));
-		this.set_value(Some(arg));
+		this.set_value(arg);
 		
 		Ok(args.this)
 	}
@@ -32,7 +32,7 @@ pub fn Number_valueOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>>
 		Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 	} else {
 		let this = args.this.unwrap_object().as_local(&env.heap);
-		Ok(this.value(env).unwrap())
+		Ok(this.value(env))
 	}
 }
 
@@ -46,7 +46,7 @@ pub fn Number_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>
 			if this.class(env) != Some(name::NUMBER_CLASS) {
 				return Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 			}
-			this.unwrap_object().as_local(&env.heap).value(env).unwrap()
+			this.unwrap_object().as_local(&env.heap).value(env)
 		}
 		JsType::Number => this,
 		_ => return Err(JsError::new_type(env, ::errors::TYPE_INVALID))

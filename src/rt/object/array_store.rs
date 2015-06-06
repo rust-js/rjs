@@ -1,14 +1,16 @@
 use rt::{JsEnv, JsDescriptor, GC_ENTRY, GC_ARRAY_STORE};
+use rt::validate_walker_field;
 use rt::object::{Store, Entry, JsStoreKey};
-use rt::object::hash_store::HashStore;
+use rt::object::hash_store::{HashStore, validate_walker_for_embedded_hash_store};
 use syntax::Name;
-use gc::Array;
+use gc::{Array, Local, GcWalker, ptr_t};
 use std::cmp;
-use gc::Local;
 use syntax::token::name;
+use std::mem::{transmute, zeroed};
 
 const INITIAL_ARRAY_SIZE : usize = 8;
 
+// Modifications to this struct must be synchronized with the GC walker.
 pub struct ArrayStore {
 	count: usize,
 	capacity: usize,
@@ -146,4 +148,23 @@ impl Store for ArrayStore {
 			}
 		}
 	}
+}
+
+pub unsafe fn validate_walker_for_array_store(walker: &GcWalker) {
+	let mut object : Box<ArrayStore> = Box::new(zeroed());
+	let ptr = transmute::<_, ptr_t>(&*object);
+	
+	object.count = 1;
+	validate_walker_field(walker, GC_ARRAY_STORE, ptr, false);
+	object.count = 0;
+	
+	object.capacity = 1;
+	validate_walker_field(walker, GC_ARRAY_STORE, ptr, false);
+	object.capacity = 0;
+	
+	object.items = Array::from_ptr(transmute(1usize));
+	validate_walker_field(walker, GC_ARRAY_STORE, ptr, true);
+	object.items = Array::null();
+	
+	validate_walker_for_embedded_hash_store(walker, ptr, GC_ARRAY_STORE, &mut object.props);
 }

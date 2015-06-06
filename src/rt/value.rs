@@ -2,15 +2,16 @@ extern crate libc;
 
 use rt::{JsEnv, JsString, JsType, JsObject, JsItem, JsDescriptor, JsScope, JsPreferredType};
 use rt::{JsNull, JsUndefined, JsNumber, JsBoolean, JsIterator, GC_VALUE};
+use rt::{validate_walker_field, validate_walker_field_at};
 use ::{JsResult, JsError};
 use syntax::Name;
 use syntax::lexer::Lexer;
 use syntax::reader::StringReader;
 use syntax::token::Token;
 use syntax::token::name;
-use gc::{Local, Ptr, AsPtr, GcHeap, ptr_t};
+use gc::{Local, Ptr, AsPtr, GcHeap, ptr_t, GcWalker};
 use std::fmt;
-use std::mem::transmute;
+use std::mem::{transmute, zeroed};
 use std::f64;
 
 #[derive(Copy, Clone, PartialEq)]
@@ -541,7 +542,7 @@ impl Local<JsValue> {
 				
 				let constructor = try!(env.global().as_local(&env.heap).get(env, class));
 				let object = try!(constructor.construct(env, Vec::new()));
-				object.unwrap_object().as_local(&env.heap).set_value(Some(*self));
+				object.unwrap_object().as_local(&env.heap).set_value(*self);
 				Ok(object)
 			}
 			JsType::Object => Ok(*self),
@@ -607,4 +608,27 @@ impl JsRawValue {
 	fn set_ptr<T>(&mut self, value: Ptr<T>) {
 		self.data = value.as_ptr().ptr() as u64
 	}
+}
+
+pub unsafe fn validate_walker_for_value(walker: &GcWalker) {
+	let mut object : Box<JsValue> = Box::new(zeroed());
+	let ptr = transmute::<_, ptr_t>(&*object);
+	
+	validate_walker_for_embedded_value(walker, ptr, GC_VALUE, 0, &mut *object);
+}
+
+pub unsafe fn validate_walker_for_embedded_value(walker: &GcWalker, ptr: ptr_t, ty: u32, offset: u32, object: &mut JsValue) {
+	object.ty = JsType::Boolean;
+	validate_walker_field(walker, ty, ptr, false);
+	object.ty = JsType::Undefined;
+	
+	object.value = JsRawValue { data: 1 };
+	validate_walker_field_at(walker, ty, ptr, false, offset + 1);
+	object.value = JsRawValue { data: 0 };
+	
+	object.ty = JsType::String;
+	object.value = JsRawValue { data: 1 };
+	validate_walker_field_at(walker, ty, ptr, true, offset + 1);
+	
+	*object = JsValue::new_undefined();
 }

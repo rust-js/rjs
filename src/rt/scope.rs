@@ -1,6 +1,7 @@
 use rt::{JsEnv, JsValue, JsObject, JsItem, GC_SCOPE, GC_VALUE};
 use gc::*;
 
+// Modifications to this struct must be synchronized with the GC walker.
 pub struct JsScope {
 	items: Array<JsValue>
 }

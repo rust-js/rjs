@@ -5,6 +5,7 @@ use syntax::Name;
 
 const INITIAL_SEEN : usize = 8;
 
+// Modifications to this struct must be synchronized with the GC walker.
 pub struct JsIterator {
 	target: Ptr<JsObject>,
 	name: Option<Name>,

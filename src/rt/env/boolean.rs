@@ -20,7 +20,7 @@ pub fn Boolean_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVa
 		let mut this = args.this.unwrap_object().as_local(&env.heap);
 		
 		this.set_class(env, Some(name::BOOLEAN_CLASS));
-		this.set_value(Some(arg));
+		this.set_value(arg);
 		
 		Ok(args.this)
 	}
@@ -32,7 +32,7 @@ fn get_bool_value(env: &mut JsEnv, this: Local<JsValue>) -> JsResult<bool> {
 		JsType::Object if this.class(env) == Some(name::BOOLEAN_CLASS) => {
 			let this = this.unwrap_object().as_local(&env.heap);
 			
-			Ok(this.value(env).unwrap().unwrap_bool())
+			Ok(this.value(env).unwrap_bool())
 		}
 		_ => Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 	}

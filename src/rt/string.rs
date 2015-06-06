@@ -5,6 +5,7 @@ use gc::Ptr;
 use syntax::Name;
 use syntax::token::name;
 
+// Modifications to this struct must be synchronized with the GC walker.
 pub struct JsString {
 	// TODO: Make private.
 	pub chars: Array<u16>

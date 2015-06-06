@@ -10,6 +10,7 @@ use syntax::ast::FunctionRef;
 use syntax::parser::ParseMode;
 use ::{JsResult, JsError};
 use std::i32;
+use std::mem::transmute;
 pub use self::value::JsValue;
 pub use self::object::{JsObject, JsStoreType};
 pub use self::string::JsString;
@@ -34,17 +35,18 @@ mod undefined;
 mod null;
 mod iterator;
 mod scope;
+mod walker;
 
-const GC_OBJECT : u32 = 1;
+const GC_ARRAY_STORE : u32 = 1;
 const GC_ENTRY : u32 = 2;
-const GC_STRING : u32 = 3;
-const GC_U16 : u32 = 2;
-const GC_U32 : u32 = 4;
-const GC_VALUE : u32 = 5;
-const GC_HASH_STORE : u32 = 6;
-const GC_ARRAY_STORE : u32 = 7;
-const GC_ITERATOR : u32 = 8;
-const GC_SCOPE : u32 = 8;
+const GC_HASH_STORE : u32 = 3;
+const GC_ITERATOR : u32 = 4;
+const GC_OBJECT : u32 = 5;
+const GC_SCOPE : u32 = 6;
+const GC_STRING : u32 = 7;
+const GC_U16 : u32 = 8;
+const GC_U32 : u32 = 9;
+const GC_VALUE : u32 = 10;
 
 impl Root<JsObject> {
 	pub fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
@@ -70,7 +72,10 @@ pub struct JsEnv {
 
 impl JsEnv {
 	pub fn new() -> JsResult<JsEnv> {
-		let heap = GcHeap::new(Box::new(Walker), GcOpts::default());
+		let walker = Box::new(walker::Walker);
+		validate_walker(&*walker);
+		
+		let heap = GcHeap::new(walker, GcOpts::default());
 		
 		let global = heap.alloc_root::<JsObject>(GC_OBJECT);
 		let global_scope = heap.alloc_root::<JsScope>(GC_SCOPE);
@@ -213,14 +218,6 @@ impl JsEnv {
 		proto.define_own_property(self, name::CONSTRUCTOR, JsDescriptor::new_value(result, true, false, true), false).ok();
 		
 		result
-	}
-}
-
-struct Walker;
-
-impl GcWalker for Walker {
-	fn walk(&self, _ty: u32, _ptr: ptr_t, _index: u32) -> GcWalk {
-		panic!();
 	}
 }
 
@@ -787,7 +784,7 @@ pub enum JsType {
 impl JsType {
 	fn is_ptr(&self) -> bool {
 		match *self {
-			JsType::Object | JsType::String => true,
+			JsType::String | JsType::Object | JsType::Iterator | JsType::Scope => true,
 			_ => false
 		}
 	}
@@ -872,5 +869,40 @@ impl PartialEq for JsFunction {
 				}
 			}
 		}
+	}
+}
+
+fn validate_walker(walker: &GcWalker) {
+	unsafe {
+		object::validate_walker(walker);
+		value::validate_walker_for_value(walker);
+	}
+}
+
+unsafe fn validate_walker_field(walker: &GcWalker, ty: u32, ptr: ptr_t, expect_pointer: bool) -> u32 {
+	validate_walker_field_at(walker, ty, ptr, expect_pointer, 0)
+}
+
+unsafe fn validate_walker_field_at(walker: &GcWalker, ty: u32, ptr: ptr_t, expect_pointer: bool, index: u32) -> u32 {
+	let mut index = index;
+	let mut offset = transmute::<_, *const usize>(ptr).offset(index as isize);
+	
+	loop {
+		if *offset != 0 {
+			let is_pointer = walker.walk(ty, ptr, index) == GcWalk::Pointer;
+			
+			if expect_pointer != is_pointer {
+				if is_pointer {
+					panic!("GC walker is invalid; found pointer at {} but expected none", index);
+				} else {
+					panic!("GC walker is invalid; expected a pointer at {} but found none", index);
+				}
+			}
+			
+			return index as u32;
+		}
+		
+		index += 1;
+		offset = offset.offset(1);
 	}
 }

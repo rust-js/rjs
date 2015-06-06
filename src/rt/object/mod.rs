@@ -1,20 +1,26 @@
 use syntax::Name;
+use syntax::ast::FunctionRef;
 use syntax::token::name;
-use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString, JsArgs, GC_OBJECT};
-use gc::{Local, Ptr, AsPtr, ptr_t};
+use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString, JsArgs};
+use rt::{GC_OBJECT, GC_ENTRY};
+use rt::validate_walker_field;
+use rt::value::validate_walker_for_embedded_value;
+use gc::{Local, Ptr, AsPtr, ptr_t, GcWalker};
 use ::{JsResult, JsError};
 use self::hash_store::HashStore;
 use self::array_store::ArrayStore;
 use std::mem;
 use std::str::FromStr;
 use std::u32;
+use std::mem::{transmute, zeroed};
 
 mod hash_store;
 mod array_store;
 
+// Modifications to this struct must be synchronized with the GC walker.
 pub struct JsObject {
 	class: Option<Name>,
-	value: Option<JsValue>,
+	value: JsValue,
 	function: Option<JsFunction>,
 	prototype: Ptr<JsObject>,
 	scope: Ptr<JsScope>,
@@ -33,7 +39,7 @@ impl JsObject {
 		
 		JsObject {
 			class: None,
-			value: None,
+			value: JsValue::new_undefined(),
 			function: None,
 			prototype: Ptr::null(),
 			scope: Ptr::null(),
@@ -97,16 +103,12 @@ fn throw_type_error(env: &mut JsEnv, _: JsArgs) -> JsResult<Local<JsValue>> {
 }
 
 impl Local<JsObject> {
-	pub fn value(&self, env: &JsEnv) -> Option<Local<JsValue>> {
-		if let Some(value) = self.value {
-			Some(value.as_local(&env.heap))
-		} else {
-			None
-		}
+	pub fn value(&self, env: &JsEnv) -> Local<JsValue> {
+		self.value.as_local(&env.heap)
 	}
 	
-	pub fn set_value(&mut self, value: Option<Local<JsValue>>) {
-		self.value = value.map(|value| *value);
+	pub fn set_value(&mut self, value: Local<JsValue>) {
+		self.value = *value;
 	}
 	
 	pub fn extensible(&self) -> bool {
@@ -636,6 +638,7 @@ const CONFIGURABLE : u32 = 0b01000;
 const ACCESSOR     : u32 = 0b10000;
 
 #[derive(Copy, Clone)]
+// Modifications to this struct must be synchronized with the GC walker.
 pub struct Entry {
 	name: Name,
 	flags: u32,
@@ -730,4 +733,79 @@ impl Entry {
 			value2: value2
 		}
 	}
+}
+
+pub unsafe fn validate_walker(walker: &GcWalker) {
+	validate_walker_for_object(walker);
+	validate_walker_for_entry(walker);
+	array_store::validate_walker_for_array_store(walker);
+	hash_store::validate_walker_for_hash_store(walker);
+}
+
+unsafe fn validate_walker_for_object(walker: &GcWalker) {
+	let mut object : Box<JsObject> = Box::new(zeroed());
+	let ptr = transmute::<_, ptr_t>(&*object);
+	
+	object.class = Some(Name::from_index(1));
+	validate_walker_field(walker, GC_OBJECT, ptr, false);
+	object.class = None;
+	
+	object.value = JsValue::new_true();
+	let value_offset = validate_walker_field(walker, GC_OBJECT, ptr, false);
+	object.value = JsValue::new_undefined();
+	
+	validate_walker_for_embedded_value(walker, ptr, GC_OBJECT, value_offset, &mut object.value);
+	
+	object.function = Some(JsFunction::Ir(FunctionRef(1)));
+	validate_walker_field(walker, GC_OBJECT, ptr, false);
+	object.function = None;
+	
+	object.prototype = Ptr::from_ptr(transmute(1usize));
+	validate_walker_field(walker, GC_OBJECT, ptr, true);
+	object.prototype = Ptr::null();
+	
+	object.scope = Ptr::from_ptr(transmute(1usize));
+	validate_walker_field(walker, GC_OBJECT, ptr, true);
+	object.scope = Ptr::null();
+	
+	object.store = StorePtr { ty: JsStoreType::Hash, ptr: 0 };
+	validate_walker_field(walker, GC_OBJECT, ptr, false);
+	object.store = transmute(zeroed::<StorePtr>());
+	
+	object.store.ptr = 1;
+	validate_walker_field(walker, GC_OBJECT, ptr, true);
+	object.store = transmute(zeroed::<StorePtr>());
+	
+	object.extensible = true;
+	validate_walker_field(walker, GC_OBJECT, ptr, false);
+	object.extensible = false;
+}
+
+unsafe fn validate_walker_for_entry(walker: &GcWalker) {
+	let mut object : Box<Entry> = Box::new(zeroed());
+	let ptr = transmute::<_, ptr_t>(&*object);
+	
+	object.name = Name::from_index(1);
+	validate_walker_field(walker, GC_ENTRY, ptr, false);
+	object.name = Name::from_index(0);
+	
+	object.flags = 1;
+	validate_walker_field(walker, GC_ENTRY, ptr, false);
+	object.flags = 0;
+	
+	object.next = 1;
+	validate_walker_field(walker, GC_ENTRY, ptr, false);
+	object.next = 0;
+	
+	object.value1 = JsValue::new_true();
+	let value_offset = validate_walker_field(walker, GC_ENTRY, ptr, false);
+	object.value1 = JsValue::new_undefined();
+	
+	validate_walker_for_embedded_value(walker, ptr, GC_ENTRY, value_offset, &mut object.value1);
+	
+	object.value2 = JsValue::new_true();
+	let value_offset = validate_walker_field(walker, GC_ENTRY, ptr, false);
+	object.value2 = JsValue::new_undefined();
+	
+	validate_walker_for_embedded_value(walker, ptr, GC_ENTRY, value_offset, &mut object.value2);
 }

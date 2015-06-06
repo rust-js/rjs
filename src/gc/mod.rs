@@ -24,16 +24,6 @@ pub mod handles;
 #[allow(non_camel_case_types)] 
 pub type ptr_t = *const u8;
 
-#[macro_export]
-macro_rules! field_offset {
-	( $ty:ty, $ident:ident ) => {
-		unsafe {
-			use std::ptr;
-			((&(& *(ptr::null::<$ty>() as *const $ty)).$ident) as *const _) as usize
-		}
-	}
-}
-
 pub struct LocalScope {
 	heap: *const GcHeap,
 	index: usize
@@ -430,7 +420,7 @@ pub trait GcWalker {
 	fn walk(&self, ty: u32, ptr: ptr_t, index: u32) -> GcWalk;
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum GcWalk {
 	Pointer,
 	Skip,

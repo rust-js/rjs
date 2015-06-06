@@ -1,10 +1,13 @@
 const INITIAL_OBJECT : usize = 20;
 
 use rt::{JsEnv, JsDescriptor, GC_HASH_STORE, GC_ENTRY};
+use rt::validate_walker_field;
 use rt::object::{Store, Entry, JsStoreKey};
 use syntax::Name;
-use gc::{Local, Array};
+use gc::{Local, Array, GcWalker, ptr_t};
+use std::mem::{transmute, zeroed};
 
+// Modifications to this struct must be synchronized with the GC walker.
 pub struct HashStore {
 	entries: Array<Entry>,
 	count: u32
@@ -311,6 +314,23 @@ mod primes {
     	
     	minimum
     }
+}
+
+pub unsafe fn validate_walker_for_hash_store(walker: &GcWalker) {
+	let mut object : Box<HashStore> = Box::new(zeroed());
+	let ptr = transmute::<_, ptr_t>(&*object);
+	
+	validate_walker_for_embedded_hash_store(walker, ptr, GC_HASH_STORE, &mut *object);
+}
+
+pub unsafe fn validate_walker_for_embedded_hash_store(walker: &GcWalker, ptr: ptr_t, ty: u32, object: &mut HashStore) {
+	object.entries = Array::from_ptr(transmute(1usize));
+	validate_walker_field(walker, ty, ptr, true);
+	object.entries = Array::null();
+	
+	object.count = 1;
+	validate_walker_field(walker, ty, ptr, false);
+	object.count = 0;
 }
 
 /*

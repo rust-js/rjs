@@ -20,9 +20,21 @@ fn test() {
 	debug::reset();
 	
 	let result = env.eval(r#"
+var list = [];
+
+for (var i = 0; i < 100000; i++) {
+	list.push({
+		a: 1,
+		b: 2,
+		c: 3,
+		x: 'abc',
+		y: 'def',
+		z: 'ghi'
+	});
+}
 	"#);
 	
-	print!("{}", debug::reset());
+	// print!("{}", debug::reset());
 	
 	if let Err(error) = result {
 		let _scope = env.heap().new_local_scope();
@@ -41,8 +53,8 @@ fn test() {
 }
 
 fn main() {
-//	test();
-//	return;
+	test();
+	return;
 
 	let mut runner = Runner::new();
 	
