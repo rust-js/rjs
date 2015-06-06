@@ -1501,7 +1501,7 @@ impl<'a> IrGenerator<'a> {
 						if let Some(ident) = self.unwrap_ident(expr) {
 							match ident.state.get() {
 								IdentState::Scoped | IdentState::Global(..) => {
-									self.ir.emit(Ir::LoadEnvObjectFor(ident.name));
+									self.ir.emit(Ir::FindEnvObjectFor(ident.name));
 									self.ir.emit(Ir::DeleteEnvName(ident.name));
 								}
 								IdentState::Arg(_, index) | IdentState::LiftedArg(_, index) | IdentState::ScopedArg(_, index) => {
@@ -1540,7 +1540,7 @@ impl<'a> IrGenerator<'a> {
 						let matched = if let Some(ident) = self.unwrap_ident(expr) {
 							match ident.state.get() {
 								IdentState::Scoped | IdentState::Global(..) => {
-									self.ir.emit(Ir::LoadEnvObjectFor(ident.name));
+									self.ir.emit(Ir::FindEnvObjectFor(ident.name));
 									self.ir.emit(Ir::TypeofName(ident.name));
 									true
 								}

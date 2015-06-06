@@ -164,5 +164,17 @@
   "language/statements/return/S12.9_A4.js": "Math has not yet been implemented.",
   "language/statements/while/S12.6.2_A8.js": "String has not yet been implemented.",
   "language/types/number/8.5.1.js": "Floating point parsing in Rust is inaccurate and we're not going to build a floating point parser for this project. See #24557.",
-  "language/types/number/S8.5_A13_T2.js": "Floating point parsing in Rust is inaccurate and we're not going to build a floating point parser for this project. See #24557."
+  "language/types/number/S8.5_A13_T2.js": "Floating point parsing in Rust is inaccurate and we're not going to build a floating point parser for this project. See #24557.",
+  "language/expressions/assignment/S11.13.1_A5_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+  "language/expressions/compound-assignment/S11.13.2_A5.1_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+  "language/expressions/compound-assignment/S11.13.2_A5.2_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+  "language/expressions/compound-assignment/S11.13.2_A5.3_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+  "language/expressions/compound-assignment/S11.13.2_A5.4_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+  "language/expressions/compound-assignment/S11.13.2_A5.5_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+  "language/expressions/compound-assignment/S11.13.2_A5.6_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+  "language/expressions/compound-assignment/S11.13.2_A5.7_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+  "language/expressions/compound-assignment/S11.13.2_A5.8_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+  "language/expressions/compound-assignment/S11.13.2_A5.9_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+  "language/expressions/compound-assignment/S11.13.2_A5.10_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+  "language/expressions/compound-assignment/S11.13.2_A5.11_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover."
 }

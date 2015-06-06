@@ -736,7 +736,7 @@ impl<'a> Lexer<'a> {
 				
 				let illegal = match c {
 					'-' | '!' | '%' | '&' | '(' | ')' | '*' | ',' | '.' | '/' | ':' | ';' | '?' | '[' | ']' | '^' | '{' | '|' | '}' | '~' | '+' | '<' | '=' | '>' => true,
-					c @ _ => is_line_terminator(c)
+					c @ _ => is_line_terminator(c) || is_whitespace(c)
 				};
 
 				if illegal {

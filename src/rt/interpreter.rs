@@ -756,18 +756,23 @@ impl<'a> Frame<'a> {
 			Ir::LoadEnv(name) => {
 				let _scope = self.env.heap.new_local_scope();
 				
-				let scope_object = self.find_scope_object(name);
-				if !scope_object.has_property(self.env, name) {
-					return Next::Throw(JsError::new_reference(self.env));
-				}
+				let scope_object = local_try!(self.find_scope_object(name, true));
 				
 				let value = local_try!(scope_object.get(self.env, name));
 				self.env.stack.push(*value);
 			}
+			Ir::FindEnvObjectFor(name) => {
+				let _scope = self.env.heap.new_local_scope();
+				
+				let scope_object = local_try!(self.find_scope_object(name, false));
+				
+				self.env.stack.push(*scope_object);
+			}
 			Ir::LoadEnvObjectFor(name) => {
 				let _scope = self.env.heap.new_local_scope();
 				
-				let scope_object = self.find_scope_object(name);
+				let strict = self.strict;
+				let scope_object = local_try!(self.find_scope_object(name, strict));
 				
 				self.env.stack.push(*scope_object);
 			}
@@ -967,7 +972,7 @@ impl<'a> Frame<'a> {
 				
 				let frame = self.env.stack.create_frame(1);
 				let value = frame.get(0).as_local(&self.env.heap);
-				let mut scope_object = self.find_scope_object(name);
+				let mut scope_object = local_try!(self.find_scope_object(name, false));
 				
 				local_try!(scope_object.put(self.env, name, value, self.strict));
 				
@@ -990,6 +995,10 @@ impl<'a> Frame<'a> {
 				let frame = self.env.stack.create_frame(1);
 				let value = frame.get(0).as_local(&self.env.heap);
 				let mut global = self.env.global.as_value(self.env);
+				
+				if self.strict && !global.has_property(self.env, name) {
+					return Next::Throw(JsError::new_reference(self.env));
+				}
 				
 				local_try!(global.put(self.env, name, value, self.strict));
 				
@@ -1196,13 +1205,13 @@ impl<'a> Frame<'a> {
 		scope
 	}
 	
-	fn find_scope_object(&self, name: Name) -> Local<JsValue> {
+	fn find_scope_object(&mut self, name: Name, must_exist: bool) -> JsResult<Local<JsValue>> {
 		if let Some(mut scope) = self.get_scope() {
 			loop {
 				let object = scope.scope_object(self.env);
 				
 				if object.get_own_property(self.env, name).is_some() {
-					return object.as_value(self.env);
+					return Ok(object.as_value(self.env));
 				}
 				
 				if let Some(parent) = scope.parent(self.env) {
@@ -1213,7 +1222,11 @@ impl<'a> Frame<'a> {
 			}
 		}
 		
-		self.env.global.as_value(self.env)
+		if must_exist {
+			Err(JsError::new_reference(self.env))
+		} else {
+			Ok(self.env.global.as_value(self.env))
+		}
 	}
 	
 	fn is_any_scope_object(&self, target: Local<JsValue>) -> bool {

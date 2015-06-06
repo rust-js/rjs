@@ -120,6 +120,10 @@ impl Block {
 				Ir::EnterEnv => string.push_str("env.enter"),
 				Ir::EnterWithEnv => string.push_str("env.enter.with"),
 				Ir::Eq => string.push_str("eq"),
+				Ir::FindEnvObjectFor(name) => {
+					string.push_str("find.env.obj.for ");
+					self.print_name(string, name, interner);
+				}
 				Ir::Ge => string.push_str("ge"),
 				Ir::Gt => string.push_str("gt"),
 				Ir::In => string.push_str("in"),
@@ -540,6 +544,7 @@ pub enum Ir {
 	EnterEnv,
 	EnterWithEnv,
 	Eq,
+	FindEnvObjectFor(Name),
 	Ge,
 	Gt,
 	In,
