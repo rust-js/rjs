@@ -60,12 +60,8 @@ pub enum ParseMode {
 }
 
 impl<'a> Parser<'a> {
-	fn at_global_scope(&self) -> bool {
+	fn at_global(&self) -> bool {
 		self.scopes.len() == 1
-	}
-	
-	fn at_global_block(&self) -> bool {
-		self.at_global_scope() && self.scopes[0].blocks.len() == 1
 	}
 	
 	fn push_scope(&mut self, has_arguments_param: bool) {
@@ -97,13 +93,15 @@ impl<'a> Parser<'a> {
 		self.top_scope().blocks.pop().unwrap()
 	}
 	
-	fn register_local(&mut self, name: Name, arguments: bool, throwarg: bool, global: bool) {
+	fn register_local(&mut self, name: Name, arguments: bool, throwarg: bool) {
 		// TODO: Validate performance. We expect that most locals set will be relatively small.
 		// Changing this into a HashSet will very likely not make sense. However, this will
 		// give issues in functions/scopes with many globals (probably more than 20 or 30).
 		// An alternative is to leave duplicates in here and let the IR builder take care
 		// of deduplicating then. It's already pushing the locals into a HashMap so that isn't
 		// a problem.
+		
+		let global = !throwarg && self.at_global();
 				
 		let scope = self.top_scope();
 		
@@ -534,8 +532,7 @@ impl<'a> Parser<'a> {
 		};
 		
 		if register {
-			let global = self.at_global_block();
-			self.register_local(name, arguments, false, global);
+			self.register_local(name, arguments, false);
 		}
 		
 		Ok(Ident {
@@ -646,8 +643,7 @@ impl<'a> Parser<'a> {
 				let function_ref = try!(self.parse_function());
 				let name = self.context.functions[function_ref.usize()].name.unwrap();
 				
-				let global = self.at_global_block();
-				self.register_local(name, false, false, global);
+				self.register_local(name, false, false);
 				
 				let ident = Ident {
 					name: name,
@@ -722,8 +718,7 @@ impl<'a> Parser<'a> {
 		while !try!(self.is_eof()) {
 			let ident = try!(self.parse_ident());
 			
-			let global = self.at_global_block();
-			self.register_local(ident.name, ident.arguments, false, global);
+			self.register_local(ident.name, ident.arguments, false);
 			
 			let expr = if try!(self.consume(Token::Assign)) {
 				Some(Box::new(try!(self.parse_expr())))
@@ -1419,7 +1414,7 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_return(&mut self) -> JsResult<Item> {
-		if self.at_global_scope() {
+		if self.at_global() {
 			self.fatal("Illegal return statement")
 		} else {
 			try!(self.bump());
@@ -1530,7 +1525,7 @@ impl<'a> Parser<'a> {
 			
 			let ident = try!(self.parse_ident());
 			
-			self.register_local(ident.name, false, true, false);
+			self.register_local(ident.name, false, true);
 			
 			try!(self.expect(Token::CloseParen));
 			

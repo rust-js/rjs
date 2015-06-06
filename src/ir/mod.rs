@@ -93,7 +93,7 @@ impl IrContext {
 		let program_ref = {
 			let mut lexer = try!(Lexer::new(reader, &self.interner));
 			
-			if strict {
+			if strict && mode != ParseMode::Eval {
 				lexer.set_strict(true);
 			}
 			
@@ -1488,7 +1488,7 @@ impl<'a> IrGenerator<'a> {
 	fn emit_expr_unary(&mut self, op: Op, expr: &'a Expr, leave: bool) -> JsResult<()> {
 		match op {
 			Op::Delete => {
-				match *expr {
+				match *self.unwrap_paren(expr) {
 					Expr::MemberDot(ref expr, name) => {
 						try!(self.emit_expr(expr, true));
 						self.ir.emit(Ir::DeleteName(name))
@@ -1527,7 +1527,7 @@ impl<'a> IrGenerator<'a> {
 				return Ok(());
 			}
 			Op::Typeof => {
-				match *expr {
+				match *self.unwrap_paren(expr) {
 					Expr::MemberDot(ref expr, name) => {
 						try!(self.emit_expr(expr, true));
 						self.ir.emit(Ir::TypeofName(name))
