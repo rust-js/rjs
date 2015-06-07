@@ -1,9 +1,9 @@
 use rt::{JsEnv, JsDescriptor, GC_ENTRY, GC_ARRAY_STORE};
 use rt::validate_walker_field;
 use rt::object::{Store, Entry, JsStoreKey};
-use rt::object::hash_store::{HashStore, validate_walker_for_embedded_hash_store};
+use rt::object::hash_store::HashStore;
 use syntax::Name;
-use gc::{Array, Local, GcWalker, ptr_t};
+use gc::{Array, Local, GcWalker, GcHeap, AsPtr, Ptr, ptr_t};
 use std::cmp;
 use syntax::token::name;
 use std::mem::{transmute, zeroed};
@@ -15,23 +15,28 @@ pub struct ArrayStore {
 	count: usize,
 	capacity: usize,
 	items: Array<Entry>,
-	props: HashStore
+	props: Ptr<HashStore>
 }
 
 impl ArrayStore {
 	pub fn new_local(env: &JsEnv) -> Local<ArrayStore> {
 		let mut store = env.heap.alloc_local::<ArrayStore>(GC_ARRAY_STORE);
-		*store = Self::new(env);
-		store
-	}
-	
-	pub fn new(env: &JsEnv) -> ArrayStore {
-		ArrayStore {
+		let props = HashStore::new_local(env);
+
+		*store = ArrayStore {
 			items: Array::null(),
-			props: HashStore::new(env),
+			props: props.as_ptr(),
 			count: 0,
 			capacity: 0
-		}
+		};
+		
+		store
+	}
+}
+
+impl Local<ArrayStore> {
+	fn props(&self, heap: &GcHeap) -> Local<HashStore> {
+		self.props.as_local(heap)
 	}
 	
 	fn grow_entries(&mut self, env: &JsEnv, count: usize) {
@@ -62,7 +67,7 @@ impl ArrayStore {
 	}
 }
 
-impl Store for ArrayStore {
+impl Store for Local<ArrayStore> {
 	fn add(&mut self, env: &JsEnv, name: Name, value: &JsDescriptor) {
 		if let Some(index) = name.index() {
 			if self.capacity < index + 1 {
@@ -81,7 +86,7 @@ impl Store for ArrayStore {
 				self.set_length(env, length);
 			}
 			
-			self.props.add(env, name, value);
+			self.props(&env.heap).add(env, name, value);
 		}
 	}
 	
@@ -94,7 +99,7 @@ impl Store for ArrayStore {
 				false
 			}
 		} else {
-			self.props.remove(env, name)
+			self.props(&env.heap).remove(env, name)
 		}
 	}
 	
@@ -109,7 +114,7 @@ impl Store for ArrayStore {
 			
 			None
 		} else {
-			self.props.get_value(env, name)
+			self.props(&env.heap).get_value(env, name)
 		}
 	}
 	
@@ -132,7 +137,7 @@ impl Store for ArrayStore {
 				self.set_length(env, length);
 			}
 			
-			self.props.replace(env, name, value)
+			self.props(&env.heap).replace(env, name, value)
 		}
 	}
 	
@@ -166,5 +171,7 @@ pub unsafe fn validate_walker_for_array_store(walker: &GcWalker) {
 	validate_walker_field(walker, GC_ARRAY_STORE, ptr, true);
 	object.items = Array::null();
 	
-	validate_walker_for_embedded_hash_store(walker, ptr, GC_ARRAY_STORE, &mut object.props);
+	object.props = Ptr::from_ptr(transmute(1usize));
+	validate_walker_field(walker, GC_ARRAY_STORE, ptr, true);
+	object.props = Ptr::null();
 }

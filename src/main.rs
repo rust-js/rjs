@@ -53,8 +53,8 @@ for (var i = 0; i < 100000; i++) {
 }
 
 fn main() {
-	test();
-	return;
+//	test();
+//	return;
 
 	let mut runner = Runner::new();
 	

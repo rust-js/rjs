@@ -9,7 +9,7 @@ pub fn Math_pow(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	
 	let result = x.powf(y);
 	
-	Ok(JsValue::new_number(result).as_local(&env.heap))
+	Ok(JsValue::new_number(&env.heap, result))
 }
 
 // 15.8.2.9 floor (x)
@@ -18,5 +18,5 @@ pub fn Math_floor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	
 	let result = arg.floor();
 	
-	Ok(JsValue::new_number(result).as_local(&env.heap))
+	Ok(JsValue::new_number(&env.heap, result))
 }

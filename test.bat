@@ -1,2 +1,7 @@
 @echo off
-cls & cargo build & gdb --quiet target\debug\rjs.exe < gdbscript.txt
+if "%1" == "--release" (
+  set TARGET=release
+) else (
+  set TARGET=debug
+)
+cls & cargo build %* & gdb --quiet target\%TARGET%\rjs.exe < gdbscript.txt

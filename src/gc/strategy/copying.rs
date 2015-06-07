@@ -3,7 +3,7 @@ extern crate time;
 
 use gc::strategy::Strategy;
 use gc::os::Memory;
-use gc::{RootWalker, GcOpts, GcMemHeader, GcWalker, GcWalk, ptr_t};
+use gc::{GcRootWalker, GcOpts, GcMemHeader, GcWalker, GcWalk, ptr_t};
 use std::ptr;
 use std::mem::{size_of, transmute, swap};
 
@@ -84,7 +84,7 @@ impl Copying {
 		}
 	}
 	
-	unsafe fn copy(&mut self, mut walkers: Vec<Box<RootWalker>>, walker: &GcWalker) {
+	unsafe fn copy(&mut self, mut walkers: Vec<Box<GcRootWalker>>, walker: &GcWalker) {
 		let allocated = self.from.offset;
 		
 		// Calculate the new size of the heap. We use the fill factor of the previous
@@ -142,7 +142,9 @@ impl Copying {
 					break;
 				}
 				
+				let from = *ptr;
 				*ptr = forwarder.forward(*ptr);
+				tracegc!("forwarded {:?} to {:?}", from, *ptr);
 			}
 		}
 		
@@ -162,8 +164,12 @@ impl Copying {
 
 				let mut child = ptr.offset(size_of::<usize>() as isize);
 				let end = child.offset((count * size) as isize);
-
+				
+				let mut index = 0;
+				
 				while child < end {
+					tracegc!("processing index {}", index);
+					index += 1;
 					process_block(child, ty, ptrs, &mut forwarder, walker);
 					
 					child = child.offset(size as isize);
@@ -201,11 +207,11 @@ impl Forwarder {
 			
 			*(self.target as *mut Header) = Header::new(header.size);
 			
-			ptr::copy(
-				Header::offset_from_user(ptr).offset(size_of::<Header>() as isize),
-				transmute(self.target.offset(size_of::<Header>() as isize)),
-				header.size - size_of::<Header>()
-			);
+			let from = Header::offset_from_user(ptr).offset(size_of::<Header>() as isize);
+			let to = transmute(self.target.offset(size_of::<Header>() as isize));
+			let size = header.size - size_of::<Header>();
+			
+			ptr::copy(from, to, size);
 			
 			self.target = self.target.offset(header.size as isize);
 		}
@@ -222,7 +228,7 @@ unsafe fn process_block(ptr: ptr_t, ty: u32, ptrs: usize, forwarder: &mut Forwar
 			GcWalk::Pointer => {
 				let offset = (ptr as *mut ptr_t).offset(i as isize);
 				let child = *offset;
-				
+				tracegc!("forwarding {:?} of type {:?} at {:?} index {}", child, ty, ptr, i);
 				if !child.is_null() {
 					*offset = forwarder.forward(child);
 				}
@@ -255,8 +261,10 @@ impl Strategy for Copying {
 		self.from.offset
 	}
 	
-	fn gc(&mut self, walkers: Vec<Box<RootWalker>>, walker: &GcWalker) {
+	fn gc(&mut self, walkers: Vec<Box<GcRootWalker>>, walker: &GcWalker) {
 		let start = time::precise_time_ns();
+		
+		tracegc!("=== GC === start");
 		
 		unsafe {
 			self.copy(walkers, walker);

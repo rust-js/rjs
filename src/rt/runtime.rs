@@ -45,11 +45,11 @@ impl JsEnv {
 			let rhs = try!(rprim.to_string(self));
 			let result = JsString::concat(self, lhs, rhs);
 			
-			Ok(JsValue::new_string(result.as_ptr()).as_local(&self.heap))
+			Ok(JsValue::new_string(&self.heap, result))
 		} else {
-			Ok(JsValue::new_number(
-				try!(lprim.to_number(self)) + try!(rprim.to_number(self))
-			).as_local(&self.heap))
+			let lnum = try!(lprim.to_number(self));
+			let rnum = try!(rprim.to_number(self));
+			Ok(JsValue::new_number(&self.heap, lnum + rnum))
 		}
 	}
 	
@@ -85,7 +85,7 @@ impl JsEnv {
 			return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
 		};
 		
-		let function = args.function.unwrap_object().as_local(&self.heap).function();
+		let function = args.function.unwrap_object(&self.heap).function();
 		if !function.is_some() {
 			return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
 		}
@@ -119,7 +119,8 @@ impl JsEnv {
 				let scope = args.function.scope(self)
 					.unwrap_or_else(|| self.global_scope.as_local(&self.heap));
 				
-				let result = try!(self.call_block(block, args, &function, scope)).as_local(&self.heap);
+				let mut result = JsValue::new_local(&self.heap);
+				*result = try!(self.call_block(block, args, &function, scope));
 				
 				debugln!("EXIT {}", location);
 				
@@ -170,7 +171,7 @@ impl JsEnv {
 			JsType::Boolean => "boolean",
 			JsType::Number => "number",
 			JsType::String => "string",
-			JsType::Object => if value.unwrap_object().as_local(&self.heap).function().is_some() { "function" } else { "object" },
+			JsType::Object => if value.unwrap_object(&self.heap).function().is_some() { "function" } else { "object" },
 			_ => panic!("unexpected type")
 		})
 	}
@@ -219,8 +220,11 @@ impl JsEnv {
 		assert_eq!(x.ty(), JsType::String);
 		assert_eq!(y.ty(), JsType::String);
 		
-		let x = x.unwrap_string().chars;
-		let y = y.unwrap_string().chars;
+		let x = x.unwrap_string(&self.heap);
+		let y = y.unwrap_string(&self.heap);
+		
+		let x = x.chars;
+		let y = y.chars;
 		
 		let x_len = x.len();
 		let y_len = y.len();
@@ -308,13 +312,13 @@ impl JsEnv {
 	// 11.8.6 The instanceof operator
 	pub fn instanceof(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<Local<JsValue>> {
 		let result = try!(rval.has_instance(self, lval));
-		Ok(JsValue::new_bool(result).as_local(&self.heap))
+		Ok(JsValue::new_bool(&self.heap, result))
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.4.9
 	pub fn logical_not(&mut self, value: Local<JsValue>) -> Local<JsValue> {
 		let value = value.to_boolean();
-		JsValue::new_bool(!value).as_local(&self.heap)
+		JsValue::new_bool(&self.heap, !value)
 	}
 	
 	// 11.9.1 The Equals Operator ( == )
@@ -332,19 +336,19 @@ impl JsEnv {
 			Ok(true)
 		} else if lty == JsType::Number && rty == JsType::String {
 			let rval = try!(rval.to_number(self));
-			let rval = JsValue::new_number(rval).as_local(&self.heap);
+			let rval = JsValue::new_number(&self.heap, rval);
 			self.eq(lval, rval)
 		} else if lty == JsType::String && rty == JsType::Number {
 			let lval = try!(lval.to_number(self));
-			let lval = JsValue::new_number(lval).as_local(&self.heap);
+			let lval = JsValue::new_number(&self.heap, lval);
 			self.eq(lval, rval)
 		} else if lty == JsType::Boolean {
 			let lval = try!(lval.to_number(self));
-			let lval = JsValue::new_number(lval).as_local(&self.heap);
+			let lval = JsValue::new_number(&self.heap, lval);
 			self.eq(lval, rval)
 		} else if rty == JsType::Boolean {
 			let rval = try!(rval.to_number(self));
-			let rval = JsValue::new_number(rval).as_local(&self.heap);
+			let rval = JsValue::new_number(&self.heap, rval);
 			self.eq(lval, rval)
 		} else if (lty == JsType::String || lty == JsType::Number) && rty == JsType::Object {
 			let rval = try!(rval.to_primitive(self, JsPreferredType::None));
@@ -383,8 +387,11 @@ impl JsEnv {
 					}
 				}
 				JsType::String => {
-					let x = &*lval.unwrap_string().chars;
-					let y = &*rval.unwrap_string().chars;
+					let lval = lval.unwrap_string(&self.heap);
+					let rval = rval.unwrap_string(&self.heap);
+					
+					let x = &*lval.chars;
+					let y = &*rval.chars;
 					
 					if x.len() != y.len() {
 						false
@@ -397,8 +404,7 @@ impl JsEnv {
 						true
 					}
 				}
-				JsType::Boolean => lval.unwrap_bool() == rval.unwrap_bool(),
-				JsType::Object => lval.unwrap_object() == rval.unwrap_object(),
+				JsType::Boolean | JsType::Object => lval == rval,
 				_ => panic!("unexpected type")
 			}
 		}
@@ -424,7 +430,7 @@ impl JsEnv {
 		// We don't propagate the JsError because this define_own_property
 		// will not fail.
 		
-		let length = JsValue::new_number(0f64).as_local(&self.heap);
+		let length = JsValue::new_number(&self.heap, 0f64);
 		obj.define_own_property(
 			self,
 			name::LENGTH,
@@ -467,9 +473,8 @@ impl JsEnv {
 						false
 					}
 				}
-				JsType::String => JsString::equals(x.unwrap_string(), y.unwrap_string()),
-				JsType::Boolean => x.unwrap_bool() == y.unwrap_bool(),
-				JsType::Object => x.unwrap_object() == y.unwrap_object(),
+				JsType::String => JsString::equals(x.unwrap_string(&self.heap), y.unwrap_string(&self.heap)),
+				JsType::Boolean | JsType::Object => x == y,
 				_ => panic!("unexpected type")
 			}
 		}
@@ -482,7 +487,7 @@ impl JsEnv {
 		
 		result.set_class(self, Some(name::ARGUMENTS_CLASS));
 		
-		let value = JsValue::new_number(args.args.len() as f64).as_local(&self.heap);
+		let value = JsValue::new_number(&self.heap, args.args.len() as f64);
 		try!(result.define_own_property(self, name::LENGTH, JsDescriptor::new_value(value, true, false, true), false));
 		
 		for i in 0..args.args.len() {
@@ -512,7 +517,7 @@ impl JsEnv {
 			
 			let result = rhs.has_property(self, name);
 			
-			Ok(JsValue::new_bool(result).as_local(&self.heap))
+			Ok(JsValue::new_bool(&self.heap, result))
 		}
 	}
 	

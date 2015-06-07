@@ -16,17 +16,17 @@ pub struct HashStore {
 impl HashStore {
 	pub fn new_local(env: &JsEnv) -> Local<HashStore> {
 		let mut store = env.heap.alloc_local::<HashStore>(GC_HASH_STORE);
-		*store = Self::new(env);
-		store
-	}
-	
-	pub fn new(env: &JsEnv) -> HashStore {
-		HashStore {
+		
+		*store = HashStore {
 			entries: unsafe { env.heap.alloc_array::<Entry>(GC_ENTRY, primes::get_prime(INITIAL_OBJECT)) },
 			count: 0
-		}
+		};
+		
+		store
 	}
-	
+}
+
+impl Local<HashStore> {
 	fn find_entry(&self, name: Name) -> Option<usize> {
 		let mut offset = self.hash(name) as usize;
 		
@@ -93,7 +93,7 @@ impl HashStore {
 	}
 }
 
-impl Store for HashStore {
+impl Store for Local<HashStore> {
 	fn add(&mut self, env: &JsEnv, name: Name, value: &JsDescriptor) {
 		assert!(!self.find_entry(name).is_some());
 		
@@ -320,16 +320,12 @@ pub unsafe fn validate_walker_for_hash_store(walker: &GcWalker) {
 	let mut object : Box<HashStore> = Box::new(zeroed());
 	let ptr = transmute::<_, ptr_t>(&*object);
 	
-	validate_walker_for_embedded_hash_store(walker, ptr, GC_HASH_STORE, &mut *object);
-}
-
-pub unsafe fn validate_walker_for_embedded_hash_store(walker: &GcWalker, ptr: ptr_t, ty: u32, object: &mut HashStore) {
 	object.entries = Array::from_ptr(transmute(1usize));
-	validate_walker_field(walker, ty, ptr, true);
+	validate_walker_field(walker, GC_HASH_STORE, ptr, true);
 	object.entries = Array::null();
 	
 	object.count = 1;
-	validate_walker_field(walker, ty, ptr, false);
+	validate_walker_field(walker, GC_HASH_STORE, ptr, false);
 	object.count = 0;
 }
 

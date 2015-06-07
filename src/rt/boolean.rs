@@ -15,7 +15,7 @@ impl JsBoolean {
 
 impl JsItem for JsBoolean {
 	fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-		JsValue::new_bool(self.value).as_local(&env.heap)
+		JsValue::new_bool(&env.heap, self.value)
 	}
 	
 	fn has_prototype(&self, _: &JsEnv) -> bool {

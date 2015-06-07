@@ -11,7 +11,7 @@ use syntax::token::name;
 
 pub fn Function_baseConstructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	// Nothing to do. The default result already is undefined.
-	Ok(JsValue::new_undefined().as_local(&env.heap))
+	Ok(JsValue::new_undefined(&env.heap))
 }
 
 pub fn Function_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
@@ -96,7 +96,7 @@ pub fn Function_apply(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>>
 // TODO: This can be greatly improved, e.g. by retaining/getting the real code.
 pub fn Function_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	if args.this.ty() == JsType::Object {
-		if let Some(ref function) = args.this.unwrap_object().as_local(&env.heap).function() {
+		if let Some(ref function) = args.this.unwrap_object(&env.heap).function() {
 			fn get_function_details(env: &mut JsEnv, this: Local<JsValue>, function: &JsFunction) -> JsResult<(Option<Name>, Option<u32>)> {
 				match *function {
 					JsFunction::Ir(function_ref) => {
@@ -109,7 +109,7 @@ pub fn Function_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 					JsFunction::Bound => {
 						let scope = this.scope(env).unwrap();
 						let target = scope.get(env, 0);
-						if let Some(ref function) = target.unwrap_object().as_local(&env.heap).function() {
+						if let Some(ref function) = target.unwrap_object(&env.heap).function() {
 							get_function_details(env, target, function)
 						} else {
 							Err(JsError::new_type(env, ::errors::TYPE_INVALID))
@@ -188,7 +188,7 @@ pub fn Function_bind(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 			0
 		};
 		
-		let length = JsValue::new_number(length as f64).as_local(&env.heap);
+		let length = JsValue::new_number(&env.heap, length as f64);
 		result.define_own_property(env, name::LENGTH, JsDescriptor::new_value(length, false, false, true), false).ok();
 		
 		result.set_scope(env, Some(scope));

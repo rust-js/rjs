@@ -31,6 +31,7 @@ pub struct LocalScope {
 
 impl Drop for LocalScope {
 	fn drop(&mut self) {
+		tracegc!("dropping scope {}", self.index);
 		unsafe { &*self.heap }.drop_current_scope(self.index);
 	}
 }
@@ -49,6 +50,7 @@ impl LocalScopeData {
 	}
 	
 	fn add(&mut self, ptr: ptr_t) -> *const ptr_t {
+		unsafe { assert!(*transmute::<_, *const usize>(ptr) != 0x30252d0); }
 		if self.current.len() == self.current.capacity() {
 			self.grow();
 		}
@@ -137,7 +139,7 @@ impl RootHandles {
 		let data = &*self.data.borrow();
 		
 		if data.ptrs.len() <= handle as usize {
-			panic!("Root is not valid anymore");
+			panic!("root is not valid anymore");
 		}
 		
 		data.ptrs[handle as usize]
@@ -251,6 +253,8 @@ impl GcHeap {
 			panic!("no local scope present");
 		}
 		
+		tracegc!("registering local for {:?} with scope {}", ptr.as_ptr().ptr(), len - 1);
+		
 		unsafe { Local::new(transmute(scopes[len - 1].add(ptr.as_ptr().ptr()))) }
 	}
 	
@@ -288,7 +292,7 @@ impl GcHeap {
 	}
 	
 	pub fn gc(&self) {
-		let mut walkers : Vec<Box<RootWalker>> = Vec::new();
+		let mut walkers = self.walker.create_root_walkers();
 		
 		// Add the root handles walker if there are root handles.
 		
@@ -332,6 +336,8 @@ impl GcHeap {
 		let index = scopes.len();
 		scopes.push(LocalScopeData::new());
 		
+		tracegc!("creating scope {}", index);
+		
 		LocalScope {
 			heap: self as *const GcHeap,
 			index: index
@@ -349,21 +355,24 @@ impl GcHeap {
 	}
 }
 
-trait RootWalker {
+pub trait GcRootWalker {
 	unsafe fn next(&mut self) -> *mut ptr_t;
 }
+
 struct RootHandlesWalker {
 	ptr: *mut ptr_t,
 	end: *mut ptr_t
 }
 
-impl RootWalker for RootHandlesWalker {
+impl GcRootWalker for RootHandlesWalker {
 	unsafe fn next(&mut self) -> *mut ptr_t {
 		while self.ptr < self.end {
 			let ptr = self.ptr;
 			self.ptr = self.ptr.offset(1);
 			
 			if !(*ptr).is_null() {
+				tracegc!("root walker returning {:?}", *ptr);
+				
 				return ptr;
 			}
 		}
@@ -382,42 +391,56 @@ struct LocalScopesWalker {
 	index: usize
 }
 
-impl RootWalker for LocalScopesWalker {
+impl GcRootWalker for LocalScopesWalker {
 	unsafe fn next(&mut self) -> *mut ptr_t {
 		let scopes = transmute::<_, &[LocalScopeData]>(self.scopes);
 		
-		if self.scope == scopes.len() {
-			return ptr::null_mut();
-		}
-		
-		let scope = &scopes[self.scope];
-		
-		let vec = if self.vec == 0 {
-			&scope.current
-		} else {
-			&scope.handles[self.vec - 1]
-		};
-		
-		let ptr = (*vec).as_ptr().offset(self.index as isize) as *mut ptr_t;
-		
-		self.index += 1;
-		
-		if self.index == vec.len() {
-			self.vec += 1;
-			self.index = 0;
+		loop {
+			// If we're at the last scope, quit.
 			
-			if self.vec - 1 == scope.handles.len() {
+			if self.scope == scopes.len() {
+				return ptr::null_mut();
+			}
+			
+			assert!(self.scope < scopes.len());
+			
+			let scope = &scopes[self.scope];
+			
+			// If this vec is the last vec of this scope, reset vec and try again.
+			
+			if self.vec > scope.handles.len() {
 				self.vec = 0;
 				self.scope += 1;
+				continue;
 			}
+			
+			let vec = if self.vec == 0 {
+				&scope.current
+			} else {
+				&scope.handles[self.vec - 1]
+			};
+			
+			// If we're at the end of the current vec, go to the next vec and try again.
+			
+			if self.index >= vec.len() {
+				self.index = 0;
+				self.vec += 1;
+				continue;
+			}
+			
+			let ptr = (*vec).as_ptr().offset(self.index as isize) as *mut ptr_t;
+			
+			self.index += 1;
+			
+			return ptr;
 		}
-		
-		ptr
 	}
 }
 
 pub trait GcWalker {
 	fn walk(&self, ty: u32, ptr: ptr_t, index: u32) -> GcWalk;
+	
+	fn create_root_walkers(&self) -> Vec<Box<GcRootWalker>>;
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]

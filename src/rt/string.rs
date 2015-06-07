@@ -1,7 +1,6 @@
 use gc::{Array, Local};
 use rt::{JsEnv, JsValue, JsItem, JsDescriptor, GC_STRING, GC_U16};
 use rt::utf;
-use gc::Ptr;
 use syntax::Name;
 use syntax::token::name;
 
@@ -63,7 +62,7 @@ impl JsString {
 		result
 	}
 	
-	pub fn equals(x: Ptr<JsString>, y: Ptr<JsString>) -> bool {
+	pub fn equals(x: Local<JsString>, y: Local<JsString>) -> bool {
 		let x_chars = &*x.chars;
 		let y_chars = &*y.chars;
 		
@@ -87,7 +86,7 @@ impl JsString {
 
 impl JsItem for Local<JsString> {
 	fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-		JsValue::new_string(*self).as_local(&env.heap)
+		JsValue::new_string(&env.heap, *self)
 	}
 	
 	fn has_prototype(&self, _: &JsEnv) -> bool {
@@ -100,7 +99,7 @@ impl JsItem for Local<JsString> {
 	
 	fn get_own_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
 		if property == name::LENGTH {
-			let value = JsValue::new_number(self.chars.len() as f64).as_local(&env.heap);
+			let value = JsValue::new_number(&env.heap, self.chars.len() as f64);
 			return Some(JsDescriptor::new_simple_value(value));
 		}
 		if let Some(index) = property.index() {

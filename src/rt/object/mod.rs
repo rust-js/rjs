@@ -39,7 +39,7 @@ impl JsObject {
 		
 		JsObject {
 			class: None,
-			value: JsValue::new_undefined(),
+			value: JsValue::raw_undefined(),
 			function: None,
 			prototype: Ptr::null(),
 			scope: Ptr::null(),
@@ -71,7 +71,7 @@ impl JsObject {
 		result.prototype = prototype.as_ptr();
 		result.class = Some(name::FUNCTION_CLASS);
 		
-		let value = JsValue::new_number(args as f64).as_local(&env.heap);
+		let value = JsValue::new_number(&env.heap, args as f64);
 		
 		// TODO: This does not seem to be conform the specs. Value should not be configurable.
 		// Don't set the length on bound functions. The caller will take care of this.
@@ -104,7 +104,11 @@ fn throw_type_error(env: &mut JsEnv, _: JsArgs) -> JsResult<Local<JsValue>> {
 
 impl Local<JsObject> {
 	pub fn value(&self, env: &JsEnv) -> Local<JsValue> {
-		self.value.as_local(&env.heap)
+		let mut value = JsValue::new_local(&env.heap);
+		
+		*value = self.value;
+		
+		value
 	}
 	
 	pub fn set_value(&mut self, value: Local<JsValue>) {
@@ -251,7 +255,7 @@ impl Local<JsObject> {
 					if new_len as f64 != try!(desc_value.to_number(env)) {
 						Err(JsError::new_range(env))
 					} else {
-						new_len_desc.value = Some(JsValue::new_number(new_len as f64).as_local(&env.heap));
+						new_len_desc.value = Some(JsValue::new_number(&env.heap, new_len as f64));
 						
 						if new_len >= old_len {
 							self.define_own_object_property(
@@ -292,7 +296,7 @@ impl Local<JsObject> {
 								));
 								
 								if !delete_succeeded {
-									new_len_desc.value = Some(JsValue::new_number((old_len + 1) as f64).as_local(&env.heap));
+									new_len_desc.value = Some(JsValue::new_number(&env.heap, (old_len + 1) as f64));
 									if !new_writable {
 										new_len_desc.writable = Some(false);
 									}
@@ -341,7 +345,7 @@ impl Local<JsObject> {
 						if !succeeded {
 							if throw { Err(JsError::new_type(env, ::errors::TYPE_CANNOT_WRITE)) } else { Ok(false) }
 						} else if index >= old_len {
-							old_len_desc.value = Some(JsValue::new_number((index + 1) as f64).as_local(&env.heap));
+							old_len_desc.value = Some(JsValue::new_number(&env.heap, (index + 1) as f64));
 							try!(self.define_own_object_property(
 								env,
 								name::LENGTH,
@@ -393,7 +397,7 @@ impl Local<JsObject> {
 
 impl JsItem for Local<JsObject> {
 	fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-		JsValue::new_object(self.as_ptr()).as_local(&env.heap)
+		JsValue::new_object(&env.heap, *self)
 	}
 
 	// 8.12.1 [[GetOwnProperty]] (P)
@@ -443,17 +447,17 @@ impl JsItem for Local<JsObject> {
 		if self.prototype.is_null() {
 			None
 		} else {
-			Some(JsValue::new_object(self.prototype).as_local(&env.heap))
+			Some(JsValue::new_object(&env.heap, self.prototype.as_local(&env.heap)))
 		}
 	}
 	
 	fn set_prototype(&mut self, _: &JsEnv, prototype: Option<Local<JsValue>>) {
 		if let Some(prototype) = prototype {
 			if prototype.ty() == JsType::Object {
-				self.prototype = prototype.unwrap_object()
+				self.prototype = prototype.get_ptr();
 			}
 		} else {
-			self.prototype = Ptr::null()
+			self.prototype = Ptr::null();
 		}
 	}
 	
@@ -498,7 +502,7 @@ impl JsItem for Local<JsObject> {
 				loop {
 					if let Some(object_) = object.prototype(env) {
 						object = object_;
-						if prototype.unwrap_object() == object.unwrap_object() {
+						if prototype == object {
 							return Ok(true)
 						}
 					} else {
@@ -513,7 +517,7 @@ impl JsItem for Local<JsObject> {
 		if self.scope.is_null() {
 			None
 		} else {
-			Some(JsValue::new_scope(self.scope).unwrap_scope().as_local(&env.heap))
+			Some(JsValue::new_scope(&env.heap, self.scope.as_local(&env.heap)).unwrap_scope(&env.heap))
 		}
 	}
 	
@@ -674,17 +678,25 @@ impl Entry {
 	
 	fn as_property(&self, env: &JsEnv) -> JsDescriptor {
 		if self.is_accessor() {
+			let mut value1 = JsValue::new_local(&env.heap);
+			*value1 = self.value1;
+			let mut value2 = JsValue::new_local(&env.heap);
+			*value2 = self.value2;
+			
 			JsDescriptor {
 				value: None,
-				get: Some(self.value1.as_local(&env.heap)),
-				set: Some(self.value2.as_local(&env.heap)),
+				get: Some(value1),
+				set: Some(value2),
 				writable: None,
 				enumerable: Some(self.is_enumerable()),
 				configurable: Some(self.is_configurable())
 			}
 		} else {
+			let mut value = JsValue::new_local(&env.heap);
+			*value = self.value1;
+			
 			JsDescriptor {
-				value: Some(self.value1.as_local(&env.heap)),
+				value: Some(value),
 				get: None,
 				set: None,
 				writable: Some(self.is_writable()),
@@ -709,20 +721,20 @@ impl Entry {
 			value1 = if let Some(get) = descriptor.get {
 				*get
 			} else {
-				JsValue::new_undefined()
+				JsValue::raw_undefined()
 			};
 			value2 = if let Some(set) = descriptor.set {
 				*set
 			} else {
-				JsValue::new_undefined()
+				JsValue::raw_undefined()
 			};
 		} else {
 			value1 = if let Some(value) = descriptor.value {
 				*value
 			} else {
-				JsValue::new_undefined()
+				JsValue::raw_undefined()
 			};
-			value2 = JsValue::new_undefined();
+			value2 = JsValue::raw_undefined();
 		}
 		
 		Entry {
@@ -750,9 +762,9 @@ unsafe fn validate_walker_for_object(walker: &GcWalker) {
 	validate_walker_field(walker, GC_OBJECT, ptr, false);
 	object.class = None;
 	
-	object.value = JsValue::new_true();
+	object.value = JsValue::raw_true();
 	let value_offset = validate_walker_field(walker, GC_OBJECT, ptr, false);
-	object.value = JsValue::new_undefined();
+	object.value = transmute(zeroed::<JsValue>());
 	
 	validate_walker_for_embedded_value(walker, ptr, GC_OBJECT, value_offset, &mut object.value);
 	
@@ -797,15 +809,15 @@ unsafe fn validate_walker_for_entry(walker: &GcWalker) {
 	validate_walker_field(walker, GC_ENTRY, ptr, false);
 	object.next = 0;
 	
-	object.value1 = JsValue::new_true();
+	object.value1 = JsValue::raw_true();
 	let value_offset = validate_walker_field(walker, GC_ENTRY, ptr, false);
-	object.value1 = JsValue::new_undefined();
+	object.value1 = transmute(zeroed::<JsValue>());
 	
 	validate_walker_for_embedded_value(walker, ptr, GC_ENTRY, value_offset, &mut object.value1);
 	
-	object.value2 = JsValue::new_true();
+	object.value2 = JsValue::raw_true();
 	let value_offset = validate_walker_field(walker, GC_ENTRY, ptr, false);
-	object.value2 = JsValue::new_undefined();
+	object.value2 = transmute(zeroed::<JsValue>());
 	
 	validate_walker_for_embedded_value(walker, ptr, GC_ENTRY, value_offset, &mut object.value2);
 }

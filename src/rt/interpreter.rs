@@ -42,11 +42,11 @@ macro_rules! numeric_op {
 		let _scope = $frame.env.heap.new_local_scope();
 		
 		let frame = $frame.env.stack.create_frame(1);
-		let arg = frame.get(0).as_local(&$frame.env.heap);
+		let arg = frame.get(&$frame.env.heap, 0);
 		let result = local_try!($frame.env.$method(arg));
 		$frame.env.stack.drop_frame(frame);
 		
-		$frame.env.stack.push(JsValue::new_number(result));
+		$frame.env.stack.push(JsValue::raw_number(result));
 	} }
 }
 
@@ -55,12 +55,12 @@ macro_rules! numeric_bin_op {
 		let _scope = $frame.env.heap.new_local_scope();
 		
 		let frame = $frame.env.stack.create_frame(2);
-		let arg1 = frame.get(0).as_local(&$frame.env.heap);
-		let arg2 = frame.get(1).as_local(&$frame.env.heap);
+		let arg1 = frame.get(&$frame.env.heap, 0);
+		let arg2 = frame.get(&$frame.env.heap, 1);
 		let result = local_try!($frame.env.$method(arg1, arg2));
 		$frame.env.stack.drop_frame(frame);
 		
-		$frame.env.stack.push(JsValue::new_number(result));
+		$frame.env.stack.push(JsValue::raw_number(result));
 	} }
 }
 
@@ -80,7 +80,7 @@ impl JsEnv {
 		let mut locals = block.locals.len();
 		
 		for i in 0..block.locals.len() {
-			self.stack.push(JsValue::new_undefined());
+			self.stack.push(JsValue::raw_undefined());
 		}
 		
 		// Build the environment context.
@@ -408,8 +408,8 @@ impl<'a> Frame<'a> {
 				
 				let frame = self.env.stack.create_frame(2);
 				
-				let arg1 = frame.get(0).as_local(&self.env.heap);
-				let arg2 = frame.get(1).as_local(&self.env.heap);
+				let arg1 = frame.get(&self.env.heap, 0);
+				let arg2 = frame.get(&self.env.heap, 1);
 				let result = local_try!(self.env.add(arg1, arg2));
 				
 				self.env.stack.drop_frame(frame);
@@ -426,7 +426,7 @@ impl<'a> Frame<'a> {
 			Ir::CurrentIter(local) => {
 				let _scope = self.env.heap.new_local_scope();
 				
-				let iterator = self.locals.get(local.offset()).unwrap_iterator().as_local(&self.env.heap);
+				let iterator = self.locals.get(&self.env.heap, local.offset()).unwrap_iterator(&self.env.heap);
 				let name = iterator.current();
 				
 				let result = if let Some(index) = name.index() {
@@ -444,22 +444,22 @@ impl<'a> Frame<'a> {
 				let frame = self.env.stack.create_frame(1);
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::new_bool(false));
+				self.env.stack.push(JsValue::raw_bool(false));
 			}
 			Ir::DeleteIndex => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
 				
-				let mut target = frame.get(0).as_local(&self.env.heap);
-				let index = frame.get(1).as_local(&self.env.heap);
+				let mut target = frame.get(&self.env.heap, 0);
+				let index = frame.get(&self.env.heap, 1);
 				let index = local_try!(self.env.intern_value(index));
 				
 				let result = local_try!(target.delete(self.env, index, self.strict));
 				
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::new_bool(result));
+				self.env.stack.push(JsValue::raw_bool(result));
 			}
 			Ir::DeleteName(name) => {
 				match local_try!(self.delete(name, false)) {
@@ -476,7 +476,7 @@ impl<'a> Frame<'a> {
 			Ir::Divide => numeric_bin_op!(self, divide),
 			Ir::Dup => {
 				let frame = self.env.stack.create_frame(1);
-				self.env.stack.push(frame.get(0));
+				self.env.stack.push(frame.raw_get(0));
 			}
 			Ir::EndFinally => return Next::EndFinally,
 			Ir::EndIter(local) => { /* no-op */ }
@@ -500,12 +500,12 @@ impl<'a> Frame<'a> {
 				
 				let frame = self.env.stack.create_frame(1);
 				
-				let scope_object = frame.get(0).as_local(&self.env.heap);
+				let scope_object = frame.get(&self.env.heap, 0);
 				let scope_object = local_try!(scope_object.to_object(&mut self.env));
 				
 				let scope = JsScope::new_local_thick(
 					self.env,
-					scope_object.unwrap_object().as_local(&self.env.heap),
+					scope_object.unwrap_object(&self.env.heap),
 					self.get_scope(),
 					false
 				);
@@ -518,39 +518,39 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(&self.env.heap);
-				let arg2 = frame.get(1).as_local(&self.env.heap);
+				let arg1 = frame.get(&self.env.heap, 0);
+				let arg2 = frame.get(&self.env.heap, 1);
 				let result = local_try!(self.env.eq(arg1, arg2));
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::new_bool(result));
+				self.env.stack.push(JsValue::raw_bool(result));
 			}
 			Ir::Ge => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(&self.env.heap);
-				let arg2 = frame.get(1).as_local(&self.env.heap);
+				let arg1 = frame.get(&self.env.heap, 0);
+				let arg2 = frame.get(&self.env.heap, 1);
 				let result = local_try!(self.env.compare_ge(arg1, arg2));
 				self.env.stack.drop_frame(frame);
-				self.env.stack.push(JsValue::new_bool(result));
+				self.env.stack.push(JsValue::raw_bool(result));
 			}
 			Ir::Gt => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(&self.env.heap);
-				let arg2 = frame.get(1).as_local(&self.env.heap);
+				let arg1 = frame.get(&self.env.heap, 0);
+				let arg2 = frame.get(&self.env.heap, 1);
 				let result = local_try!(self.env.compare_gt(arg1, arg2));
 				self.env.stack.drop_frame(frame);
-				self.env.stack.push(JsValue::new_bool(result));
+				self.env.stack.push(JsValue::raw_bool(result));
 			}
 			Ir::In => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(&self.env.heap);
-				let arg2 = frame.get(1).as_local(&self.env.heap);
+				let arg1 = frame.get(&self.env.heap, 0);
+				let arg2 = frame.get(&self.env.heap, 1);
 				let result = local_try!(self.env.in_(arg1, arg2));
 				self.env.stack.drop_frame(frame);
 				
@@ -560,8 +560,8 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let mut target = frame.get(0).as_local(&self.env.heap);
-				let value = frame.get(1).as_local(&self.env.heap);
+				let mut target = frame.get(&self.env.heap, 0);
+				let value = frame.get(&self.env.heap, 1);
 				if !target.has_property(self.env, name) {
 					local_try!(target.define_own_property(
 						self.env,
@@ -576,8 +576,8 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(&self.env.heap);
-				let arg2 = frame.get(1).as_local(&self.env.heap);
+				let arg1 = frame.get(&self.env.heap, 0);
+				let arg2 = frame.get(&self.env.heap, 1);
 				let result = local_try!(self.env.instanceof(arg1, arg2));
 				self.env.stack.drop_frame(frame);
 				
@@ -588,7 +588,7 @@ impl<'a> Frame<'a> {
 				
 				let frame = self.env.stack.create_frame(1);
 				
-				let arg = frame.get(0).as_local(&self.env.heap);
+				let arg = frame.get(&self.env.heap, 0);
 				let result = JsIterator::new_local(self.env, arg).as_value(self.env);
 				self.locals.set(local.offset(), *result);
 				
@@ -602,8 +602,8 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(&self.env.heap);
-				let arg2 = frame.get(1).as_local(&self.env.heap);
+				let arg1 = frame.get(&self.env.heap, 0);
+				let arg2 = frame.get(&self.env.heap, 1);
 				let jump = self.env.strict_eq(arg1, arg2);
 				self.env.stack.drop_frame(frame);
 				
@@ -614,7 +614,7 @@ impl<'a> Frame<'a> {
 			}
 			Ir::JumpFalse(label) => {
 				let frame = self.env.stack.create_frame(1);
-				let jump = !frame.get(0).as_local(&self.env.heap).to_boolean();
+				let jump = !frame.get(&self.env.heap, 0).to_boolean();
 				self.env.stack.drop_frame(frame);
 				if jump {
 					self.ip  = label.offset();
@@ -623,7 +623,7 @@ impl<'a> Frame<'a> {
 			}
 			Ir::JumpTrue(label) => {
 				let frame = self.env.stack.create_frame(1);
-				let jump = frame.get(0).as_local(&self.env.heap).to_boolean();
+				let jump = frame.get(&self.env.heap, 0).to_boolean();
 				self.env.stack.drop_frame(frame);
 				if jump {
 					self.ip  = label.offset();
@@ -634,11 +634,11 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(&self.env.heap);
-				let arg2 = frame.get(1).as_local(&self.env.heap);
+				let arg1 = frame.get(&self.env.heap, 0);
+				let arg2 = frame.get(&self.env.heap, 1);
 				let result = local_try!(self.env.compare_le(arg1, arg2));
 				self.env.stack.drop_frame(frame);
-				self.env.stack.push(JsValue::new_bool(result));
+				self.env.stack.push(JsValue::raw_bool(result));
 			}
 			Ir::Leave(label) => return Next::Leave(label.offset()),
 			Ir::LeaveEnv => {
@@ -649,7 +649,7 @@ impl<'a> Frame<'a> {
 				let parent = if let Some(parent) = scope.parent(self.env) {
 					*parent.as_value(self.env)
 				} else {
-					JsValue::new_undefined()
+					JsValue::raw_undefined()
 				};
 				
 				self.locals.set(self.scope, parent);
@@ -669,8 +669,8 @@ impl<'a> Frame<'a> {
 				
 				self.thrown = None;
 			}
-			Ir::LoadF64(value) => self.env.stack.push(JsValue::new_number(value)),
-			Ir::LoadFalse => self.env.stack.push(JsValue::new_false()),
+			Ir::LoadF64(value) => self.env.stack.push(JsValue::raw_number(value)),
+			Ir::LoadFalse => self.env.stack.push(JsValue::raw_false()),
 			Ir::LoadFunction(function) => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -707,15 +707,15 @@ impl<'a> Frame<'a> {
 				
 				self.env.stack.push(*global);
 			}
-			Ir::LoadI32(value) => self.env.stack.push(JsValue::new_number(value as f64)),
-			Ir::LoadI64(value) => self.env.stack.push(JsValue::new_number(value as f64)),
+			Ir::LoadI32(value) => self.env.stack.push(JsValue::raw_number(value as f64)),
+			Ir::LoadI64(value) => self.env.stack.push(JsValue::raw_number(value as f64)),
 			Ir::LoadIndex => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
 				
-				let target = frame.get(0).as_local(&self.env.heap);
-				let index = frame.get(1).as_local(&self.env.heap);
+				let target = frame.get(&self.env.heap, 0);
+				let index = frame.get(&self.env.heap, 1);
 				let index = local_try!(self.env.intern_value(index));
 				
 				let result = local_try!(target.get(self.env, index));
@@ -729,27 +729,31 @@ impl<'a> Frame<'a> {
 				
 				let scope = self.find_scope(depth, false);
 				let result = scope.get(self.env, index as usize);
+				
 				self.env.stack.push(*result);
 			}
 			Ir::LoadLocal(local) => {
-				self.env.stack.push(self.locals.get(local.offset()));
+				self.env.stack.push(self.locals.raw_get(local.offset()));
 			}
 			Ir::LoadMissing => unimplemented!(),
 			Ir::LoadName(name) => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let result = local_try!(frame.get(0).as_local(&self.env.heap).get(self.env, name));
+				
+				let result = local_try!(frame.get(&self.env.heap, 0).get(self.env, name));
+				
 				self.env.stack.drop_frame(frame);
+				
 				self.env.stack.push(*result);
 			}
 			Ir::LoadNameLit => unimplemented!(),
-			Ir::LoadNull => self.env.stack.push(JsValue::new_null()),
+			Ir::LoadNull => self.env.stack.push(JsValue::raw_null()),
 			Ir::LoadParam(index) => {
 				if index < self.args.args.len() as u32 {
 					self.env.stack.push(*self.args.args[index as usize]);
 				} else {
-					self.env.stack.push(JsValue::new_undefined());
+					self.env.stack.push(JsValue::raw_undefined());
 				}
 			}
 			Ir::LoadRegex(ref pattern, ref modifiers) => unimplemented!(),
@@ -790,18 +794,21 @@ impl<'a> Frame<'a> {
 				self.env.stack.push(*result);
 			}
 			Ir::LoadThis => self.env.stack.push(*self.args.this),
-			Ir::LoadTrue => self.env.stack.push(JsValue::new_true()),
-			Ir::LoadUndefined => self.env.stack.push(JsValue::new_undefined()),
+			Ir::LoadTrue => self.env.stack.push(JsValue::raw_true()),
+			Ir::LoadUndefined => self.env.stack.push(JsValue::raw_undefined()),
 			Ir::Lsh => numeric_bin_op!(self, lsh),
 			Ir::Lt => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(&self.env.heap);
-				let arg2 = frame.get(1).as_local(&self.env.heap);
+				
+				let arg1 = frame.get(&self.env.heap, 0);
+				let arg2 = frame.get(&self.env.heap, 1);
 				let result = local_try!(self.env.compare_lt(arg1, arg2));
+				
 				self.env.stack.drop_frame(frame);
-				self.env.stack.push(JsValue::new_bool(result));
+				
+				self.env.stack.push(JsValue::raw_bool(result));
 			}
 			Ir::Modulus => numeric_bin_op!(self, modulus),
 			Ir::Multiply => numeric_bin_op!(self, multiply),
@@ -809,12 +816,13 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(&self.env.heap);
-				let arg2 = frame.get(1).as_local(&self.env.heap);
+				let arg1 = frame.get(&self.env.heap, 0);
+				let arg2 = frame.get(&self.env.heap, 1);
 				let result = local_try!(self.env.ne(arg1, arg2));
+				
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::new_bool(result));
+				self.env.stack.push(JsValue::raw_bool(result));
 			}
 			Ir::Negative => numeric_op!(self, negative),
 			Ir::New(count) => {
@@ -823,10 +831,10 @@ impl<'a> Frame<'a> {
 				let frame = self.env.stack.create_frame(count as usize + 1);
 				let mut args = Vec::new();
 				for i in 0..count as usize {
-					args.push(frame.get(i + 1).as_local(&self.env.heap));
+					args.push(frame.get(&self.env.heap, i + 1));
 				}
 				
-				let constructor = frame.get(0).as_local(&self.env.heap);
+				let constructor = frame.get(&self.env.heap, 0);
 				
 				let result = local_try!(constructor.construct(self.env, args));
 				
@@ -854,7 +862,7 @@ impl<'a> Frame<'a> {
 			Ir::NextIter(local, label) => {
 				let _scope = self.env.heap.new_local_scope();
 				
-				let mut iterator = self.locals.get(local.offset()).unwrap_iterator().as_local(&self.env.heap);
+				let mut iterator = self.locals.get(&self.env.heap, local.offset()).unwrap_iterator(&self.env.heap);
 				
 				if iterator.next(self.env) {
 					self.ip  = label.offset();
@@ -865,14 +873,14 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let arg = frame.get(0).as_local(&self.env.heap);
+				let arg = frame.get(&self.env.heap, 0);
 				let result = self.env.logical_not(arg);
 				self.env.stack.drop_frame(frame);
 				self.env.stack.push(*result);
 			}
 			Ir::Pick(depth) => {
 				let frame = self.env.stack.create_frame(depth as usize + 1);
-				self.env.stack.push(frame.get(0));
+				self.env.stack.push(frame.raw_get(0));
 			}
 			Ir::Pop => {
 				let frame = self.env.stack.create_frame(1);
@@ -881,7 +889,7 @@ impl<'a> Frame<'a> {
 			Ir::Positive => numeric_op!(self, positive),
 			Ir::Return => {
 				let frame = self.env.stack.create_frame(1);
-				let result = frame.get(0);
+				let result = frame.raw_get(0);
 				self.env.stack.drop_frame(frame);
 				return Next::Return(result);
 			}
@@ -891,9 +899,9 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(3);
-				let mut target = frame.get(0).as_local(&self.env.heap);
-				let index = frame.get(1).as_local(&self.env.heap);
-				let value = frame.get(2).as_local(&self.env.heap);
+				let mut target = frame.get(&self.env.heap, 0);
+				let index = frame.get(&self.env.heap, 1);
+				let value = frame.get(&self.env.heap, 2);
 
 				let index = local_try!(self.env.intern_value(index));
 				
@@ -906,9 +914,9 @@ impl<'a> Frame<'a> {
 				
 				let frame = self.env.stack.create_frame(3);
 				
-				let mut target = frame.get(0).as_local(&self.env.heap);
-				let index = frame.get(1).as_local(&self.env.heap);
-				let value = frame.get(2).as_local(&self.env.heap);
+				let mut target = frame.get(&self.env.heap, 0);
+				let index = frame.get(&self.env.heap, 1);
+				let value = frame.get(&self.env.heap, 2);
 
 				let index = local_try!(self.env.intern_value(index));
 
@@ -922,21 +930,21 @@ impl<'a> Frame<'a> {
 				let frame = self.env.stack.create_frame(1);
 				
 				let mut scope = self.find_scope(depth, false);
-				let result = scope.set(index as usize, frame.get(0).as_local(&self.env.heap));
+				let result = scope.set(index as usize, frame.get(&self.env.heap, 0));
 				
 				self.env.stack.drop_frame(frame);
 			}
 			Ir::StoreLocal(local) => {
 				let frame = self.env.stack.create_frame(1);
-				self.locals.set(local.offset(), frame.get(0));
+				self.locals.set(local.offset(), frame.raw_get(0));
 				self.env.stack.drop_frame(frame);
 			}
 			Ir::StoreName(name) => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let mut target = frame.get(0).as_local(&self.env.heap);
-				let value = frame.get(1).as_local(&self.env.heap);
+				let mut target = frame.get(&self.env.heap, 0);
+				let value = frame.get(&self.env.heap, 1);
 				local_try!(target.put(self.env, name, value, self.strict));
 				
 				self.env.stack.drop_frame(frame);
@@ -945,8 +953,8 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let mut target = frame.get(0).as_local(&self.env.heap);
-				let value = frame.get(1).as_local(&self.env.heap);
+				let mut target = frame.get(&self.env.heap, 0);
+				let value = frame.get(&self.env.heap, 1);
 				
 				local_try!(target.define_own_property(self.env, name, JsDescriptor::new_simple_value(value), true));
 				
@@ -957,7 +965,7 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let mut object = frame.get(0).as_local(&self.env.heap);
+				let mut object = frame.get(&self.env.heap, 0);
 				
 				let scope = self.get_scope();
 				
@@ -971,7 +979,7 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let value = frame.get(0).as_local(&self.env.heap);
+				let value = frame.get(&self.env.heap, 0);
 				let mut scope_object = local_try!(self.find_scope_object(name, false));
 				
 				local_try!(scope_object.put(self.env, name, value, self.strict));
@@ -982,7 +990,7 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let arguments = frame.get(0).as_local(&self.env.heap);
+				let arguments = frame.get(&self.env.heap, 0);
 				
 				let mut scope = self.get_scope().unwrap();
 				scope.set_arguments(arguments);
@@ -993,7 +1001,7 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let value = frame.get(0).as_local(&self.env.heap);
+				let value = frame.get(&self.env.heap, 0);
 				let mut global = self.env.global.as_value(self.env);
 				
 				if self.strict && !global.has_property(self.env, name) {
@@ -1009,7 +1017,7 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let mut object = frame.get(0).as_local(&self.env.heap);
+				let mut object = frame.get(&self.env.heap, 0);
 				
 				let scope = self.get_scope();
 				
@@ -1025,11 +1033,11 @@ impl<'a> Frame<'a> {
 				let index = index as usize;
 				
 				while self.args.args.len() <= index {
-					self.args.args.push(JsValue::new_undefined().as_local(&self.env.heap));
+					self.args.args.push(JsValue::new_undefined(&self.env.heap));
 				}
 				
 				let frame = self.env.stack.create_frame(1);
-				let value = frame.get(0).as_local(&self.env.heap);
+				let value = frame.get(&self.env.heap, 0);
 				self.env.stack.drop_frame(frame);
 				
 				self.args.args[index] = value;
@@ -1038,36 +1046,36 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(&self.env.heap);
-				let arg2 = frame.get(1).as_local(&self.env.heap);
+				let arg1 = frame.get(&self.env.heap, 0);
+				let arg2 = frame.get(&self.env.heap, 1);
 				let result = self.env.strict_eq(arg1, arg2);
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::new_bool(result));
+				self.env.stack.push(JsValue::raw_bool(result));
 			}
 			Ir::StrictNe => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let arg1 = frame.get(0).as_local(&self.env.heap);
-				let arg2 = frame.get(1).as_local(&self.env.heap);
+				let arg1 = frame.get(&self.env.heap, 0);
+				let arg2 = frame.get(&self.env.heap, 1);
 				let result = self.env.strict_eq(arg1, arg2);
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::new_bool(!result));
+				self.env.stack.push(JsValue::raw_bool(!result));
 			}
 			Ir::Subtract => numeric_bin_op!(self, subtract),
 			Ir::Swap => {
 				let frame = self.env.stack.create_frame(2);
-				let tmp = frame.get(0);
-				frame.set(0, frame.get(1));
+				let tmp = frame.raw_get(0);
+				frame.set(0, frame.raw_get(1));
 				frame.set(1, tmp);
 			}
 			Ir::Throw => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let error = frame.get(0).as_local(&self.env.heap).as_root(&self.env.heap);
+				let error = frame.get(&self.env.heap, 0).as_root(&self.env.heap);
 				self.env.stack.drop_frame(frame);
 				
 				return Next::Throw(JsError::Runtime(error));
@@ -1076,27 +1084,27 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let arg = frame.get(0).as_local(&self.env.heap);
+				let arg = frame.get(&self.env.heap, 0);
 				let result = arg.to_boolean();
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::new_bool(result));
+				self.env.stack.push(JsValue::raw_bool(result));
 			}
 			Ir::ToNumber => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let arg = frame.get(0).as_local(&self.env.heap);
+				let arg = frame.get(&self.env.heap, 0);
 				let result = local_try!(arg.to_number(self.env));
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::new_number(result));
+				self.env.stack.push(JsValue::raw_number(result));
 			}
 			Ir::ToPropertyKey => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let arg = frame.get(0).as_local(&self.env.heap);
+				let arg = frame.get(&self.env.heap, 0);
 				let result = local_try!(arg.to_primitive(self.env, JsPreferredType::String));
 				self.env.stack.drop_frame(frame);
 				
@@ -1106,17 +1114,17 @@ impl<'a> Frame<'a> {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let arg = frame.get(0).as_local(&self.env.heap);
+				let arg = frame.get(&self.env.heap, 0);
 				let result = self.env.type_of(arg);
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::new_string(result.as_ptr()));
+				self.env.stack.push(JsValue::raw_string(result.as_ptr()));
 			}
 			Ir::TypeofName(name) => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let base = frame.get(0).as_local(&self.env.heap);
+				let base = frame.get(&self.env.heap, 0);
 				let result = if base.is_undefined() {
 					JsString::from_str(self.env, "undefined")
 				} else {
@@ -1126,17 +1134,17 @@ impl<'a> Frame<'a> {
 				
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::new_string(result.as_ptr()));
+				self.env.stack.push(JsValue::raw_string(result.as_ptr()));
 			}
 			Ir::TypeofIndex => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(2);
-				let base = frame.get(0).as_local(&self.env.heap);
+				let base = frame.get(&self.env.heap, 0);
 				let result = if base.is_undefined() {
 					JsString::from_str(self.env, "undefined")
 				} else {
-					let index = frame.get(1).as_local(&self.env.heap);
+					let index = frame.get(&self.env.heap, 1);
 					let index = local_try!(self.env.intern_value(index));
 					
 					let arg = local_try!(base.get(self.env, index));
@@ -1145,13 +1153,13 @@ impl<'a> Frame<'a> {
 				
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::new_string(result.as_ptr()));
+				self.env.stack.push(JsValue::raw_string(result.as_ptr()));
 			}
 			Ir::ValidateMemberTarget => {
 				let _scope = self.env.heap.new_local_scope();
 				
 				let frame = self.env.stack.create_frame(1);
-				let target = frame.get(0).as_local(&self.env.heap);
+				let target = frame.get(&self.env.heap, 0);
 				
 				let invalid = target.is_null() || target.is_undefined();
 				
@@ -1169,12 +1177,12 @@ impl<'a> Frame<'a> {
 	}
 	
 	fn get_scope(&self) -> Option<Local<JsScope>> {
-		let scope = self.locals.get(self.scope);
+		let scope = self.locals.get(&self.env.heap, self.scope);
 		if scope.is_undefined() {
 			return None;
 		}
 		
-		Some(scope.unwrap_scope().as_local(&self.env.heap))
+		Some(scope.unwrap_scope(&self.env.heap))
 	}
 	
 	fn find_scope(&self, mut depth: u32, root: bool) -> Local<JsScope> {
@@ -1237,7 +1245,7 @@ impl<'a> Frame<'a> {
 				loop {
 					let object = scope.scope_object(self.env);
 					
-					if object.as_ptr() == target.unwrap_object() {
+					if object.as_ptr() == target.get_ptr() {
 						return true;
 					}
 					
@@ -1249,7 +1257,7 @@ impl<'a> Frame<'a> {
 				}
 			}
 			
-			self.env.global.as_ptr() == target.unwrap_object()
+			self.env.global.as_ptr() == target.get_ptr()
 		}
 	}
 	
@@ -1261,15 +1269,15 @@ impl<'a> Frame<'a> {
 		let frame = self.env.stack.create_frame(count as usize + offset);
 		let mut args = Vec::new();
 		for i in 0..count as usize {
-			args.push(frame.get(i + offset).as_local(&self.env.heap));
+			args.push(frame.get(&self.env.heap, i + offset));
 		}
 		
 		let this = if mode == CallMode::This {
-			frame.get(0).as_local(&self.env.heap)
+			frame.get(&self.env.heap, 0)
 		} else {
-			JsValue::new_undefined().as_local(&self.env.heap)
+			JsValue::new_undefined(&self.env.heap)
 		};
-		let function = frame.get(offset - 1).as_local(&self.env.heap);
+		let function = frame.get(&self.env.heap, offset - 1);
 		
 		// If this is a scoped call (i.e. eval) we need to double check to make
 		// sure that this actually is a direct eval call. Otherwise the
@@ -1278,7 +1286,7 @@ impl<'a> Frame<'a> {
 		let is_eval = if function.ty() == JsType::Object && mode == CallMode::Eval {
 			let global = self.env.global.as_local(&self.env.heap);
 			if let Ok(eval) = global.get(&mut self.env, name::EVAL) {
-				function.unwrap_object() == eval.unwrap_object()
+				function == eval
 			} else {
 				false
 			}
@@ -1293,13 +1301,13 @@ impl<'a> Frame<'a> {
 			let js = if args.len() > 0 {
 				args[0]
 			} else {
-				JsValue::new_undefined().as_local(&self.env.heap)
+				JsValue::new_undefined(&self.env.heap)
 			};
 			
 			if js.ty() != JsType::String {
 				*js
 			} else {
-				let js = js.unwrap_string().as_local(&self.env.heap).to_string();
+				let js = js.unwrap_string(&self.env.heap).to_string();
 				let scope = self.get_scope().unwrap();
 				
 				*try!(self.env.eval_scoped(&js, self.strict, self.args.this, scope, ParseMode::DirectEval)).as_local(&self.env.heap)
@@ -1320,7 +1328,7 @@ impl<'a> Frame<'a> {
 		
 		let frame = self.env.stack.create_frame(1);
 		
-		let mut target = frame.get(0).as_local(&self.env.heap);
+		let mut target = frame.get(&self.env.heap, 0);
 		
 		self.env.stack.drop_frame(frame);
 		
@@ -1337,7 +1345,7 @@ impl<'a> Frame<'a> {
 			}
 		};
 		
-		self.env.stack.push(JsValue::new_bool(result));
+		self.env.stack.push(JsValue::raw_bool(result));
 		
 		Ok(None)
 	}

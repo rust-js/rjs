@@ -1,13 +1,15 @@
-use gc::ptr_t;
+use gc::{GcRootWalker, GcHeap, Local, ptr_t};
 use gc::os::Memory;
-use rt::JsValue;
+use rt::{JsValue, JsType};
 use std::mem::{size_of, transmute};
+use std::ptr;
+use std::cell::Cell;
 
 const STACK : usize = 8192;
 
 pub struct Stack {
 	stack: Memory,
-	sp: ptr_t,
+	sp: Cell<ptr_t>,
 	end: ptr_t
 }
 
@@ -18,36 +20,51 @@ impl Stack {
 		
 		Stack {
 			stack: stack,
-			sp: sp,
+			sp: Cell::new(sp),
 			end: end
+		}
+	}
+	
+	pub fn create_walker(&self) -> Box<GcRootWalker> {
+		unsafe {
+			let start = self.stack.ptr();
+			let end = self.sp.get();
+			
+			tracegc!("creating stack walker from {:?} to {:?}", start, end);
+
+			Box::new(StackWalker {
+				ptr: transmute(start),
+				end: transmute(end)
+			})
 		}
 	}
 	
 	pub fn create_frame(&self, size: usize) -> StackFrame {
 		StackFrame {
-			sp: unsafe { self.sp.offset(-((size_of::<JsValue>() * size) as isize)) }
+			sp: unsafe { self.sp.get().offset(-((size_of::<JsValue>() * size) as isize)) }
 		}
 	}
 	
-	pub fn drop_frame(&mut self, frame: StackFrame) {
-		self.sp = frame.sp;
+	pub fn drop_frame(&self, frame: StackFrame) {
+		self.sp.set(frame.sp);
 	}
 	
-	pub fn push(&mut self, value: JsValue) {
-		if self.sp == self.end {
+	pub fn push(&self, value: JsValue) {
+		if self.sp.get() == self.end {
 			panic!("stack overflow");
 		}
 		
 		unsafe {
-			*transmute::<_, *mut JsValue>(self.sp) = value;
-			self.sp = self.sp.offset(size_of::<JsValue>() as isize);
+			*transmute::<_, *mut JsValue>(self.sp.get()) = value;
+			self.sp.set(self.sp.get().offset(size_of::<JsValue>() as isize));
 		}
 	}
 	
-	pub fn pop(&mut self) -> JsValue {
+	pub fn pop(&self) -> JsValue {
 		unsafe {
-			self.sp = self.sp.offset(-(size_of::<JsValue>() as isize));
-			*transmute::<_, *mut JsValue>(self.sp)
+			let sp = self.sp.get().offset(-(size_of::<JsValue>() as isize));
+			self.sp.set(sp);
+			*transmute::<_, *mut JsValue>(sp)
 		}
 	}
 }
@@ -57,7 +74,15 @@ pub struct StackFrame {
 }
 
 impl StackFrame {
-	pub fn get(&self, offset: usize) -> JsValue {
+	pub fn get(&self, heap: &GcHeap, offset: usize) -> Local<JsValue> {
+		let mut local = JsValue::new_local(heap);
+		
+		*local = self.raw_get(offset);
+		
+		local
+	}
+	
+	pub fn raw_get(&self, offset: usize) -> JsValue {
 		unsafe {
 			*transmute::<_, *mut JsValue>(
 				self.sp.offset((size_of::<JsValue>() * offset) as isize)
@@ -71,5 +96,26 @@ impl StackFrame {
 				self.sp.offset((size_of::<JsValue>() * offset) as isize)
 			) = value
 		}
+	}
+}
+
+struct StackWalker {
+	ptr: *mut ptr_t,
+	end: *mut ptr_t
+}
+
+impl GcRootWalker for StackWalker {
+	unsafe fn next(&mut self) -> *mut ptr_t {
+		while self.ptr < self.end {
+			let ptr = transmute::<_, *mut usize>(self.ptr);
+			self.ptr = transmute(self.ptr.offset(2));
+			
+			let ty = *transmute::<_, *const JsType>(ptr);
+			if ty.is_ptr() {
+				return transmute(ptr.offset(1));
+			}
+		}
+		
+		ptr::null_mut()
 	}
 }

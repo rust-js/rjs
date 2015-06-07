@@ -13,8 +13,8 @@ macro_rules! debugln {
 
 #[macro_export]
 macro_rules! debug {
-    ($fmt:expr) => ($crate::debug::debug_write($fmt));
-    ($fmt:expr, $($arg:tt)*) => ($crate::debug::debug_write(&format!($fmt, $($arg)*)))
+    ($fmt:expr) => ( if cfg!(not(ndebug)) { $crate::debug::debug_write($fmt); });
+    ($fmt:expr, $($arg:tt)*) => ( if cfg!(not(ndebug)) { $crate::debug::debug_write(&format!($fmt, $($arg)*)); })
 }
 
 pub fn debug_write(string: &str) {

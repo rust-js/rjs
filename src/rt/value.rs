@@ -13,11 +13,18 @@ use gc::{Local, Ptr, AsPtr, GcHeap, ptr_t, GcWalker};
 use std::fmt;
 use std::mem::{transmute, zeroed};
 use std::f64;
+use std::cmp::PartialEq;
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct JsValue {
 	ty: JsType,
 	value: JsRawValue
+}
+
+impl PartialEq for Local<JsValue> {
+	fn eq(&self, other: &Local<JsValue>) -> bool {
+		**self == **other
+	}
 }
 
 impl fmt::Debug for JsValue {
@@ -39,14 +46,13 @@ impl fmt::Debug for JsValue {
 }
 
 impl JsValue {
-	fn new_local(env: &JsEnv, ty: JsType, value: JsRawValue) -> Local<JsValue> {
-		Self::new(ty, value).as_local(&env.heap)
+	// TODO: Remove
+	pub fn data(&self) -> u64 {
+		self.value.data
 	}
 	
-	pub fn as_local(&self, heap: &GcHeap) -> Local<JsValue> {
-		let mut result = heap.alloc_local(GC_VALUE);
-		*result = *self;
-		result
+	pub fn new_local(heap: &GcHeap) -> Local<JsValue> {
+		heap.alloc_local(GC_VALUE)
 	}
 	
 	fn new(ty: JsType, value: JsRawValue) -> JsValue {
@@ -56,68 +62,144 @@ impl JsValue {
 		}
 	}
 	
-	pub fn new_undefined() -> JsValue {
+	pub fn raw_undefined() -> JsValue {
 		JsValue {
 			ty: JsType::Undefined,
 			value: JsRawValue::new()
 		}
 	}
 	
-	pub fn new_null() -> JsValue {
+	pub fn new_undefined(heap: &GcHeap) -> Local<JsValue> {
+		JsValue::new_local(heap)
+	}
+	
+	pub fn raw_null() -> JsValue {
 		JsValue {
 			ty: JsType::Null,
 			value: JsRawValue::new()
 		}
 	}
 	
-	pub fn new_number(value: f64) -> JsValue {
+	pub fn new_null(heap: &GcHeap) -> Local<JsValue> {
+		let mut local = JsValue::new_local(heap);
+		
+		*local = JsValue::raw_null();
+		
+		local
+	}
+	
+	pub fn raw_number(value: f64) -> JsValue {
 		JsValue {
 			ty: JsType::Number,
 			value: JsRawValue::new_number(value)
 		}
 	}
 	
-	pub fn new_bool(value: bool) -> JsValue {
+	pub fn new_number(heap: &GcHeap, value: f64) -> Local<JsValue> {
+		let mut local = JsValue::new_local(heap);
+		
+		*local = JsValue::raw_number(value);
+		
+		local
+	}
+	
+	pub fn raw_bool(value: bool) -> JsValue {
 		JsValue {
 			ty: JsType::Boolean,
 			value: JsRawValue::new_bool(value)
 		}
 	}
 	
-	pub fn new_true() -> JsValue {
-		Self::new_bool(true)
+	pub fn new_bool(heap: &GcHeap, value: bool) -> Local<JsValue> {
+		let mut local = JsValue::new_local(heap);
+		
+		*local = JsValue::raw_bool(value);
+		
+		local
 	}
 	
-	pub fn new_false() -> JsValue {
-		Self::new_bool(false)
+	pub fn raw_true() -> JsValue {
+		Self::raw_bool(true)
 	}
 	
-	pub fn new_string<T: AsPtr<JsString>>(value: T) -> JsValue {
+	pub fn new_true(heap: &GcHeap) -> Local<JsValue> {
+		let mut local = JsValue::new_local(heap);
+		
+		*local = JsValue::raw_true();
+		
+		local
+	}
+	
+	pub fn raw_false() -> JsValue {
+		Self::raw_bool(false)
+	}
+	
+	pub fn new_false(heap: &GcHeap) -> Local<JsValue> {
+		let mut local = JsValue::new_local(heap);
+		
+		*local = JsValue::raw_false();
+		
+		local
+	}
+	
+	pub fn raw_string<T: AsPtr<JsString>>(value: T) -> JsValue {
 		JsValue {
 			ty: JsType::String,
 			value: JsRawValue::new_ptr(value)
 		}
 	}
 	
-	pub fn new_object<T: AsPtr<JsObject>>(value: T) -> JsValue {
+	pub fn new_string(heap: &GcHeap, value: Local<JsString>) -> Local<JsValue> {
+		let mut local = JsValue::new_local(heap);
+		
+		*local = JsValue::raw_string(value.as_ptr());
+		
+		local
+	}
+	
+	pub fn raw_object<T: AsPtr<JsObject>>(value: T) -> JsValue {
 		JsValue {
 			ty: JsType::Object,
 			value: JsRawValue::new_ptr(value)
 		}
 	}
 	
-	pub fn new_iterator<T: AsPtr<JsIterator>>(value: T) -> JsValue {
+	pub fn new_object(heap: &GcHeap, value: Local<JsObject>) -> Local<JsValue> {
+		let mut local = JsValue::new_local(heap);
+		
+		*local = JsValue::raw_object(value.as_ptr());
+		
+		local
+	}
+	
+	pub fn raw_iterator<T: AsPtr<JsIterator>>(value: T) -> JsValue {
 		JsValue {
 			ty: JsType::Iterator,
 			value: JsRawValue::new_ptr(value)
 		}
 	}
 	
-	pub fn new_scope<T: AsPtr<JsScope>>(value: T) -> JsValue {
+	pub fn new_iterator(heap: &GcHeap, value: Local<JsIterator>) -> Local<JsValue> {
+		let mut local = JsValue::new_local(heap);
+		
+		*local = JsValue::raw_iterator(value.as_ptr());
+		
+		local
+	}
+	
+	pub fn raw_scope<T: AsPtr<JsScope>>(value: T) -> JsValue {
 		JsValue {
 			ty: JsType::Scope,
 			value: JsRawValue::new_ptr(value)
 		}
+	}
+	
+	pub fn new_scope(heap: &GcHeap, value: Local<JsScope>) -> Local<JsValue> {
+		let mut local = JsValue::new_local(heap);
+		
+		*local = JsValue::raw_scope(value);
+		
+		local
 	}
 	
 	pub fn ty(&self) -> JsType {
@@ -143,7 +225,7 @@ impl JsValue {
 	}
 	
 	pub fn set_number(&mut self, value: f64) {
-		*self = JsValue::new_number(value)
+		*self = JsValue::raw_number(value)
 	}
 	
 	pub fn unwrap_bool(&self) -> bool {
@@ -153,47 +235,27 @@ impl JsValue {
 	}
 	
 	pub fn set_bool(&mut self, value: bool) {
-		*self = JsValue::new_bool(value)
-	}
-	
-	pub fn unwrap_string(&self) -> Ptr<JsString> {
-		assert_eq!(self.ty, JsType::String);
-		
-		self.value.get_ptr()
+		*self = JsValue::raw_bool(value)
 	}
 	
 	pub fn set_string(&mut self, value: Ptr<JsString>) {
-		*self = JsValue::new_string(value);
-	}
-	
-	pub fn unwrap_object(&self) -> Ptr<JsObject> {
-		assert_eq!(self.ty, JsType::Object);
-		
-		self.value.get_ptr()
+		*self = JsValue::raw_string(value);
 	}
 	
 	pub fn set_object(&mut self, value: Ptr<JsObject>) {
-		*self = JsValue::new_object(value);
-	}
-	
-	pub fn unwrap_iterator(&self) -> Ptr<JsIterator> {
-		assert_eq!(self.ty, JsType::Iterator);
-		
-		self.value.get_ptr()
+		*self = JsValue::raw_object(value);
 	}
 	
 	pub fn set_iterator(&mut self, value: Ptr<JsIterator>) {
-		*self = JsValue::new_iterator(value);
-	}
-	
-	pub fn unwrap_scope(&self) -> Ptr<JsScope> {
-		assert_eq!(self.ty, JsType::Scope);
-		
-		self.value.get_ptr()
+		*self = JsValue::raw_iterator(value);
 	}
 	
 	pub fn set_scope(&mut self, value: Ptr<JsScope>) {
-		*self = JsValue::new_scope(value);
+		*self = JsValue::raw_scope(value);
+	}
+	
+	pub fn get_ptr<T>(&self) -> Ptr<T> {
+		self.value.get_ptr()
 	}
 }
 
@@ -204,8 +266,8 @@ macro_rules! delegate {
 			JsType::Null => JsNull.$method( $( $arg ),* ),
 			JsType::Number => JsNumber::new($target.unwrap_number()).$method( $( $arg ),* ),
 			JsType::Boolean => JsBoolean::new($target.unwrap_bool()).$method( $( $arg ),* ),
-			JsType::Object => $target.unwrap_object().as_local(&$env.heap).$method( $( $arg ),* ),
-			JsType::String => $target.unwrap_string().as_local(&$env.heap).$method( $( $arg ),* ),
+			JsType::Object => $target.unwrap_object(&$env.heap).$method( $( $arg ),* ),
+			JsType::String => $target.unwrap_string(&$env.heap).$method( $( $arg ),* ),
 			_ => panic!("unexpected type {:?}", $target.ty())
 		}
 	}
@@ -330,6 +392,30 @@ impl JsItem for Local<JsValue> {
 }
 
 impl Local<JsValue> {
+	pub fn unwrap_string(&self, heap: &GcHeap) -> Local<JsString> {
+		assert_eq!(self.ty, JsType::String);
+		
+		self.value.get_ptr::<JsString>().as_local(heap)
+	}
+	
+	pub fn unwrap_object(&self, heap: &GcHeap) -> Local<JsObject> {
+		assert_eq!(self.ty, JsType::Object);
+		
+		self.value.get_ptr::<JsObject>().as_local(heap)
+	}
+	
+	pub fn unwrap_iterator(&self, heap: &GcHeap) -> Local<JsIterator> {
+		assert_eq!(self.ty, JsType::Iterator);
+		
+		self.value.get_ptr::<JsIterator>().as_local(heap)
+	}
+	
+	pub fn unwrap_scope(&self, heap: &GcHeap) -> Local<JsScope> {
+		assert_eq!(self.ty, JsType::Scope);
+		
+		self.value.get_ptr::<JsScope>().as_local(heap)
+	}
+	
 	// 9.1 ToPrimitive
 	pub fn to_primitive(&self, env: &mut JsEnv, hint: JsPreferredType) -> JsResult<Local<JsValue>> {
 		match self.ty() {
@@ -347,7 +433,7 @@ impl Local<JsValue> {
 				let value = self.unwrap_number();
 				!(value == 0f64 || value.is_nan())
 			}
-			JsType::String => self.unwrap_string().chars.len() > 0,
+			JsType::String => self.get_ptr::<JsString>().chars.len() > 0,
 			JsType::Object => true,
 			_ => panic!("unexpected type")
 		}
@@ -372,7 +458,7 @@ impl Local<JsValue> {
 	}
 	
 	fn get_number_from_string(&self, env: &JsEnv) -> JsResult<f64> {
-		let mut reader = StringReader::new("", &self.unwrap_string().to_string());
+		let mut reader = StringReader::new("", &self.unwrap_string(&env.heap).to_string());
 		if let Ok(mut lexer) = Lexer::new(&mut reader, env.ir.interner()) {
 			// Skip over the + or - sign if we have one.
 			
@@ -511,7 +597,7 @@ impl Local<JsValue> {
 					JsString::from_str(env, &number.to_string())
 				}
 			}
-			JsType::String => self.unwrap_string().as_local(&env.heap),
+			JsType::String => self.unwrap_string(&env.heap),
 			JsType::Object => {
 				let result = try!(self.to_primitive(env, JsPreferredType::String));
 				try!(result.to_string(env))
@@ -528,8 +614,7 @@ impl Local<JsValue> {
 			JsType::Null | JsType::Undefined => Err(JsError::new_type(env, ::errors::TYPE_INVALID)),
 			JsType::String => {
 				let constructor = try!(env.global().as_local(&env.heap).get(env, name::STRING_CLASS));
-				let value = self.as_local(&env.heap);
-				let object = try!(constructor.construct(env, vec![value]));
+				let object = try!(constructor.construct(env, vec![*self]));
 				Ok(object)
 			}
 			JsType::Boolean | JsType::Number => {
@@ -542,7 +627,7 @@ impl Local<JsValue> {
 				
 				let constructor = try!(env.global().as_local(&env.heap).get(env, class));
 				let object = try!(constructor.construct(env, Vec::new()));
-				object.unwrap_object().as_local(&env.heap).set_value(*self);
+				object.unwrap_object(&env.heap).set_value(*self);
 				Ok(object)
 			}
 			JsType::Object => Ok(*self),
@@ -617,18 +702,18 @@ pub unsafe fn validate_walker_for_value(walker: &GcWalker) {
 	validate_walker_for_embedded_value(walker, ptr, GC_VALUE, 0, &mut *object);
 }
 
-pub unsafe fn validate_walker_for_embedded_value(walker: &GcWalker, ptr: ptr_t, ty: u32, offset: u32, object: &mut JsValue) {
-	object.ty = JsType::Boolean;
+pub unsafe fn validate_walker_for_embedded_value(walker: &GcWalker, ptr: ptr_t, ty: u32, offset: u32, object: *mut JsValue) {
+	(*object).ty = JsType::Boolean;
 	validate_walker_field(walker, ty, ptr, false);
-	object.ty = JsType::Undefined;
+	(*object).ty = JsType::Undefined;
 	
-	object.value = JsRawValue { data: 1 };
+	(*object).value = JsRawValue { data: 1 };
 	validate_walker_field_at(walker, ty, ptr, false, offset + 1);
-	object.value = JsRawValue { data: 0 };
+	(*object).value = JsRawValue { data: 0 };
 	
-	object.ty = JsType::String;
-	object.value = JsRawValue { data: 1 };
+	(*object).ty = JsType::String;
+	(*object).value = JsRawValue { data: 1 };
 	validate_walker_field_at(walker, ty, ptr, true, offset + 1);
 	
-	*object = JsValue::new_undefined();
+	*object = transmute(zeroed::<JsValue>());
 }

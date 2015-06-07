@@ -1,10 +1,10 @@
-use gc::{GcWalker, GcWalk, ptr_t};
+use gc::{GcWalker, GcWalk, GcRootWalker, ptr_t};
 use rt::{JsType};
 use rt::{GC_ARRAY_STORE, GC_ENTRY, GC_HASH_STORE, GC_ITERATOR, GC_OBJECT};
 use rt::{GC_SCOPE, GC_STRING, GC_U16, GC_U32, GC_VALUE};
+use rt::stack::Stack;
 use std::mem::transmute;
-
-pub struct Walker;
+use std::rc::Rc;
 
 #[inline(always)]
 unsafe fn is_value_ptr(ptr: ptr_t, offset: usize) -> bool {
@@ -12,6 +12,18 @@ unsafe fn is_value_ptr(ptr: ptr_t, offset: usize) -> bool {
 	let ty = transmute::<_, *const JsType>(ptr);
 	(*ty).is_ptr()
 	
+}
+
+pub struct Walker {
+	stack: Rc<Stack>
+}
+
+impl Walker {
+	pub fn new(stack: Rc<Stack>) -> Walker {
+		Walker {
+			stack: stack
+		}
+	}
 }
 
 #[cfg(target_pointer_width = "64")]
@@ -78,5 +90,9 @@ impl GcWalker for Walker {
 				_ => panic!("unmapped GC type")
 			}
 		}
+	}
+	
+	fn create_root_walkers(&self) -> Vec<Box<GcRootWalker>> {
+		vec![self.stack.create_walker()]
 	}
 }

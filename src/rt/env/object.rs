@@ -98,7 +98,7 @@ pub fn Object_hasOwnProperty(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<Js
 	
 	let desc = object.get_own_property(env, name);
 	
-	Ok(JsValue::new_bool(desc.is_some()).as_local(&env.heap))
+	Ok(JsValue::new_bool(&env.heap, desc.is_some()))
 }
 
 // 15.2.4.6 Object.prototype.isPrototypeOf (V)
@@ -114,7 +114,7 @@ pub fn Object_isPrototypeOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 		loop {
 			if let Some(prototype) = arg.prototype(env) {
 				arg = prototype;
-				if object.unwrap_object() == arg.unwrap_object() {
+				if object == arg {
 					result = true;
 					break;
 				}
@@ -126,7 +126,7 @@ pub fn Object_isPrototypeOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 		result
 	};
 	
-	Ok(JsValue::new_bool(result).as_local(&env.heap))
+	Ok(JsValue::new_bool(&env.heap, result))
 }
 
 // 15.2.4.7 Object.prototype.propertyIsEnumerable (V)
@@ -141,7 +141,7 @@ pub fn Object_propertyIsEnumerable(env: &mut JsEnv, args: JsArgs) -> JsResult<Lo
 		false
 	};
 	
-	Ok(JsValue::new_bool(result).as_local(&env.heap))
+	Ok(JsValue::new_bool(&env.heap, result))
 }
 
 // 15.2.3.2 Object.getPrototypeOf ( O )
@@ -153,7 +153,7 @@ pub fn Object_getPrototypeOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<Js
 	} else if let Some(prototype) = arg.prototype(env) {
 		Ok(prototype)
 	} else {
-		Ok(JsValue::new_undefined().as_local(&env.heap))
+		Ok(JsValue::new_undefined(&env.heap))
 	}
 }
 
@@ -193,7 +193,7 @@ pub fn Object_getOwnPropertyDescriptor(env: &mut JsEnv, args: JsArgs) -> JsResul
 		if let Some(property) = property {
 			property.from_property_descriptor(env)
 		} else {
-			Ok(JsValue::new_undefined().as_local(&env.heap))
+			Ok(JsValue::new_undefined(&env.heap))
 		}
 	}
 }
@@ -205,7 +205,7 @@ pub fn Object_preventExtensions(env: &mut JsEnv, args: JsArgs) -> JsResult<Local
 	if object.ty() != JsType::Object {
 		Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 	} else {
-		object.unwrap_object().as_local(&env.heap).set_extensible(false);
+		object.unwrap_object(&env.heap).set_extensible(false);
 		
 		Ok(object)
 	}
@@ -218,7 +218,7 @@ pub fn Object_getOwnPropertyNames(env: &mut JsEnv, args: JsArgs) -> JsResult<Loc
 	if object.ty() != JsType::Object {
 		Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 	} else {
-		let object = object.unwrap_object().as_local(&env.heap);
+		let object = object.unwrap_object(&env.heap);
 		let mut result = env.new_array();
 		let mut offset = 0usize;
 		

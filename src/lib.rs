@@ -9,10 +9,11 @@ use syntax::token::name;
 
 #[macro_use]
 pub mod debug;
+#[macro_use]
+pub mod trace;
 pub mod syntax;
 pub mod ir;
 pub mod util;
-#[macro_use]
 pub mod gc;
 pub mod rt;
 mod errors;
@@ -37,15 +38,15 @@ impl JsError {
 		
 		args.push(match message {
 			Some(message) => JsString::from_str(env, message).as_value(env),
-			None => JsValue::new_undefined().as_local(env.heap())
+			None => JsValue::new_undefined(env.heap())
 		});
 		args.push(match file_name {
 			Some(file_name) => JsString::from_str(env, file_name).as_value(env),
-			None => JsValue::new_undefined().as_local(env.heap())
+			None => JsValue::new_undefined(env.heap())
 		});
 		args.push(match line_number {
-			Some(line_number) => JsValue::new_number(line_number as f64).as_local(env.heap()),
-			None => JsValue::new_undefined().as_local(env.heap())
+			Some(line_number) => JsValue::new_number(env.heap(), line_number as f64),
+			None => JsValue::new_undefined(env.heap())
 		});
 		
 		let obj = try!(class.construct(env, args));
