@@ -1,5 +1,3 @@
-#![allow(unused_variables)]
-
 use rt::{JsEnv, JsValue, JsString, JsItem, JsIterator, JsScope, JsType, JsArgs};
 use rt::{JsDescriptor, JsPreferredType};
 use gc::*;
@@ -79,7 +77,7 @@ impl JsEnv {
 	pub fn call_block(&mut self, block: Rc<Block>, args: JsArgs, function: &IrFunction, scope: Local<JsScope>) -> JsResult<JsValue> {
 		let mut locals = block.locals.len();
 		
-		for i in 0..block.locals.len() {
+		for _ in 0..block.locals.len() {
 			self.stack.push(JsValue::raw_undefined());
 		}
 		
@@ -479,7 +477,7 @@ impl<'a> Frame<'a> {
 				self.env.stack.push(frame.raw_get(0));
 			}
 			Ir::EndFinally => return Next::EndFinally,
-			Ir::EndIter(local) => { /* no-op */ }
+			Ir::EndIter(..) => { /* no-op */ }
 			Ir::EnterEnv => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -756,7 +754,7 @@ impl<'a> Frame<'a> {
 					self.env.stack.push(JsValue::raw_undefined());
 				}
 			}
-			Ir::LoadRegex(ref pattern, ref modifiers) => unimplemented!(),
+			Ir::LoadRegex(..) => unimplemented!(),
 			Ir::LoadEnv(name) => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -930,7 +928,7 @@ impl<'a> Frame<'a> {
 				let frame = self.env.stack.create_frame(1);
 				
 				let mut scope = self.find_scope(depth, false);
-				let result = scope.set(index as usize, frame.get(&self.env.heap, 0));
+				scope.set(index as usize, frame.get(&self.env.heap, 0));
 				
 				self.env.stack.drop_frame(frame);
 			}
@@ -960,7 +958,7 @@ impl<'a> Frame<'a> {
 				
 				self.env.stack.drop_frame(frame);
 			}
-			Ir::StoreGetterUnchecked(function) => unimplemented!(),
+			Ir::StoreGetterUnchecked(..) => unimplemented!(),
 			Ir::StoreNameGetterUnchecked(name, function) => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -1012,7 +1010,7 @@ impl<'a> Frame<'a> {
 				
 				self.env.stack.drop_frame(frame);
 			}
-			Ir::StoreSetterUnchecked(function) => unimplemented!(),
+			Ir::StoreSetterUnchecked(..) => unimplemented!(),
 			Ir::StoreNameSetterUnchecked(name, function) => {
 				let _scope = self.env.heap.new_local_scope();
 				
@@ -1115,10 +1113,10 @@ impl<'a> Frame<'a> {
 				
 				let frame = self.env.stack.create_frame(1);
 				let arg = frame.get(&self.env.heap, 0);
-				let result = self.env.type_of(arg);
+				let result = self.env.type_of(arg).as_value(&self.env);
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::raw_string(result.as_ptr()));
+				self.env.stack.push(*result.as_ptr());
 			}
 			Ir::TypeofName(name) => {
 				let _scope = self.env.heap.new_local_scope();
@@ -1132,9 +1130,11 @@ impl<'a> Frame<'a> {
 					self.env.type_of(arg)
 				};
 				
+				let result = result.as_value(&self.env);
+				
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::raw_string(result.as_ptr()));
+				self.env.stack.push(*result);
 			}
 			Ir::TypeofIndex => {
 				let _scope = self.env.heap.new_local_scope();
@@ -1151,9 +1151,11 @@ impl<'a> Frame<'a> {
 					self.env.type_of(arg)
 				};
 				
+				let result = result.as_value(&self.env);
+				
 				self.env.stack.drop_frame(frame);
 				
-				self.env.stack.push(JsValue::raw_string(result.as_ptr()));
+				self.env.stack.push(*result);
 			}
 			Ir::ValidateMemberTarget => {
 				let _scope = self.env.heap.new_local_scope();
@@ -1161,7 +1163,7 @@ impl<'a> Frame<'a> {
 				let frame = self.env.stack.create_frame(1);
 				let target = frame.get(&self.env.heap, 0);
 				
-				let invalid = target.is_null() || target.is_undefined();
+				let invalid = target.is_null_or_undefined();
 				
 				self.env.stack.drop_frame(frame);
 				
@@ -1234,30 +1236,6 @@ impl<'a> Frame<'a> {
 			Err(JsError::new_reference(self.env))
 		} else {
 			Ok(self.env.global.as_value(self.env))
-		}
-	}
-	
-	fn is_any_scope_object(&self, target: Local<JsValue>) -> bool {
-		if target.ty() != JsType::Object {
-			false
-		} else {
-			if let Some(mut scope) = self.get_scope() {
-				loop {
-					let object = scope.scope_object(self.env);
-					
-					if object.as_ptr() == target.get_ptr() {
-						return true;
-					}
-					
-					if let Some(parent) = scope.parent(self.env) {
-						scope = parent;
-					} else {
-						break;
-					}
-				}
-			}
-			
-			self.env.global.as_ptr() == target.get_ptr()
 		}
 	}
 	

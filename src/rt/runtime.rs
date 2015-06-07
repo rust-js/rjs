@@ -109,7 +109,7 @@ impl JsEnv {
 				let mut args = args;
 				
 				if !function.strict {
-					if args.this.is_null() || args.this.is_undefined() {
+					if args.this.is_null_or_undefined() {
 						args.this = self.global.as_value(self);
 					} else {
 						args.this = try!(args.this.to_object(self));

@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-#![allow(unused_variables)]
 
 use rt::{JsEnv, JsObject, JsFunction, JsFn, JsValue, JsDescriptor, JsItem, JsStoreType, JsScope};
 use ::JsResult;
@@ -319,7 +318,7 @@ fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	env.regexp_prototype = prototype.as_root(&env.heap);
 }
 
-fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
+fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>, _function_prototype: Local<JsObject>) {
 	let mut class = JsObject::new_local(env, JsStoreType::Hash);
 	
 	class.set_class(env, Some(name::JSON_CLASS));

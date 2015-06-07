@@ -46,20 +46,8 @@ impl fmt::Debug for JsValue {
 }
 
 impl JsValue {
-	// TODO: Remove
-	pub fn data(&self) -> u64 {
-		self.value.data
-	}
-	
 	pub fn new_local(heap: &GcHeap) -> Local<JsValue> {
 		heap.alloc_local(GC_VALUE)
-	}
-	
-	fn new(ty: JsType, value: JsRawValue) -> JsValue {
-		JsValue {
-			ty: ty,
-			value: value
-		}
 	}
 	
 	pub fn raw_undefined() -> JsValue {
@@ -142,72 +130,52 @@ impl JsValue {
 		local
 	}
 	
-	pub fn raw_string<T: AsPtr<JsString>>(value: T) -> JsValue {
-		JsValue {
-			ty: JsType::String,
-			value: JsRawValue::new_ptr(value)
-		}
-	}
-	
 	pub fn new_string(heap: &GcHeap, value: Local<JsString>) -> Local<JsValue> {
 		let mut local = JsValue::new_local(heap);
 		
-		*local = JsValue::raw_string(value.as_ptr());
+		*local = JsValue {
+			ty: JsType::String,
+			value: JsRawValue::new_ptr(value)
+		};
 		
 		local
-	}
-	
-	pub fn raw_object<T: AsPtr<JsObject>>(value: T) -> JsValue {
-		JsValue {
-			ty: JsType::Object,
-			value: JsRawValue::new_ptr(value)
-		}
 	}
 	
 	pub fn new_object(heap: &GcHeap, value: Local<JsObject>) -> Local<JsValue> {
 		let mut local = JsValue::new_local(heap);
 		
-		*local = JsValue::raw_object(value.as_ptr());
+		*local = JsValue {
+			ty: JsType::Object,
+			value: JsRawValue::new_ptr(value)
+		};
 		
 		local
-	}
-	
-	pub fn raw_iterator<T: AsPtr<JsIterator>>(value: T) -> JsValue {
-		JsValue {
-			ty: JsType::Iterator,
-			value: JsRawValue::new_ptr(value)
-		}
 	}
 	
 	pub fn new_iterator(heap: &GcHeap, value: Local<JsIterator>) -> Local<JsValue> {
 		let mut local = JsValue::new_local(heap);
 		
-		*local = JsValue::raw_iterator(value.as_ptr());
+		*local = JsValue {
+			ty: JsType::Iterator,
+			value: JsRawValue::new_ptr(value)
+		};
 		
 		local
-	}
-	
-	pub fn raw_scope<T: AsPtr<JsScope>>(value: T) -> JsValue {
-		JsValue {
-			ty: JsType::Scope,
-			value: JsRawValue::new_ptr(value)
-		}
 	}
 	
 	pub fn new_scope(heap: &GcHeap, value: Local<JsScope>) -> Local<JsValue> {
 		let mut local = JsValue::new_local(heap);
 		
-		*local = JsValue::raw_scope(value);
+		*local = JsValue {
+			ty: JsType::Scope,
+			value: JsRawValue::new_ptr(value)
+		};
 		
 		local
 	}
 	
 	pub fn ty(&self) -> JsType {
 		self.ty
-	}
-	
-	fn value(&self) -> JsRawValue {
-		self.value
 	}
 	
 	pub fn is_null(&self) -> bool {
@@ -218,40 +186,21 @@ impl JsValue {
 		self.ty == JsType::Undefined
 	}
 	
+	pub fn is_null_or_undefined(&self) -> bool {
+		let ty = self.ty;
+		ty == JsType::Null || ty == JsType::Undefined
+	}
+	
 	pub fn unwrap_number(&self) -> f64 {
 		assert_eq!(self.ty, JsType::Number);
 		
 		self.value.get_number()
 	}
 	
-	pub fn set_number(&mut self, value: f64) {
-		*self = JsValue::raw_number(value)
-	}
-	
 	pub fn unwrap_bool(&self) -> bool {
 		assert_eq!(self.ty, JsType::Boolean);
 		
 		self.value.get_bool()
-	}
-	
-	pub fn set_bool(&mut self, value: bool) {
-		*self = JsValue::raw_bool(value)
-	}
-	
-	pub fn set_string(&mut self, value: Ptr<JsString>) {
-		*self = JsValue::raw_string(value);
-	}
-	
-	pub fn set_object(&mut self, value: Ptr<JsObject>) {
-		*self = JsValue::raw_object(value);
-	}
-	
-	pub fn set_iterator(&mut self, value: Ptr<JsIterator>) {
-		*self = JsValue::raw_iterator(value);
-	}
-	
-	pub fn set_scope(&mut self, value: Ptr<JsScope>) {
-		*self = JsValue::raw_scope(value);
 	}
 	
 	pub fn get_ptr<T>(&self) -> Ptr<T> {
@@ -642,10 +591,6 @@ struct JsRawValue {
 }
 
 impl JsRawValue {
-	fn clear(&mut self) {
-		self.data = 0
-	}
-	
 	fn new() -> JsRawValue {
 		JsRawValue {
 			data: 0
@@ -680,10 +625,6 @@ impl JsRawValue {
 	
 	fn get_bool(&self) -> bool {
 		self.data != 0
-	}
-	
-	fn set_bool(&mut self, value: bool) {
-		self.data = if value { 1 } else { 0 }
 	}
 	
 	fn get_ptr<T>(&self) -> Ptr<T> {

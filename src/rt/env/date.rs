@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 use ::JsResult;
 use rt::{JsEnv, JsArgs, JsValue};
 use gc::*;

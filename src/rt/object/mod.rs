@@ -377,11 +377,6 @@ impl Local<JsObject> {
 	}
 	
 	// 15.4 Array Objects
-	fn is_array_index(env: &JsEnv, name: Name) -> bool {
-		Self::parse_array_index(env, name).is_some()
-	}
-	
-	// 15.4 Array Objects
 	fn parse_array_index(env: &JsEnv, name: Name) -> Option<usize> {
 		match name.index() {
 			Some(index) => Some(index),

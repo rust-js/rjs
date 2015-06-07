@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 use ::{JsResult, JsError};
 use rt::{JsEnv, JsString, JsFnMode, JsArgs, JsValue, JsItem, JsFunction, JsType};
 use rt::{JsScope, JsDescriptor, JsObject};
@@ -9,7 +11,7 @@ use std::cmp::max;
 use syntax::Name;
 use syntax::token::name;
 
-pub fn Function_baseConstructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Function_baseConstructor(env: &mut JsEnv, _: JsArgs) -> JsResult<Local<JsValue>> {
 	// Nothing to do. The default result already is undefined.
 	Ok(JsValue::new_undefined(&env.heap))
 }
@@ -74,7 +76,7 @@ pub fn Function_apply(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>>
 		let this_arg = args.arg(env, 0);
 		
 		let call_args = args.arg(env, 1);
-		let call_args = if call_args.is_null() || call_args.is_undefined() {
+		let call_args = if call_args.is_null_or_undefined() {
 			Vec::new()
 		} else {
 			let len = try!(call_args.get(env, name::LENGTH));

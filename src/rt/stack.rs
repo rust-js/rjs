@@ -60,6 +60,7 @@ impl Stack {
 		}
 	}
 	
+	#[allow(dead_code)]
 	pub fn pop(&self) -> JsValue {
 		unsafe {
 			let sp = self.sp.get().offset(-(size_of::<JsValue>() as isize));

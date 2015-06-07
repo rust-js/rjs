@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 use ::{JsResult, JsError};
 use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsDescriptor, JsType, JsString};
 use gc::*;

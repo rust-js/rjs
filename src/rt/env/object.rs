@@ -11,7 +11,7 @@ use syntax::token::name;
 pub fn Object_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	if args.mode == JsFnMode::Call {
 		let arg = args.arg(env, 0);
-		if arg.is_null() || arg.is_undefined() {
+		if arg.is_null_or_undefined() {
 			Ok(env.new_object().as_value(env))
 		} else {
 			arg.to_object(env)
