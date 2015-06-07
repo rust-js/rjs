@@ -3,7 +3,7 @@ use rt::validate_walker_field;
 use rt::object::{Store, Entry, JsStoreKey};
 use rt::object::hash_store::HashStore;
 use syntax::Name;
-use gc::{Array, Local, GcWalker, GcHeap, AsPtr, Ptr, ptr_t};
+use gc::{Array, Local, GcWalker, GcAllocator, AsPtr, Ptr, ptr_t};
 use std::cmp;
 use syntax::token::name;
 use std::mem::{transmute, zeroed};
@@ -35,8 +35,8 @@ impl ArrayStore {
 }
 
 impl Local<ArrayStore> {
-	fn props(&self, heap: &GcHeap) -> Local<HashStore> {
-		self.props.as_local(heap)
+	fn props<T: GcAllocator>(&self, allocator: &T) -> Local<HashStore> {
+		self.props.as_local(allocator)
 	}
 	
 	fn grow_entries(&mut self, env: &JsEnv, count: usize) {
@@ -86,7 +86,7 @@ impl Store for Local<ArrayStore> {
 				self.set_length(env, length);
 			}
 			
-			self.props(&env.heap).add(env, name, value);
+			self.props(env).add(env, name, value);
 		}
 	}
 	
@@ -99,7 +99,7 @@ impl Store for Local<ArrayStore> {
 				false
 			}
 		} else {
-			self.props(&env.heap).remove(env, name)
+			self.props(env).remove(env, name)
 		}
 	}
 	
@@ -114,7 +114,7 @@ impl Store for Local<ArrayStore> {
 			
 			None
 		} else {
-			self.props(&env.heap).get_value(env, name)
+			self.props(env).get_value(env, name)
 		}
 	}
 	
@@ -137,7 +137,7 @@ impl Store for Local<ArrayStore> {
 				self.set_length(env, length);
 			}
 			
-			self.props(&env.heap).replace(env, name, value)
+			self.props(env).replace(env, name, value)
 		}
 	}
 	

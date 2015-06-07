@@ -8,5 +8,5 @@ pub fn console_log(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	
 	println!("{}", string);
 	
-	Ok(JsValue::new_undefined(&env.heap))
+	Ok(env.new_undefined())
 }

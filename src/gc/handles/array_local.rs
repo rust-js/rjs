@@ -1,4 +1,4 @@
-use gc::{Array, AsArray, GcHeap, ArrayRoot};
+use gc::{Array, AsArray, ArrayRoot, GcAllocator};
 use std::ops::{Deref, DerefMut};
 
 pub struct ArrayLocal<T> {
@@ -12,8 +12,8 @@ impl<T> ArrayLocal<T> {
 		}
 	}
 	
-	pub fn as_root(&self, heap: &GcHeap) -> ArrayRoot<T> {
-		unsafe { ArrayRoot::new(heap, *self) }
+	pub fn as_root<U: GcAllocator>(&self, allocator: &U) -> ArrayRoot<T> {
+		allocator.alloc_array_root_from_local(*self)
 	}
 }
 

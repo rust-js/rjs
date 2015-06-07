@@ -30,28 +30,28 @@ impl JsError {
 	fn new_error(env: &mut JsEnv, name: Name, message: Option<&str>, file_name: Option<&str>, line_number: Option<usize>) -> JsResult<Root<JsValue>> {
 		// If construction of the error fails, we simply propagate the error itself.
 		
-		let _scope = env.heap().new_local_scope();
+		let _scope = env.new_local_scope();
 		
-		let class = try!(env.global().as_local(env.heap()).get(env, name));
+		let class = try!(env.global().as_local(env).get(env, name));
 		
 		let mut args = Vec::new();
 		
 		args.push(match message {
 			Some(message) => JsString::from_str(env, message).as_value(env),
-			None => JsValue::new_undefined(env.heap())
+			None => env.new_undefined()
 		});
 		args.push(match file_name {
 			Some(file_name) => JsString::from_str(env, file_name).as_value(env),
-			None => JsValue::new_undefined(env.heap())
+			None => env.new_undefined()
 		});
 		args.push(match line_number {
-			Some(line_number) => JsValue::new_number(env.heap(), line_number as f64),
-			None => JsValue::new_undefined(env.heap())
+			Some(line_number) => env.new_number(line_number as f64),
+			None => env.new_undefined()
 		});
 		
 		let obj = try!(class.construct(env, args));
 		
-		Ok(obj.as_root(env.heap()))
+		Ok(obj.as_root(env))
 	}
 	
 	pub fn new_runtime(env: &mut JsEnv, name: Name, message: Option<&str>, file_name: Option<&str>, line_number: Option<usize>) -> JsError {
@@ -95,7 +95,7 @@ impl JsError {
 			ref error @ _ => {
 				// TODO: This could be nicer.
 				let error = JsString::from_str(env, &format!("{:?}", error)).as_value(env);
-				error.as_root(env.heap())
+				error.as_root(env)
 			}
 		}
 	}

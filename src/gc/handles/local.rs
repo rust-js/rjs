@@ -1,4 +1,4 @@
-use gc::{Ptr, Root, AsPtr, GcHeap};
+use gc::{Ptr, Root, AsPtr, GcAllocator};
 use std::ops::{Deref, DerefMut};
 
 pub struct Local<T> {
@@ -12,8 +12,8 @@ impl<T> Local<T> {
 		}
 	}
 	
-	pub fn as_root(&self, heap: &GcHeap) -> Root<T> {
-		unsafe { Root::new(heap, *self) }
+	pub fn as_root<U: GcAllocator>(&self, allocator: &U) -> Root<T> {
+		allocator.alloc_root_from_local(*self)
 	}
 }
 

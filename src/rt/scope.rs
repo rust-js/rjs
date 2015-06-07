@@ -41,17 +41,17 @@ impl JsScope {
 
 impl Local<JsScope> {
 	pub fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-		JsValue::new_scope(&env.heap, *self)
+		env.new_scope(*self)
 	}
 	
 	pub fn parent(&self, env: &JsEnv) -> Option<Local<JsScope>> {
 		let parent = self.raw_get(env, 0);
 		
-		if parent.is_undefined() { None } else { Some(parent.unwrap_scope(&env.heap)) }
+		if parent.is_undefined() { None } else { Some(parent.unwrap_scope(env)) }
 	}
 	
 	pub fn scope_object(&self, env: &JsEnv) -> Local<JsObject> {
-		self.raw_get(env, 1).unwrap_object(&env.heap)
+		self.raw_get(env, 1).unwrap_object(env)
 	}
 	
 	pub fn arguments(&self, env: &JsEnv) -> Option<Local<JsValue>> {
@@ -83,7 +83,7 @@ impl Local<JsScope> {
 	}
 	
 	fn raw_get(&self, env: &JsEnv, index: usize) -> Local<JsValue> {
-		let mut local = JsValue::new_local(&env.heap);
+		let mut local = env.new_value();
 		
 		*local = self.items[index];
 		

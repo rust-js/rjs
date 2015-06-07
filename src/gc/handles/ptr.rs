@@ -1,4 +1,4 @@
-use gc::{GcHeap, Local, ptr_t};
+use gc::{GcAllocator, Local, ptr_t};
 use std::ops::{Deref, DerefMut};
 use std::marker::PhantomData;
 use std::ptr;
@@ -30,8 +30,8 @@ impl<T> Ptr<T> {
 		self.ptr.is_null()
 	}
 	
-	pub fn as_local(&self, heap: &GcHeap) -> Local<T> {
-		heap.alloc_local_from_ptr(*self)
+	pub fn as_local<U: GcAllocator>(&self, allocator: &U) -> Local<T> {
+		allocator.alloc_local_from_ptr(*self)
 	}
 }
 

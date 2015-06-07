@@ -1,4 +1,4 @@
-use gc::{GcHeap, ArrayLocal, ptr_t};
+use gc::{ArrayLocal, GcAllocator, ptr_t};
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::marker::PhantomData;
 use std::ptr;
@@ -35,8 +35,8 @@ impl<T> Array<T> {
 		unsafe { *transmute::<_, *const usize>(self.ptr) }
 	}
 	
-	pub fn as_local(&self, heap: &GcHeap) -> ArrayLocal<T> {
-		heap.alloc_array_local_from_ptr(*self)
+	pub fn as_local<U: GcAllocator>(&self, allocator: &U) -> ArrayLocal<T> {
+		allocator.alloc_array_local_from_array(*self)
 	}
 }
 

@@ -22,13 +22,13 @@ pub fn String_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVal
 		return Ok(arg);
 	}
 	
-	let mut object = args.this.unwrap_object(&env.heap);
+	let mut object = args.this.unwrap_object(env);
 	
 	object.set_prototype(env, Some(env.string_prototype.as_value(env)));
 	object.set_class(env, Some(name::STRING_CLASS));
 	object.set_value(arg);
 	
-	let value = JsValue::new_number(&env.heap, arg.unwrap_string(&env.heap).chars.len() as f64);
+	let value = env.new_number(arg.unwrap_string(env).chars.len() as f64);
 	try!(object.define_own_property(env, name::LENGTH, JsDescriptor::new_value(value, false, false, false), false));
 	
 	Ok(args.this)
@@ -39,7 +39,7 @@ pub fn String_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>
 	match args.this.ty() {
 		JsType::String => Ok(args.this),
 		JsType::Object => {
-			let object = args.this.unwrap_object(&env.heap);
+			let object = args.this.unwrap_object(env);
 			
 			if object.class(env) == Some(name::STRING_CLASS) {
 				// This is safe because the constructor always sets the value.
@@ -57,7 +57,7 @@ pub fn String_valueOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>>
 	match args.this.ty() {
 		JsType::String => Ok(args.this),
 		JsType::Object => {
-			let object = args.this.unwrap_object(&env.heap);
+			let object = args.this.unwrap_object(env);
 			
 			if object.class(env) == Some(name::STRING_CLASS) {
 				// This is safe because the constructor always sets the value.
@@ -115,7 +115,7 @@ pub fn String_charCodeAt(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 		chars[position as usize] as f64
 	};
 	
-	Ok(JsValue::new_number(&env.heap, result))
+	Ok(env.new_number(result))
 }
 
 // 15.5.4.7 String.prototype.indexOf (searchString, position)
@@ -185,7 +185,7 @@ fn index_of(env: &mut JsEnv, args: JsArgs, reverse: bool) -> JsResult<Local<JsVa
 		result
 	};
 	
-	Ok(JsValue::new_number(&env.heap, index as f64))
+	Ok(env.new_number(index as f64))
 }
 
 // 15.5.4.7 String.prototype.indexOf (searchString, position)

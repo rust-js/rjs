@@ -35,6 +35,7 @@ mod null;
 mod iterator;
 mod scope;
 mod walker;
+mod allocators;
 
 const GC_ARRAY_STORE : u32 = 1;
 const GC_ENTRY : u32 = 2;
@@ -49,7 +50,7 @@ const GC_VALUE : u32 = 10;
 
 impl Root<JsObject> {
 	pub fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-		JsValue::new_object(&env.heap, self.as_local(&env.heap))
+		env.new_object(self.as_local(env))
 	}
 }
 
@@ -121,19 +122,19 @@ impl JsEnv {
 		try!(self.ir.print_ir(&mut ir));
 		debugln!("{}", ir);
 		
-		let _scope = self.heap.new_local_scope();
+		let _scope = self.new_local_scope();
 		
 		let global = self.global.as_value(self);
-		let global_scope = self.global_scope.as_local(&self.heap);
+		let global_scope = self.global_scope.as_local(self);
 		
 		self.call(function_ref, global, global_scope)
 	}
 	
 	pub fn eval(&mut self, js: &str) -> JsResult<Root<JsValue>> {
-		let _scope = self.heap.new_local_scope();
+		let _scope = self.new_local_scope();
 		
 		let global = self.global.as_value(self);
-		let global_scope = self.global_scope.as_local(&self.heap);
+		let global_scope = self.global_scope.as_local(self);
 		
 		self.eval_scoped(js, false, global, global_scope, ParseMode::Normal)
 	}
@@ -162,7 +163,7 @@ impl JsEnv {
 		let block = try!(self.ir.get_function_ir(function_ref));
 		
 		let this = if !function.strict && this.is_undefined() {
-			self.global.as_local(&self.heap).as_value(self)
+			self.global.as_local(self).as_value(self)
 		} else {
 			this
 		};
@@ -170,7 +171,7 @@ impl JsEnv {
 		// TODO: Validate. Function is just coerced to undefined because
 		// we don't have it here.
 		let args = JsArgs {
-			function: JsValue::new_undefined(&self.heap),
+			function: self.new_undefined(),
 			this: this,
 			args: Vec::new(),
 			strict: function.strict,
@@ -183,10 +184,6 @@ impl JsEnv {
 		debugln!("EXIT {}", location);
 		
 		Ok(result)
-	}
-	
-	pub fn heap(&self) -> &GcHeap {
-		&self.heap
 	}
 	
 	/// Returns a new GC handle to the global object.
@@ -213,12 +210,16 @@ impl JsEnv {
 	fn new_native_function<'a>(&mut self, name: Option<Name>, args: u32, function: &JsFn, prototype: Local<JsObject>) -> Local<JsValue> {
 		let mut result = JsObject::new_function(self, JsFunction::Native(name, args, function as *const JsFn, true), prototype, false).as_value(self);
 		
-		let mut proto = self.new_object();
+		let mut proto = self.create_object();
 		let value = proto.as_value(self);
 		result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false).ok();
 		proto.define_own_property(self, name::CONSTRUCTOR, JsDescriptor::new_value(result, true, false, true), false).ok();
 		
 		result
+	}
+	
+	pub fn new_local_scope(&self) -> LocalScope {
+		self.heap.new_local_scope()
 	}
 }
 
@@ -258,7 +259,7 @@ pub trait JsItem {
 			} else {
 				let get = desc.get(env);
 				if get.is_undefined() {
-					Ok(JsValue::new_undefined(&env.heap))
+					Ok(env.new_undefined())
 				} else {
 					let this = self.as_value(env);
 					get.call(env, this, Vec::new(), false)
@@ -266,7 +267,7 @@ pub trait JsItem {
 			}
 		}
 
-		Ok(JsValue::new_undefined(&env.heap))
+		Ok(env.new_undefined())
 	}
 	
 	// 8.12.4 [[CanPut]] (P)
@@ -442,7 +443,7 @@ pub trait JsItem {
 	// 15.3.4.5.2 [[Construct]]
 	fn construct(&self, env: &mut JsEnv, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>> {
 		let is_bound = if self.class(env) == Some(name::FUNCTION_CLASS) {
-			let object = self.as_value(env).unwrap_object(&env.heap);
+			let object = self.as_value(env).unwrap_object(env);
 			let function = object.function().unwrap();
 			function == JsFunction::Bound
 		} else {
@@ -472,7 +473,7 @@ pub trait JsItem {
 		if proto.ty() == JsType::Object {
 			obj.set_prototype(env, Some(proto));
 		} else {
-			let proto = env.object_prototype.as_local(&env.heap).as_value(env);
+			let proto = env.object_prototype.as_local(env).as_value(env);
 			obj.set_prototype(env, Some(proto));
 		}
 		
@@ -643,15 +644,15 @@ impl JsDescriptor {
 	}
 	
 	pub fn value(&self, env: &JsEnv) -> Local<JsValue> {
-		self.value.unwrap_or_else(|| JsValue::new_undefined(&env.heap))
+		self.value.unwrap_or_else(|| env.new_undefined())
 	}
 	
 	pub fn get(&self, env: &JsEnv) -> Local<JsValue> {
-		self.get.unwrap_or_else(|| JsValue::new_undefined(&env.heap))
+		self.get.unwrap_or_else(|| env.new_undefined())
 	}
 	
 	pub fn set(&self, env: &JsEnv) -> Local<JsValue> {
-		self.set.unwrap_or_else(|| JsValue::new_undefined(&env.heap))
+		self.set.unwrap_or_else(|| env.new_undefined())
 	}
 	
 	pub fn is_writable(&self) -> bool {
@@ -672,11 +673,11 @@ impl JsDescriptor {
 	
 	// 8.10.4 FromPropertyDescriptor ( Desc )
 	pub fn from_property_descriptor(&self, env: &mut JsEnv) -> JsResult<Local<JsValue>> {
-		let mut obj = env.new_object();
+		let mut obj = env.create_object();
 		
 		if self.is_data() {
 			let value = self.value(env);
-			let writable = JsValue::new_bool(&env.heap, self.is_writable());
+			let writable = env.new_bool(self.is_writable());
 			
 			try!(obj.define_own_property(env, name::VALUE, JsDescriptor::new_simple_value(value), false));
 			try!(obj.define_own_property(env, name::WRITABLE, JsDescriptor::new_simple_value(writable), false));
@@ -688,8 +689,8 @@ impl JsDescriptor {
 			try!(obj.define_own_property(env, name::SET, JsDescriptor::new_simple_value(set), false));
 		}
 		
-		let enumerable = JsValue::new_bool(&env.heap, self.is_enumerable());
-		let configurable = JsValue::new_bool(&env.heap, self.is_configurable());
+		let enumerable = env.new_bool(self.is_enumerable());
+		let configurable = env.new_bool(self.is_configurable());
 		
 		try!(obj.define_own_property(env, name::ENUMERABLE, JsDescriptor::new_simple_value(enumerable), false));
 		try!(obj.define_own_property(env, name::CONFIGURABLE, JsDescriptor::new_simple_value(configurable), false));
@@ -817,7 +818,7 @@ impl JsArgs {
 		if self.args.len() > index {
 			self.args[index]
 		} else {
-			JsValue::new_undefined(&env.heap)
+			env.new_undefined()
 		}
 	}
 	

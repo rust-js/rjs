@@ -246,7 +246,7 @@ impl GcHeap {
 		self.alloc_local_from_ptr(unsafe { self.alloc::<T>(ty) })
 	}
 	
-	fn alloc_local_from_ptr<T, U: AsPtr<T>>(&self, ptr: U) -> Local<T> {
+	fn alloc_local_from_any_ptr<T, U: AsPtr<T>>(&self, ptr: U) -> Local<T> {
 		let mut scopes = self.scopes.borrow_mut();
 		let len = scopes.len();
 		if len == 0 {
@@ -448,4 +448,44 @@ pub enum GcWalk {
 	Pointer,
 	Skip,
 	End
+}
+
+pub trait GcAllocator {
+	fn alloc_array_local_from_root<T>(&self, root: &ArrayRoot<T>) -> ArrayLocal<T>;
+	
+	fn alloc_array_root_from_local<T>(&self, local: ArrayLocal<T>) -> ArrayRoot<T>;
+	
+	fn alloc_array_local_from_array<T>(&self, array: Array<T>) -> ArrayLocal<T>;
+	
+	fn alloc_root_from_local<T>(&self, local: Local<T>) -> Root<T>;
+	
+	fn alloc_local_from_ptr<T>(&self, ptr: Ptr<T>) -> Local<T>;
+	
+	fn alloc_local_from_root<T>(&self, root: &Root<T>) -> Local<T>;
+}
+
+impl GcAllocator for GcHeap {
+	fn alloc_array_local_from_root<T>(&self, root: &ArrayRoot<T>) -> ArrayLocal<T> {
+		self.alloc_array_local_from_ptr(root.as_ptr())
+	}
+	
+	fn alloc_array_root_from_local<T>(&self, local: ArrayLocal<T>) -> ArrayRoot<T> {
+		unsafe { ArrayRoot::new(self, local) }
+	}
+	
+	fn alloc_array_local_from_array<T>(&self, array: Array<T>) -> ArrayLocal<T> {
+		self.alloc_array_local_from_ptr(array)
+	}
+	
+	fn alloc_root_from_local<T>(&self, local: Local<T>) -> Root<T> {
+		unsafe { Root::new(self, local) }
+	}
+	
+	fn alloc_local_from_ptr<T>(&self, ptr: Ptr<T>) -> Local<T> {
+		self.alloc_local_from_any_ptr(ptr)
+	}
+	
+	fn alloc_local_from_root<T>(&self, root: &Root<T>) -> Local<T> {
+		self.alloc_local_from_any_ptr(root.as_ptr())
+	}
 }

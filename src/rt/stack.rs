@@ -1,6 +1,6 @@
-use gc::{GcRootWalker, GcHeap, Local, ptr_t};
+use gc::{GcRootWalker, Local, ptr_t};
 use gc::os::Memory;
-use rt::{JsValue, JsType};
+use rt::{JsEnv, JsValue, JsType};
 use std::mem::{size_of, transmute};
 use std::ptr;
 use std::cell::Cell;
@@ -75,8 +75,8 @@ pub struct StackFrame {
 }
 
 impl StackFrame {
-	pub fn get(&self, heap: &GcHeap, offset: usize) -> Local<JsValue> {
-		let mut local = JsValue::new_local(heap);
+	pub fn get(&self, env: &JsEnv, offset: usize) -> Local<JsValue> {
+		let mut local = env.new_value();
 		
 		*local = self.raw_get(offset);
 		

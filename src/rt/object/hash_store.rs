@@ -76,7 +76,7 @@ impl Local<HashStore> {
 	}
 	
 	fn grow_entries(&mut self, env: &JsEnv) {
-		let entries = self.entries.as_local(&env.heap);
+		let entries = self.entries.as_local(env);
 		
 		unsafe {
 			self.entries = env.heap.alloc_array(GC_ENTRY, primes::get_prime(entries.len() * 2));

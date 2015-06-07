@@ -7,7 +7,7 @@ pub struct JsUndefined;
 
 impl JsItem for JsUndefined {
 	fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-		JsValue::new_undefined(&env.heap)
+		env.new_undefined()
 	}
 	
 	fn get_property(&self, _: &JsEnv, _: Name) -> Option<JsDescriptor> {

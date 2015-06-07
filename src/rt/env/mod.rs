@@ -87,20 +87,20 @@ pub fn setup(env: &mut JsEnv) -> JsResult<()> {
 }
 
 fn setup_global(env: &mut JsEnv) {
-	let _scope = env.heap.new_local_scope();
+	let _scope = env.new_local_scope();
 	
 	*env.global = JsObject::new(&env, JsStoreType::Hash);
 	
 	env.global_scope = {
-		let global = env.global.as_local(&env.heap);
+		let global = env.global.as_local(env);
 		let global_scope = JsScope::new_local_thick(&env, global, None, true);
-		global_scope.as_root(&env.heap)
+		global_scope.as_root(env)
 	};
 	
 	let mut global = env.global().as_value(env);
 	
 	let mut object_prototype = JsObject::new_local(&env, JsStoreType::Hash);
-	env.object_prototype = object_prototype.as_root(&env.heap);
+	env.object_prototype = object_prototype.as_root(env);
 	
 	global.set_prototype(env, Some(object_prototype.as_value(env)));
 	global.set_class(env, Some(name::OBJECT_CLASS));
@@ -129,18 +129,18 @@ fn setup_global(env: &mut JsEnv) {
 	function!(global, name::IS_FINITE, Global_isFinite, 1, function_prototype, env);
 	function!(global, name::EVAL, Global_eval, 1, function_prototype, env);
 	
-	value!(global, name::NAN, JsValue::new_number(&env.heap, f64::NAN), false, false, false, env);
-	value!(global, name::INFINITY, JsValue::new_number(&env.heap, f64::INFINITY), false, false, false, env);
-	value!(global, name::UNDEFINED, JsValue::new_undefined(&env.heap), false, false, false, env);
+	value!(global, name::NAN, env.new_number(f64::NAN), false, false, false, env);
+	value!(global, name::INFINITY, env.new_number(f64::INFINITY), false, false, false, env);
+	value!(global, name::UNDEFINED, env.new_undefined(), false, false, false, env);
 }
 
 fn setup_function(env: &mut JsEnv, mut global: Local<JsValue>, object_prototype: Local<JsObject>) -> Local<JsObject> {
-	let mut prototype = new_naked_function(env, None, 0, &Function_baseConstructor, object_prototype, false).unwrap_object(&env.heap);
-	env.function_prototype = prototype.as_root(&env.heap);
+	let mut prototype = new_naked_function(env, None, 0, &Function_baseConstructor, object_prototype, false).unwrap_object(env);
+	env.function_prototype = prototype.as_root(env);
 	
 	let class = new_naked_function(env, Some(name::FUNCTION_CLASS), 0, &Function_constructor, prototype, true);
 	
-	let mut class_object = class.unwrap_object(&env.heap);
+	let mut class_object = class.unwrap_object(env);
 
 	let value = prototype.as_value(env);
 	class_object.define_own_property(env, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false).ok();
@@ -180,7 +180,7 @@ fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut
 		
 	property!(class, name::PROTOTYPE, prototype.as_value(env), false, false, false, env);
 	property!(prototype, name::CONSTRUCTOR, class, true, false, true, env);
-	value!(class, name::LENGTH, JsValue::new_number(&env.heap, 0f64), true, false, true, env);
+	value!(class, name::LENGTH, env.new_number(0f64), true, false, true, env);
 	
 	function!(class, name::CREATE, Object_create, 1, function_prototype, env);
 	function!(class, name::GET_OWN_PROPERTY_DESCRIPTOR, Object_getOwnPropertyDescriptor, 2, function_prototype, env);
@@ -192,7 +192,7 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototy
 	
 	property!(global, name::ARRAY_CLASS, class, true, false, true, env);
 
-	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(&env.heap);
+	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
 
 	function!(prototype, name::TO_STRING, Array_toString, 0, function_prototype, env);
 	function!(prototype, name::TO_LOCALE_STRING, Array_toLocaleString, 0, function_prototype, env);
@@ -216,7 +216,7 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototy
 	function!(prototype, name::REDUCE, Array_reduce, 1, function_prototype, env);
 	function!(prototype, name::REDUCE_RIGHT, Array_reduceRight, 1, function_prototype, env);
 	
-	env.array_prototype = prototype.as_root(&env.heap);
+	env.array_prototype = prototype.as_root(env);
 	
 	function!(class, name::IS_ARRAY, Array_isArray, 1, function_prototype, env);
 }
@@ -228,9 +228,9 @@ fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	
 	property!(global, name::STRING_CLASS, class, true, false, true, env);
 
-	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(&env.heap);
+	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
 
-	env.string_prototype = prototype.as_root(&env.heap);
+	env.string_prototype = prototype.as_root(env);
 	
 	function!(&mut prototype, name::SUBSTR, String_substr, 1, function_prototype, env);
 	function!(&mut prototype, name::TO_STRING, String_toString, 0, function_prototype, env);
@@ -246,9 +246,9 @@ fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototyp
 	
 	property!(global, name::DATE_CLASS, class, true, false, true, env);
 
-	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(&env.heap);
+	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
 	
-	env.date_prototype = prototype.as_root(&env.heap);
+	env.date_prototype = prototype.as_root(env);
 	
 	function!(&mut prototype, name::GET_YEAR, Date_getYear, 0, function_prototype, env);
 	function!(&mut prototype, name::SET_YEAR, Date_setYear, 1, function_prototype, env);
@@ -258,17 +258,17 @@ fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototyp
 fn setup_number<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
 	let mut class = env.new_native_function(Some(name::NUMBER_CLASS), 0, &Number_constructor, function_prototype);
 	
-	value!(class, name::MAX_VALUE, JsValue::new_number(&env.heap, f64::MAX), false, false, false, env);
-	value!(class, name::MIN_VALUE, JsValue::new_number(&env.heap, f64::MIN_POSITIVE), false, false, false, env);
-	value!(class, name::NAN, JsValue::new_number(&env.heap, f64::NAN), false, false, false, env);
-	value!(class, name::NEGATIVE_INFINITY, JsValue::new_number(&env.heap, f64::NEG_INFINITY), false, false, false, env);
-	value!(class, name::POSITIVE_INFINITY, JsValue::new_number(&env.heap, f64::INFINITY), false, false, false, env);
+	value!(class, name::MAX_VALUE, env.new_number(f64::MAX), false, false, false, env);
+	value!(class, name::MIN_VALUE, env.new_number(f64::MIN_POSITIVE), false, false, false, env);
+	value!(class, name::NAN, env.new_number(f64::NAN), false, false, false, env);
+	value!(class, name::NEGATIVE_INFINITY, env.new_number(f64::NEG_INFINITY), false, false, false, env);
+	value!(class, name::POSITIVE_INFINITY, env.new_number(f64::INFINITY), false, false, false, env);
 	
 	property!(global, name::NUMBER_CLASS, class, true, false, true, env);
 
-	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(&env.heap);
+	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
 	
-	env.number_prototype = prototype.as_root(&env.heap);
+	env.number_prototype = prototype.as_root(env);
 
 	function!(&mut prototype, name::VALUE_OF, Number_valueOf, 0, function_prototype, env);
 	function!(&mut prototype, name::TO_STRING, Number_toString, 0, function_prototype, env);
@@ -280,9 +280,9 @@ fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_proto
 	
 	property!(global, name::BOOLEAN_CLASS, class, true, false, true, env);
 	
-	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(&env.heap);
+	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
 	
-	env.boolean_prototype = prototype.as_root(&env.heap);
+	env.boolean_prototype = prototype.as_root(env);
 	
 	function!(&mut prototype, name::VALUE_OF, Boolean_valueOf, 0, function_prototype, env);
 	function!(&mut prototype, name::TO_STRING, Boolean_toString, 0, function_prototype, env);
@@ -291,14 +291,14 @@ fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_proto
 fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
 	let mut class = JsObject::new_local(env, JsStoreType::Hash);
 	
-	value!(class, name::PI, JsValue::new_number(&env.heap, f64::consts::PI), false, false, false, env);
-	value!(class, name::E, JsValue::new_number(&env.heap, f64::consts::E), false, false, false, env);
-	value!(class, name::LN10, JsValue::new_number(&env.heap, f64::consts::LN_10), false, false, false, env);
-	value!(class, name::LN2, JsValue::new_number(&env.heap, f64::consts::LN_2), false, false, false, env);
-	value!(class, name::LOG2E, JsValue::new_number(&env.heap, f64::consts::LOG2_E), false, false, false, env);
-	value!(class, name::LOG10E, JsValue::new_number(&env.heap, f64::consts::LOG10_E), false, false, false, env);
-	value!(class, name::SQRT1_2, JsValue::new_number(&env.heap, f64::consts::FRAC_1_SQRT_2), false, false, false, env);
-	value!(class, name::SQRT2, JsValue::new_number(&env.heap, f64::consts::SQRT_2), false, false, false, env);
+	value!(class, name::PI, env.new_number(f64::consts::PI), false, false, false, env);
+	value!(class, name::E, env.new_number(f64::consts::E), false, false, false, env);
+	value!(class, name::LN10, env.new_number(f64::consts::LN_10), false, false, false, env);
+	value!(class, name::LN2, env.new_number(f64::consts::LN_2), false, false, false, env);
+	value!(class, name::LOG2E, env.new_number(f64::consts::LOG2_E), false, false, false, env);
+	value!(class, name::LOG10E, env.new_number(f64::consts::LOG10_E), false, false, false, env);
+	value!(class, name::SQRT1_2, env.new_number(f64::consts::FRAC_1_SQRT_2), false, false, false, env);
+	value!(class, name::SQRT2, env.new_number(f64::consts::SQRT_2), false, false, false, env);
 	
 	class.set_class(env, Some(name::MATH_CLASS));
 	
@@ -313,9 +313,9 @@ fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	
 	property!(global, name::REGEXP_CLASS, class, true, false, true, env);
 	
-	let prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(&env.heap);
+	let prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
 	
-	env.regexp_prototype = prototype.as_root(&env.heap);
+	env.regexp_prototype = prototype.as_root(env);
 }
 
 fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>, _function_prototype: Local<JsObject>) {

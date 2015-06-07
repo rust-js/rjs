@@ -1,4 +1,4 @@
-use gc::{Ptr, Local, RootHandles, GcHeap, AsPtr};
+use gc::{Ptr, Local, RootHandles, GcHeap, GcAllocator, AsPtr};
 use std::ops::{Deref, DerefMut};
 use std::marker::PhantomData;
 use std::mem::transmute;
@@ -19,8 +19,8 @@ impl<T> Root<T> {
 		}
 	}
 	
-	pub fn as_local(&self, heap: &GcHeap) -> Local<T> {
-		heap.alloc_local_from_ptr(self.as_ptr())
+	pub fn as_local<U: GcAllocator>(&self, allocator: &U) -> Local<T> {
+		allocator.alloc_local_from_root(self)
 	}
 }
 

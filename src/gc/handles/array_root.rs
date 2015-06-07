@@ -1,4 +1,4 @@
-use gc::{Array, ArrayLocal, RootHandles, GcHeap, AsArray, AsPtr};
+use gc::{Array, ArrayLocal, RootHandles, GcHeap, AsArray, AsPtr, GcAllocator};
 use std::ops::{Deref, DerefMut};
 use std::marker::PhantomData;
 use std::mem::{size_of, transmute};
@@ -20,8 +20,8 @@ impl<'a, T> ArrayRoot<T> {
 		}
 	}
 	
-	pub fn as_local(&self, heap: &GcHeap) -> ArrayLocal<T> {
-		heap.alloc_array_local_from_ptr(self.as_ptr())
+	pub fn as_local<U: GcAllocator>(&self, allocator: &U) -> ArrayLocal<T> {
+		allocator.alloc_array_local_from_root(self)
 	}
 }
 

@@ -9,7 +9,7 @@ use syntax::lexer::Lexer;
 use syntax::reader::StringReader;
 use syntax::token::Token;
 use syntax::token::name;
-use gc::{Local, Ptr, AsPtr, GcHeap, ptr_t, GcWalker};
+use gc::{Local, Ptr, AsPtr, ptr_t, GcWalker, GcAllocator};
 use std::fmt;
 use std::mem::{transmute, zeroed};
 use std::f64;
@@ -46,132 +46,32 @@ impl fmt::Debug for JsValue {
 }
 
 impl JsValue {
-	pub fn new_local(heap: &GcHeap) -> Local<JsValue> {
-		heap.alloc_local(GC_VALUE)
-	}
-	
-	pub fn raw_undefined() -> JsValue {
+	pub fn new_undefined() -> JsValue {
 		JsValue {
 			ty: JsType::Undefined,
 			value: JsRawValue::new()
 		}
 	}
 	
-	pub fn new_undefined(heap: &GcHeap) -> Local<JsValue> {
-		JsValue::new_local(heap)
-	}
-	
-	pub fn raw_null() -> JsValue {
+	pub fn new_null() -> JsValue {
 		JsValue {
 			ty: JsType::Null,
 			value: JsRawValue::new()
 		}
 	}
 	
-	pub fn new_null(heap: &GcHeap) -> Local<JsValue> {
-		let mut local = JsValue::new_local(heap);
-		
-		*local = JsValue::raw_null();
-		
-		local
-	}
-	
-	pub fn raw_number(value: f64) -> JsValue {
+	pub fn new_number(value: f64) -> JsValue {
 		JsValue {
 			ty: JsType::Number,
 			value: JsRawValue::new_number(value)
 		}
 	}
 	
-	pub fn new_number(heap: &GcHeap, value: f64) -> Local<JsValue> {
-		let mut local = JsValue::new_local(heap);
-		
-		*local = JsValue::raw_number(value);
-		
-		local
-	}
-	
-	pub fn raw_bool(value: bool) -> JsValue {
+	pub fn new_bool(value: bool) -> JsValue {
 		JsValue {
 			ty: JsType::Boolean,
 			value: JsRawValue::new_bool(value)
 		}
-	}
-	
-	pub fn new_bool(heap: &GcHeap, value: bool) -> Local<JsValue> {
-		let mut local = JsValue::new_local(heap);
-		
-		*local = JsValue::raw_bool(value);
-		
-		local
-	}
-	
-	pub fn raw_true() -> JsValue {
-		Self::raw_bool(true)
-	}
-	
-	pub fn new_true(heap: &GcHeap) -> Local<JsValue> {
-		let mut local = JsValue::new_local(heap);
-		
-		*local = JsValue::raw_true();
-		
-		local
-	}
-	
-	pub fn raw_false() -> JsValue {
-		Self::raw_bool(false)
-	}
-	
-	pub fn new_false(heap: &GcHeap) -> Local<JsValue> {
-		let mut local = JsValue::new_local(heap);
-		
-		*local = JsValue::raw_false();
-		
-		local
-	}
-	
-	pub fn new_string(heap: &GcHeap, value: Local<JsString>) -> Local<JsValue> {
-		let mut local = JsValue::new_local(heap);
-		
-		*local = JsValue {
-			ty: JsType::String,
-			value: JsRawValue::new_ptr(value)
-		};
-		
-		local
-	}
-	
-	pub fn new_object(heap: &GcHeap, value: Local<JsObject>) -> Local<JsValue> {
-		let mut local = JsValue::new_local(heap);
-		
-		*local = JsValue {
-			ty: JsType::Object,
-			value: JsRawValue::new_ptr(value)
-		};
-		
-		local
-	}
-	
-	pub fn new_iterator(heap: &GcHeap, value: Local<JsIterator>) -> Local<JsValue> {
-		let mut local = JsValue::new_local(heap);
-		
-		*local = JsValue {
-			ty: JsType::Iterator,
-			value: JsRawValue::new_ptr(value)
-		};
-		
-		local
-	}
-	
-	pub fn new_scope(heap: &GcHeap, value: Local<JsScope>) -> Local<JsValue> {
-		let mut local = JsValue::new_local(heap);
-		
-		*local = JsValue {
-			ty: JsType::Scope,
-			value: JsRawValue::new_ptr(value)
-		};
-		
-		local
 	}
 	
 	pub fn ty(&self) -> JsType {
@@ -215,8 +115,8 @@ macro_rules! delegate {
 			JsType::Null => JsNull.$method( $( $arg ),* ),
 			JsType::Number => JsNumber::new($target.unwrap_number()).$method( $( $arg ),* ),
 			JsType::Boolean => JsBoolean::new($target.unwrap_bool()).$method( $( $arg ),* ),
-			JsType::Object => $target.unwrap_object(&$env.heap).$method( $( $arg ),* ),
-			JsType::String => $target.unwrap_string(&$env.heap).$method( $( $arg ),* ),
+			JsType::Object => $target.unwrap_object($env).$method( $( $arg ),* ),
+			JsType::String => $target.unwrap_string($env).$method( $( $arg ),* ),
 			_ => panic!("unexpected type {:?}", $target.ty())
 		}
 	}
@@ -341,28 +241,28 @@ impl JsItem for Local<JsValue> {
 }
 
 impl Local<JsValue> {
-	pub fn unwrap_string(&self, heap: &GcHeap) -> Local<JsString> {
+	pub fn unwrap_string<T: GcAllocator>(&self, allocator: &T) -> Local<JsString> {
 		assert_eq!(self.ty, JsType::String);
 		
-		self.value.get_ptr::<JsString>().as_local(heap)
+		self.value.get_ptr::<JsString>().as_local(allocator)
 	}
 	
-	pub fn unwrap_object(&self, heap: &GcHeap) -> Local<JsObject> {
+	pub fn unwrap_object<T: GcAllocator>(&self, allocator: &T) -> Local<JsObject> {
 		assert_eq!(self.ty, JsType::Object);
 		
-		self.value.get_ptr::<JsObject>().as_local(heap)
+		self.value.get_ptr::<JsObject>().as_local(allocator)
 	}
 	
-	pub fn unwrap_iterator(&self, heap: &GcHeap) -> Local<JsIterator> {
+	pub fn unwrap_iterator<T: GcAllocator>(&self, allocator: &T) -> Local<JsIterator> {
 		assert_eq!(self.ty, JsType::Iterator);
 		
-		self.value.get_ptr::<JsIterator>().as_local(heap)
+		self.value.get_ptr::<JsIterator>().as_local(allocator)
 	}
 	
-	pub fn unwrap_scope(&self, heap: &GcHeap) -> Local<JsScope> {
+	pub fn unwrap_scope<T: GcAllocator>(&self, allocator: &T) -> Local<JsScope> {
 		assert_eq!(self.ty, JsType::Scope);
 		
-		self.value.get_ptr::<JsScope>().as_local(heap)
+		self.value.get_ptr::<JsScope>().as_local(allocator)
 	}
 	
 	// 9.1 ToPrimitive
@@ -407,7 +307,7 @@ impl Local<JsValue> {
 	}
 	
 	fn get_number_from_string(&self, env: &JsEnv) -> JsResult<f64> {
-		let mut reader = StringReader::new("", &self.unwrap_string(&env.heap).to_string());
+		let mut reader = StringReader::new("", &self.unwrap_string(env).to_string());
 		if let Ok(mut lexer) = Lexer::new(&mut reader, env.ir.interner()) {
 			// Skip over the + or - sign if we have one.
 			
@@ -546,7 +446,7 @@ impl Local<JsValue> {
 					JsString::from_str(env, &number.to_string())
 				}
 			}
-			JsType::String => self.unwrap_string(&env.heap),
+			JsType::String => self.unwrap_string(env),
 			JsType::Object => {
 				let result = try!(self.to_primitive(env, JsPreferredType::String));
 				try!(result.to_string(env))
@@ -562,7 +462,7 @@ impl Local<JsValue> {
 		match self.ty {
 			JsType::Null | JsType::Undefined => Err(JsError::new_type(env, ::errors::TYPE_INVALID)),
 			JsType::String => {
-				let constructor = try!(env.global().as_local(&env.heap).get(env, name::STRING_CLASS));
+				let constructor = try!(env.global().as_local(env).get(env, name::STRING_CLASS));
 				let object = try!(constructor.construct(env, vec![*self]));
 				Ok(object)
 			}
@@ -574,9 +474,9 @@ impl Local<JsValue> {
 					_ => unreachable!()
 				};
 				
-				let constructor = try!(env.global().as_local(&env.heap).get(env, class));
+				let constructor = try!(env.global().as_local(env).get(env, class));
 				let object = try!(constructor.construct(env, Vec::new()));
-				object.unwrap_object(&env.heap).set_value(*self);
+				object.unwrap_object(env).set_value(*self);
 				Ok(object)
 			}
 			JsType::Object => Ok(*self),
@@ -633,6 +533,84 @@ impl JsRawValue {
 	
 	fn set_ptr<T>(&mut self, value: Ptr<T>) {
 		self.data = value.as_ptr().ptr() as u64
+	}
+}
+
+impl JsEnv {
+	pub fn new_value(&self) -> Local<JsValue> {
+		self.heap.alloc_local(GC_VALUE)
+	}
+	
+	pub fn new_undefined(&self) -> Local<JsValue> {
+		self.new_value()
+	}
+	
+	pub fn new_null(&self) -> Local<JsValue> {
+		let mut result = self.new_value();
+		
+		*result = JsValue::new_null();
+		
+		result
+	}
+	
+	pub fn new_number(&self, value: f64) -> Local<JsValue> {
+		let mut result = self.new_value();
+		
+		*result = JsValue::new_number(value);
+		
+		result
+	}
+	
+	pub fn new_bool(&self, value: bool) -> Local<JsValue> {
+		let mut result = self.new_value();
+		
+		*result = JsValue::new_bool(value);
+		
+		result
+	}
+	
+	pub fn new_string(&self, value: Local<JsString>) -> Local<JsValue> {
+		let mut result = self.new_value();
+		
+		*result = JsValue {
+			ty: JsType::String,
+			value: JsRawValue::new_ptr(value)
+		};
+		
+		result
+	}
+	
+	pub fn new_object(&self, value: Local<JsObject>) -> Local<JsValue> {
+		let mut result = self.new_value();
+		
+		*result = JsValue {
+			ty: JsType::Object,
+			value: JsRawValue::new_ptr(value)
+		};
+		
+		result
+	}
+	
+	pub fn new_iterator(&self, value: Local<JsIterator>) -> Local<JsValue> {
+		let mut result = self.new_value();
+		
+		*result = JsValue {
+			ty: JsType::Iterator,
+			value: JsRawValue::new_ptr(value)
+		};
+		
+		result
+	}
+	
+	pub fn new_scope(&self, value: Local<JsScope>) -> Local<JsValue> {
+		let mut result = self.new_value();
+		
+		*result = JsValue {
+			ty: JsType::Scope,
+			value: JsRawValue::new_ptr(value)
+		};
+		
+		result
 	}
 }
 

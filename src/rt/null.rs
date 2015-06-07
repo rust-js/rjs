@@ -7,7 +7,7 @@ pub struct JsNull;
 
 impl JsItem for JsNull {
 	fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-		JsValue::new_null(&env.heap)
+		env.new_null()
 	}
 	
 	fn get_property(&self, _: &JsEnv, _: Name) -> Option<JsDescriptor> {

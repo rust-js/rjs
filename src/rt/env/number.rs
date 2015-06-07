@@ -12,12 +12,12 @@ pub fn Number_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVal
 		0f64
 	};
 	
-	let arg = JsValue::new_number(&env.heap, arg);
+	let arg = env.new_number(arg);
 	
 	if args.mode == JsFnMode::Call {
 		Ok(arg)
 	} else {
-		let mut this = args.this.unwrap_object(&env.heap);
+		let mut this = args.this.unwrap_object(env);
 		
 		this.set_class(env, Some(name::NUMBER_CLASS));
 		this.set_value(arg);
@@ -31,7 +31,7 @@ pub fn Number_valueOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>>
 	if args.this.class(env) != Some(name::NUMBER_CLASS) {
 		Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 	} else {
-		let this = args.this.unwrap_object(&env.heap);
+		let this = args.this.unwrap_object(env);
 		Ok(this.value(env))
 	}
 }
@@ -46,7 +46,7 @@ pub fn Number_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>
 			if this.class(env) != Some(name::NUMBER_CLASS) {
 				return Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 			}
-			this.unwrap_object(&env.heap).value(env)
+			this.unwrap_object(env).value(env)
 		}
 		JsType::Number => this,
 		_ => return Err(JsError::new_type(env, ::errors::TYPE_INVALID))

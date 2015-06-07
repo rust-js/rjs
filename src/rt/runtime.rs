@@ -45,11 +45,11 @@ impl JsEnv {
 			let rhs = try!(rprim.to_string(self));
 			let result = JsString::concat(self, lhs, rhs);
 			
-			Ok(JsValue::new_string(&self.heap, result))
+			Ok(self.new_string(result))
 		} else {
 			let lnum = try!(lprim.to_number(self));
 			let rnum = try!(rprim.to_number(self));
-			Ok(JsValue::new_number(&self.heap, lnum + rnum))
+			Ok(self.new_number(lnum + rnum))
 		}
 	}
 	
@@ -85,7 +85,7 @@ impl JsEnv {
 			return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
 		};
 		
-		let function = args.function.unwrap_object(&self.heap).function();
+		let function = args.function.unwrap_object(self).function();
 		if !function.is_some() {
 			return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
 		}
@@ -117,9 +117,9 @@ impl JsEnv {
 				}
 				
 				let scope = args.function.scope(self)
-					.unwrap_or_else(|| self.global_scope.as_local(&self.heap));
+					.unwrap_or_else(|| self.global_scope.as_local(self));
 				
-				let mut result = JsValue::new_local(&self.heap);
+				let mut result = self.new_value();
 				*result = try!(self.call_block(block, args, &function, scope));
 				
 				debugln!("EXIT {}", location);
@@ -171,7 +171,7 @@ impl JsEnv {
 			JsType::Boolean => "boolean",
 			JsType::Number => "number",
 			JsType::String => "string",
-			JsType::Object => if value.unwrap_object(&self.heap).function().is_some() { "function" } else { "object" },
+			JsType::Object => if value.unwrap_object(self).function().is_some() { "function" } else { "object" },
 			_ => panic!("unexpected type")
 		})
 	}
@@ -220,8 +220,8 @@ impl JsEnv {
 		assert_eq!(x.ty(), JsType::String);
 		assert_eq!(y.ty(), JsType::String);
 		
-		let x = x.unwrap_string(&self.heap);
-		let y = y.unwrap_string(&self.heap);
+		let x = x.unwrap_string(self);
+		let y = y.unwrap_string(self);
 		
 		let x = x.chars;
 		let y = y.chars;
@@ -293,7 +293,7 @@ impl JsEnv {
 	}
 	
 	pub fn new_function(&mut self, function_ref: FunctionRef, scope: Option<Local<JsScope>>, strict: bool) -> JsResult<Local<JsValue>> {
-		let function_prototype = self.function_prototype.as_local(&self.heap);
+		let function_prototype = self.function_prototype.as_local(self);
 		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), function_prototype, strict).as_value(self);
 		
 		let function = self.ir.get_function(function_ref);
@@ -301,7 +301,7 @@ impl JsEnv {
 			result.set_scope(self, scope);
 		}
 		
-		let mut proto = self.new_object();
+		let mut proto = self.create_object();
 		let value = proto.as_value(self);
 		try!(result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, false), false));
 		try!(proto.define_own_property(self, name::CONSTRUCTOR, JsDescriptor::new_value(result, true, false, true), false));
@@ -312,13 +312,13 @@ impl JsEnv {
 	// 11.8.6 The instanceof operator
 	pub fn instanceof(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<Local<JsValue>> {
 		let result = try!(rval.has_instance(self, lval));
-		Ok(JsValue::new_bool(&self.heap, result))
+		Ok(self.new_bool(result))
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.4.9
 	pub fn logical_not(&mut self, value: Local<JsValue>) -> Local<JsValue> {
 		let value = value.to_boolean();
-		JsValue::new_bool(&self.heap, !value)
+		self.new_bool(!value)
 	}
 	
 	// 11.9.1 The Equals Operator ( == )
@@ -336,19 +336,19 @@ impl JsEnv {
 			Ok(true)
 		} else if lty == JsType::Number && rty == JsType::String {
 			let rval = try!(rval.to_number(self));
-			let rval = JsValue::new_number(&self.heap, rval);
+			let rval = self.new_number(rval);
 			self.eq(lval, rval)
 		} else if lty == JsType::String && rty == JsType::Number {
 			let lval = try!(lval.to_number(self));
-			let lval = JsValue::new_number(&self.heap, lval);
+			let lval = self.new_number(lval);
 			self.eq(lval, rval)
 		} else if lty == JsType::Boolean {
 			let lval = try!(lval.to_number(self));
-			let lval = JsValue::new_number(&self.heap, lval);
+			let lval = self.new_number(lval);
 			self.eq(lval, rval)
 		} else if rty == JsType::Boolean {
 			let rval = try!(rval.to_number(self));
-			let rval = JsValue::new_number(&self.heap, rval);
+			let rval = self.new_number(rval);
 			self.eq(lval, rval)
 		} else if (lty == JsType::String || lty == JsType::Number) && rty == JsType::Object {
 			let rval = try!(rval.to_primitive(self, JsPreferredType::None));
@@ -387,8 +387,8 @@ impl JsEnv {
 					}
 				}
 				JsType::String => {
-					let lval = lval.unwrap_string(&self.heap);
-					let rval = rval.unwrap_string(&self.heap);
+					let lval = lval.unwrap_string(self);
+					let rval = rval.unwrap_string(self);
 					
 					let x = &*lval.chars;
 					let y = &*rval.chars;
@@ -412,7 +412,7 @@ impl JsEnv {
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-15.2.2
 	// TODO: Wrapping value not yet implemented.
-	pub fn new_object(&self) -> Local<JsObject> {
+	pub fn create_object(&self) -> Local<JsObject> {
 		let mut obj = JsObject::new_local(self, JsStoreType::Hash);
 		
 		obj.set_prototype(self, Some(self.object_prototype.as_value(self)));
@@ -422,7 +422,7 @@ impl JsEnv {
 	}
 	
 	// 15.4.5.2 length
-	pub fn new_array(&mut self) -> Local<JsObject> {
+	pub fn create_array(&mut self) -> Local<JsObject> {
 		let mut obj = JsObject::new_local(self, JsStoreType::Array);
 		
 		// This must be called before the class is set to get the
@@ -430,7 +430,7 @@ impl JsEnv {
 		// We don't propagate the JsError because this define_own_property
 		// will not fail.
 		
-		let length = JsValue::new_number(&self.heap, 0f64);
+		let length = self.new_number(0f64);
 		obj.define_own_property(
 			self,
 			name::LENGTH,
@@ -473,7 +473,7 @@ impl JsEnv {
 						false
 					}
 				}
-				JsType::String => JsString::equals(x.unwrap_string(&self.heap), y.unwrap_string(&self.heap)),
+				JsType::String => JsString::equals(x.unwrap_string(self), y.unwrap_string(self)),
 				JsType::Boolean | JsType::Object => x == y,
 				_ => panic!("unexpected type")
 			}
@@ -483,11 +483,11 @@ impl JsEnv {
 	// 10.6 Arguments Object
 	// TODO: Incomplete.
 	pub fn new_arguments(&mut self, args: &JsArgs, strict: bool) -> JsResult<Local<JsValue>> {
-		let mut result = self.new_object();
+		let mut result = self.create_object();
 		
 		result.set_class(self, Some(name::ARGUMENTS_CLASS));
 		
-		let value = JsValue::new_number(&self.heap, args.args.len() as f64);
+		let value = self.new_number(args.args.len() as f64);
 		try!(result.define_own_property(self, name::LENGTH, JsDescriptor::new_value(value, true, false, true), false));
 		
 		for i in 0..args.args.len() {
@@ -497,7 +497,7 @@ impl JsEnv {
 		if !strict {
 			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_value(args.function, true, false, true), false));
 		} else {
-			let prototype = self.function_prototype.as_local(&self.heap);
+			let prototype = self.function_prototype.as_local(self);
 			let thrower = self.new_native_function(None, 0, &throw_type_error, prototype);
 			
 			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false));
@@ -517,7 +517,7 @@ impl JsEnv {
 			
 			let result = rhs.has_property(self, name);
 			
-			Ok(JsValue::new_bool(&self.heap, result))
+			Ok(self.new_bool(result))
 		}
 	}
 	

@@ -25,7 +25,7 @@ pub fn Global_parseFloat(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 pub fn Global_isNaN(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let result = try!(args.arg(env, 0).to_number(env)).is_nan();
 	
-	Ok(JsValue::new_bool(&env.heap, result))
+	Ok(env.new_bool(result))
 }
 
 pub fn Global_isFinite(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
@@ -40,10 +40,10 @@ pub fn Global_eval(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
 	if arg.ty() != JsType::String {
 		Ok(arg)
 	} else {
-		let arg = arg.unwrap_string(&env.heap).to_string();
+		let arg = arg.unwrap_string(env).to_string();
 		let global = env.global.as_value(env);
-		let global_scope = env.global_scope.as_local(&env.heap);
+		let global_scope = env.global_scope.as_local(env);
 		
-		env.eval_scoped(&arg, args.strict, global, global_scope, ParseMode::Eval).map(|result| result.as_local(&env.heap))
+		env.eval_scoped(&arg, args.strict, global, global_scope, ParseMode::Eval).map(|result| result.as_local(env))
 	}
 }

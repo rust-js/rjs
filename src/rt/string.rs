@@ -13,9 +13,11 @@ pub struct JsString {
 impl JsString {
 	pub fn new_local(env: &JsEnv, size: usize) -> Local<JsString> {
 		let mut result = env.heap.alloc_local::<JsString>(GC_STRING);
+		
 		unsafe {
 			result.chars = env.heap.alloc_array(GC_U16, size);
 		}
+		
 		result
 	}
 	
@@ -86,7 +88,7 @@ impl JsString {
 
 impl JsItem for Local<JsString> {
 	fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-		JsValue::new_string(&env.heap, *self)
+		env.new_string(*self)
 	}
 	
 	fn has_prototype(&self, _: &JsEnv) -> bool {
@@ -99,7 +101,7 @@ impl JsItem for Local<JsString> {
 	
 	fn get_own_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
 		if property == name::LENGTH {
-			let value = JsValue::new_number(&env.heap, self.chars.len() as f64);
+			let value = env.new_number(self.chars.len() as f64);
 			return Some(JsDescriptor::new_simple_value(value));
 		}
 		if let Some(index) = property.index() {
