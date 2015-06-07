@@ -772,6 +772,7 @@ impl JsDescriptor {
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
+#[repr(usize)]
 pub enum JsType {
 	Undefined = 0,
 	Null = 1,
