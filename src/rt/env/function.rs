@@ -18,7 +18,8 @@ pub fn Function_baseConstructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, a
 
 pub fn Function_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	if mode == JsFnMode::Call {
-		return args.function.construct(env, args.args);
+		let target_args = args.args(env);
+		return args.function(env).construct(env, target_args);
 	}
 	
 	let body;
@@ -27,16 +28,16 @@ pub fn Function_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args:
 	
 	source.push_str("function (");
 	
-	if args.args.len() == 0 {
+	if args.argc == 0 {
 		body = JsString::from_str(env, "");
 	} else {
-		body = try!(args.args[args.args.len() - 1].to_string(env));
+		body = try!(args.arg(env, args.argc - 1).to_string(env));
 		
-		for i in 0..args.args.len() - 1 {
+		for i in 0..args.argc - 1 {
 			if i > 0 {
 				source.push_str(", ");
 			}
-			let arg = try!(args.args[i].to_string(env));
+			let arg = try!(args.arg(env, i).to_string(env));
 			source.push_str(&arg.to_string());
 		}
 	}
@@ -56,12 +57,16 @@ pub fn Function_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args:
 
 // 15.3.4.4 Function.prototype.call (thisArg [ , arg1 [ , arg2, … ] ] )
 pub fn Function_call(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let func = args.this;
+	let func = args.this(env);
 	if !func.is_callable(env) {
 		Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION))
 	} else {
 		let this_arg = args.arg(env, 0);
-		let call_args = args.args.into_iter().skip(1).collect::<Vec<_>>();
+		
+		let mut call_args = Vec::new();
+		for i in 1..args.argc {
+			call_args.push(args.arg(env, i));
+		}
 		
 		func.call(env, this_arg, call_args, false)
 	}
@@ -69,7 +74,7 @@ pub fn Function_call(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs
 
 // 15.3.4.3 Function.prototype.apply (thisArg, argArray)
 pub fn Function_apply(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let func = args.this;
+	let func = args.this(env);
 	if !func.is_callable(env) {
 		Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION))
 	} else {
@@ -97,8 +102,10 @@ pub fn Function_apply(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArg
 // 15.3.4.2 Function.prototype.toString ( )
 // TODO: This can be greatly improved, e.g. by retaining/getting the real code.
 pub fn Function_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	if args.this.ty() == JsType::Object {
-		if let Some(ref function) = args.this.unwrap_object(env).function() {
+	let this_arg = args.this(env);
+	
+	if this_arg.ty() == JsType::Object {
+		if let Some(ref function) = this_arg.unwrap_object(env).function() {
 			fn get_function_details(env: &mut JsEnv, this: Local<JsValue>, function: &JsFunction) -> JsResult<(Option<Name>, Option<u32>)> {
 				match *function {
 					JsFunction::Ir(function_ref) => {
@@ -120,7 +127,7 @@ pub fn Function_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: Js
 				}
 			}
 			
-			let (name, args) = try!(get_function_details(env, args.this, function));
+			let (name, args) = try!(get_function_details(env, this_arg, function));
 			
 			let mut code = String::new();
 		
@@ -162,27 +169,29 @@ pub fn Function_toLocaleString(env: &mut JsEnv, mode: JsFnMode, strict: bool, ar
 
 // 15.3.4.5 Function.prototype.bind (thisArg [, arg1 [, arg2, …]])
 pub fn Function_bind(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	if !args.this.is_callable(env) {
+	let this_arg = args.this(env);
+	
+	if !this_arg.is_callable(env) {
 		Err(JsError::new_type(env, ::errors::TYPE_NOT_CALLABLE))
 	} else {
-		let mut scope = JsScope::new_local_thin(env, max(args.args.len() + 1, 2), None);
+		let mut scope = JsScope::new_local_thin(env, max(args.argc + 1, 2), None);
 		
-		scope.set(0, args.this);
+		scope.set(0, this_arg);
 		scope.set(1, args.arg(env, 0));
 		
-		if args.args.len() > 1 {
-			for i in 0..args.args.len() - 1 {
-				scope.set(i + 2, args.args[i + 1]);
+		if args.argc > 1 {
+			for i in 0..args.argc - 1 {
+				scope.set(i + 2, args.arg(env, i + 1));
 			}
 		}
 		
 		let function_prototype = env.function_prototype.as_local(env);
 		let mut result = JsObject::new_function(env, JsFunction::Bound, function_prototype, true);
 		
-		let length = if args.this.class(env) == Some(name::FUNCTION_CLASS) {
-			let length = try!(args.this.get(env, name::LENGTH)).unwrap_number() as usize;
-			if length > 0 && args.args.len() > 1 {
-				length - (args.args.len() - 1)
+		let length = if this_arg.class(env) == Some(name::FUNCTION_CLASS) {
+			let length = try!(this_arg.get(env, name::LENGTH)).unwrap_number() as usize;
+			if length > 0 && args.argc > 1 {
+				length - (args.argc - 1)
 			} else {
 				length
 			}

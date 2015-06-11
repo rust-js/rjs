@@ -17,8 +17,8 @@ pub fn Object_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: J
 			arg.to_object(env)
 		}
 	} else {
-		if args.args.len() > 0 {
-			let arg = args.args[0];
+		if args.argc > 0 {
+			let arg = args.arg(env, 0);
 			
 			match arg.ty() {
 				JsType::Object => Ok(arg),
@@ -32,31 +32,33 @@ pub fn Object_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: J
 }
 
 pub fn Object_create(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	assert!(args.args.len() <= 1);
+	assert!(args.argc <= 1);
 	
 	let mut result = JsObject::new_local(env, JsStoreType::Hash);
 	
-	if args.args.len() < 1 {
+	if args.argc < 1 {
 		return Err(JsError::new_type(env, ::errors::TYPE_INVALID));
 	}
 
-	result.set_prototype(env, Some(args.args[0]));
+	result.set_prototype(env, Some(args.arg(env, 0)));
 	
 	Ok(result.as_value(env))
 }
 
 // 15.2.4.2 Object.prototype.toString ( )
 pub fn Object_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let result = if args.this.is_undefined() {
+	let this_arg = args.this(env);
+	
+	let result = if this_arg.is_undefined() {
 		JsString::from_str(env, "[object Undefined]")
-	} else if args.this.is_null() {
+	} else if this_arg.is_null() {
 		JsString::from_str(env, "[object Null]")
 	} else {
 		let mut result = String::new();
 		
 		result.push_str("[object ");
 		
-		let object = try!(args.this.to_object(env));
+		let object = try!(this_arg.to_object(env));
 		if let Some(class) = object.class(env) {
 			result.push_str(&*env.ir.interner().get(class));
 		} else {
@@ -74,7 +76,7 @@ pub fn Object_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsAr
 
 // 15.2.4.3 Object.prototype.toLocaleString ( )
 pub fn Object_toLocaleString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let this = try!(args.this.to_object(env));
+	let this = try!(args.this(env).to_object(env));
 	let to_string = try!(this.get(env, name::TO_STRING));
 	if to_string.is_callable(env) {
 		to_string.call(env, this, Vec::new(), false)
@@ -85,7 +87,7 @@ pub fn Object_toLocaleString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args
 
 // 15.2.4.4 Object.prototype.valueOf ( )
 pub fn Object_valueOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	args.this.to_object(env)
+	args.this(env).to_object(env)
 }
 
 // 15.2.4.5 Object.prototype.hasOwnProperty (V)
@@ -94,7 +96,7 @@ pub fn Object_hasOwnProperty(env: &mut JsEnv, mode: JsFnMode, strict: bool, args
 	
 	let name = try!(env.intern_value(arg));
 	
-	let object = try!(args.this.to_object(env));
+	let object = try!(args.this(env).to_object(env));
 	
 	let desc = object.get_own_property(env, name);
 	
@@ -108,7 +110,7 @@ pub fn Object_isPrototypeOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args:
 	let result = if arg.ty() != JsType::Object {
 		false
 	} else {
-		let object = try!(args.this.to_object(env));
+		let object = try!(args.this(env).to_object(env));
 		let mut result = false;
 		
 		loop {
@@ -133,7 +135,7 @@ pub fn Object_isPrototypeOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args:
 pub fn Object_propertyIsEnumerable(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let name = args.arg(env, 0);
 	let name = try!(env.intern_value(name));
-	let object = try!(args.this.to_object(env));
+	let object = try!(args.this(env).to_object(env));
 	
 	let result = if let Some(desc) = object.get_own_property(env, name) {
 		desc.is_enumerable()

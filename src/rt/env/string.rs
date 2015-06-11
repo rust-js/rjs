@@ -12,8 +12,8 @@ use std::cmp::{min, max};
 // 15.5.2 The String Constructor
 // 15.5.5.1 length
 pub fn String_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let arg = if args.args.len() > 0 {
-		try!(args.args[0].to_string(env)).as_value(env)
+	let arg = if args.argc > 0 {
+		try!(args.arg(env, 0).to_string(env)).as_value(env)
 	} else {
 		JsString::from_str(env, "").as_value(env)
 	};
@@ -22,7 +22,8 @@ pub fn String_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: J
 		return Ok(arg);
 	}
 	
-	let mut object = args.this.unwrap_object(env);
+	let this_arg = args.this(env);
+	let mut object = this_arg.unwrap_object(env);
 	
 	object.set_prototype(env, Some(env.string_prototype.as_value(env)));
 	object.set_class(env, Some(name::STRING_CLASS));
@@ -31,15 +32,17 @@ pub fn String_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: J
 	let value = env.new_number(arg.unwrap_string(env).chars.len() as f64);
 	try!(object.define_own_property(env, name::LENGTH, JsDescriptor::new_value(value, false, false, false), false));
 	
-	Ok(args.this)
+	Ok(this_arg)
 }
 
 // 15.5.4.2 String.prototype.toString ( )
 pub fn String_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	match args.this.ty() {
-		JsType::String => Ok(args.this),
+	let this_arg = args.this(env);
+	
+	match this_arg.ty() {
+		JsType::String => Ok(this_arg),
 		JsType::Object => {
-			let object = args.this.unwrap_object(env);
+			let object = this_arg.unwrap_object(env);
 			
 			if object.class(env) == Some(name::STRING_CLASS) {
 				// This is safe because the constructor always sets the value.
@@ -54,10 +57,12 @@ pub fn String_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsAr
 
 // 15.5.4.3 String.prototype.valueOf ( )
 pub fn String_valueOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	match args.this.ty() {
-		JsType::String => Ok(args.this),
+	let this_arg = args.this(env);
+	
+	match this_arg.ty() {
+		JsType::String => Ok(this_arg),
 		JsType::Object => {
-			let object = args.this.unwrap_object(env);
+			let object = this_arg.unwrap_object(env);
 			
 			if object.class(env) == Some(name::STRING_CLASS) {
 				// This is safe because the constructor always sets the value.
@@ -76,10 +81,10 @@ pub fn String_substr(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs
 
 // 15.5.3.2 String.fromCharCode ( [ char0 [ , char1 [ , … ] ] ] )
 pub fn String_fromCharCode(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let mut result = JsString::new_local(env, args.args.len());
+	let mut result = JsString::new_local(env, args.argc);
 	
-	for i in 0..args.args.len() {
-		let c = try!(args.args[i].to_uint16(env));
+	for i in 0..args.argc {
+		let c = try!(args.arg(env, i).to_uint16(env));
 		result.chars[i] = c;
 	}
 	
@@ -88,7 +93,7 @@ pub fn String_fromCharCode(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: 
 
 // 15.5.4.4 String.prototype.charAt (pos)
 pub fn String_charAt(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let this = try!(args.this.to_string(env));
+	let this = try!(args.this(env).to_string(env));
 	let position = try!(args.arg(env, 0).to_integer(env)) as i32;
 	
 	let chars = this.chars;
@@ -104,7 +109,7 @@ pub fn String_charAt(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs
 
 // 15.5.4.5 String.prototype.charCodeAt (pos)
 pub fn String_charCodeAt(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let this = try!(args.this.to_string(env));
+	let this = try!(args.this(env).to_string(env));
 	let position = try!(args.arg(env, 0).to_integer(env)) as i32;
 	
 	let chars = this.chars;
@@ -121,7 +126,7 @@ pub fn String_charCodeAt(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: Js
 // 15.5.4.7 String.prototype.indexOf (searchString, position)
 // 15.5.4.8 String.prototype.lastIndexOf (searchString, position)
 fn index_of(env: &mut JsEnv, args: JsArgs, reverse: bool) -> JsResult<Local<JsValue>> {
-	let string = try!(args.this.to_string(env));
+	let string = try!(args.this(env).to_string(env));
 	let search = try!(args.arg(env, 0).to_string(env));
 	
 	let len = string.chars.len();

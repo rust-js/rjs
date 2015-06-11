@@ -250,7 +250,12 @@ fn run_safe(file: String) {
 	let negative = header.headers.get("negative").map(|header|
 		match *header {
 			Header::String(ref negative) => negative.to_string(),
-			_ => panic!("expected negative header to be a string")
+			Header::List(ref list) => {
+				if list.len() != 1 {
+					panic!("expected negative header to have exactly one item");
+				}
+				list[0].clone()
+			}
 		}
 	);
 	
@@ -260,7 +265,7 @@ fn run_safe(file: String) {
 		if let Header::List(ref items) = *header {
 			for item in items {
 				match &**item {
-					"arrow-function" | "generators" => {
+					"arrow-function" | "generators" | "let" => {
 						is_es6 = true;
 					}
 					_ => {}

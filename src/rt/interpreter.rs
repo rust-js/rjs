@@ -11,6 +11,8 @@ use syntax::ast::ScopeType;
 use syntax::token::name;
 use syntax::parser::ParseMode;
 
+const CALL_PROLOG : usize = 2;
+
 enum Next {
 	Next,
 	Return(JsValue),
@@ -75,6 +77,17 @@ struct Frame<'a> {
 
 impl JsEnv {
 	pub fn call_block(&mut self, block: Rc<Block>, mode: JsFnMode, strict: bool, args: JsArgs, function: &IrFunction, scope: Local<JsScope>) -> JsResult<JsValue> {
+		// Ensure that we have enough arguments on the stack. We will have the number
+		// of arguments already on the stack that the caller pushed. However,
+		// our load/store param calls will write directly into these locations.
+		// The problem is when the caller pushed too few arguments. When this is
+		// the case, we'll be missing them on the stack. Instead we're adding them
+		// here now.
+		
+		for _ in args.argc..function.args as usize {
+			self.stack.push(JsValue::new_undefined());
+		}
+		
 		let mut locals = block.locals.len();
 		
 		for _ in 0..block.locals.len() {
@@ -747,13 +760,7 @@ impl<'a> Frame<'a> {
 			}
 			Ir::LoadNameLit => unimplemented!(),
 			Ir::LoadNull => self.env.stack.push(JsValue::new_null()),
-			Ir::LoadParam(index) => {
-				if index < self.args.args.len() as u32 {
-					self.env.stack.push(*self.args.args[index as usize]);
-				} else {
-					self.env.stack.push(JsValue::new_undefined());
-				}
-			}
+			Ir::LoadParam(index) => self.env.stack.push(self.args.frame.raw_get(index as usize + CALL_PROLOG)),
 			Ir::LoadRegex(..) => unimplemented!(),
 			Ir::LoadEnv(name) => {
 				let _scope = self.env.new_local_scope();
@@ -791,7 +798,7 @@ impl<'a> Frame<'a> {
 				let result = JsString::from_str(self.env, &*self.env.ir.interner().get(string)).as_value(self.env);
 				self.env.stack.push(*result);
 			}
-			Ir::LoadThis => self.env.stack.push(*self.args.this),
+			Ir::LoadThis => self.env.stack.push(self.args.raw_this()),
 			Ir::LoadTrue => self.env.stack.push(JsValue::new_bool(true)),
 			Ir::LoadUndefined => self.env.stack.push(JsValue::new_undefined()),
 			Ir::Lsh => numeric_bin_op!(self, lsh),
@@ -1028,17 +1035,11 @@ impl<'a> Frame<'a> {
 			Ir::StoreParam(index)  => {
 				let _scope = self.env.new_local_scope();
 				
-				let index = index as usize;
-				
-				while self.args.args.len() <= index {
-					self.args.args.push(self.env.new_undefined());
-				}
-				
 				let frame = self.env.stack.create_frame(1);
 				let value = frame.get(&self.env, 0);
 				self.env.stack.drop_frame(frame);
 				
-				self.args.args[index] = value;
+				self.args.frame.set(index as usize + CALL_PROLOG, *value);
 			}
 			Ir::StrictEq => {
 				let _scope = self.env.new_local_scope();
@@ -1288,7 +1289,8 @@ impl<'a> Frame<'a> {
 				let js = js.unwrap_string(self.env).to_string();
 				let scope = self.get_scope().unwrap();
 				
-				*try!(self.env.eval_scoped(&js, self.strict, self.args.this, scope, ParseMode::DirectEval)).as_local(self.env)
+				let this_arg = self.args.this(self.env);
+				*try!(self.env.eval_scoped(&js, self.strict, this_arg, scope, ParseMode::DirectEval)).as_local(self.env)
 			}
 		} else {
 			*try!(function.call(self.env, this, args, self.strict))

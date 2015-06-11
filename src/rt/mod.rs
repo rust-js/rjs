@@ -171,11 +171,7 @@ impl JsEnv {
 		
 		// TODO: Validate. Function is just coerced to undefined because
 		// we don't have it here.
-		let args = JsArgs {
-			function: self.new_undefined(),
-			this: this,
-			args: Vec::new()
-		};
+		let args = JsArgs::new(self, self.new_undefined(), this, &[]);
 		
 		let mut result = self.heap.alloc_root::<JsValue>(GC_VALUE);
 		*result = try!(self.call_block(block, JsFnMode::Call, function.strict, args, &function, scope));
@@ -423,11 +419,7 @@ pub trait JsItem {
 	}
 	
 	fn call(&self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>, strict: bool) -> JsResult<Local<JsValue>> {
-		let args = JsArgs {
-			function: self.as_value(env),
-			this: this,
-			args: args
-		};
+		let args = JsArgs::new(env, self.as_value(env), this, &args);
 		
 		env.call_function(JsFnMode::Call, strict, args)
 	}
@@ -466,6 +458,7 @@ pub trait JsItem {
 		
 		let mut obj = JsObject::new_local(env, JsStoreType::Hash);
 		obj.set_class(env, Some(name::OBJECT_CLASS));
+		
 		let proto = try!(self.get(env, name::PROTOTYPE));
 		if proto.ty() == JsType::Object {
 			obj.set_prototype(env, Some(proto));
@@ -475,13 +468,7 @@ pub trait JsItem {
 		}
 		
 		let obj = obj.as_value(env);
-
-		let args = JsArgs {
-			function: self.as_value(env),
-			this: obj,
-			args: args
-		};
-		
+		let args = JsArgs::new(env, self.as_value(env), obj, &args);
 		let result = try!(env.call_function(JsFnMode::New, false, args));
 		
 		Ok(if result.ty() == JsType::Object {
@@ -802,26 +789,73 @@ pub enum JsFnMode {
 }
 
 pub struct JsArgs {
-	function: Local<JsValue>,
-	this: Local<JsValue>,
-	args: Vec<Local<JsValue>>
+	frame: stack::StackFrame,
+	argc: usize
 }
 
 impl JsArgs {
+	pub fn new(env: &JsEnv, function: Local<JsValue>, this: Local<JsValue>, args: &[Local<JsValue>]) -> JsArgs {
+		let stack = &*env.stack;
+		
+		let frame = stack.create_frame(0);
+		
+		stack.push(*function);
+		stack.push(*this);
+		
+		for arg in args {
+			stack.push(**arg);
+		}
+		
+		JsArgs {
+			frame: frame,
+			argc: args.len()
+		}
+	}
+	
 	pub fn arg(&self, env: &JsEnv, index: usize) -> Local<JsValue> {
-		if self.args.len() > index {
-			self.args[index]
+		if self.argc > index {
+			self.frame.get(env, index + 2)
 		} else {
 			env.new_undefined()
 		}
 	}
 	
-	pub fn arg_or(&self, index: usize, def: Local<JsValue>) -> Local<JsValue> {
-		if self.args.len() > index {
-			self.args[index]
+	pub fn arg_or(&self, env: &JsEnv, index: usize, def: Local<JsValue>) -> Local<JsValue> {
+		if self.argc > index {
+			self.frame.get(env, index + 2)
 		} else {
 			def
 		}
+	}
+	
+	pub fn args(&self, env: &JsEnv) -> Vec<Local<JsValue>> {
+		let mut args = Vec::new();
+		
+		for i in 0..self.argc {
+			args.push(self.arg(env, i));
+		}
+		
+		args
+	}
+	
+	pub fn function(&self, env: &JsEnv) -> Local<JsValue> {
+		self.frame.get(env, 0)
+	}
+	
+	fn raw_function(&self) -> JsValue {
+		self.frame.raw_get(0)
+	}
+	
+	pub fn this(&self, env: &JsEnv) -> Local<JsValue> {
+		self.frame.get(env, 1)
+	}
+	
+	fn set_this(&self, value: JsValue) {
+		self.frame.set(1, value);
+	}
+	
+	fn raw_this(&self) -> JsValue {
+		self.frame.raw_get(1)
 	}
 }
 

@@ -5,11 +5,11 @@ use rt::{JsEnv, JsArgs, JsValue, JsFnMode};
 use gc::*;
 
 pub fn Date_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	if args.args.len() > 0 {
+	if args.argc > 0 {
 		unimplemented!();
 	}
 	
-	Ok(args.this)
+	Ok(args.this(env))
 }
 
 pub fn Date_getYear(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {

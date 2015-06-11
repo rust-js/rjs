@@ -81,11 +81,13 @@ impl JsEnv {
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.2.3
 	// 10.4.3 Entering Function Code
 	pub fn call_function(&mut self, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-		if args.function.ty() != JsType::Object {
+		let function_obj = args.function(self);
+		
+		if function_obj.ty() != JsType::Object {
 			return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
 		};
 		
-		let function = args.function.unwrap_object(self).function();
+		let function = function_obj.unwrap_object(self).function();
 		if !function.is_some() {
 			return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
 		}
@@ -106,17 +108,19 @@ impl JsEnv {
 				
 				debugln!("ENTER {}", location);
 				
-				let mut args = args;
-				
 				if !function.strict {
-					if args.this.is_null_or_undefined() {
-						args.this = self.global.as_value(self);
+					let this = args.this(self);
+					
+					let this = if this.is_null_or_undefined() {
+						self.global.as_value(self)
 					} else {
-						args.this = try!(args.this.to_object(self));
-					}
+						try!(this.to_object(self))
+					};
+					
+					args.set_this(*this);
 				}
 				
-				let scope = args.function.scope(self)
+				let scope = function_obj.scope(self)
 					.unwrap_or_else(|| self.global_scope.as_local(self));
 				
 				let mut result = self.new_value();
@@ -136,7 +140,7 @@ impl JsEnv {
 			JsFunction::Bound => {
 				// 15.3.4.5.1 [[Call]]
 				
-				let scope = args.function.scope(self).unwrap();
+				let scope = function_obj.scope(self).unwrap();
 				let target = scope.get(self, 0);
 				let bound_this = scope.get(self, 1);
 				
@@ -146,15 +150,11 @@ impl JsEnv {
 					target_args.push(scope.get(self, i));
 				}
 				
-				for arg in args.args {
-					target_args.push(arg);
+				for i in 0..args.argc {
+					target_args.push(args.arg(self, i));
 				}
 				
-				let args = JsArgs {
-					function: target,
-					this: bound_this,
-					args: target_args
-				};
+				let args = JsArgs::new(self, target, bound_this, &target_args);
 				
 				self.call_function(mode, strict, args)
 			}
@@ -485,15 +485,17 @@ impl JsEnv {
 		
 		result.set_class(self, Some(name::ARGUMENTS_CLASS));
 		
-		let value = self.new_number(args.args.len() as f64);
+		let value = self.new_number(args.argc as f64);
 		try!(result.define_own_property(self, name::LENGTH, JsDescriptor::new_value(value, true, false, true), false));
 		
-		for i in 0..args.args.len() {
-			try!(result.define_own_property(self, Name::from_index(i), JsDescriptor::new_simple_value(args.args[i]), false));
+		for i in 0..args.argc {
+			let arg = args.arg(self, i);
+			try!(result.define_own_property(self, Name::from_index(i), JsDescriptor::new_simple_value(arg), false));
 		}
 		
 		if !strict {
-			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_value(args.function, true, false, true), false));
+			let function = args.function(self);
+			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_value(function, true, false, true), false));
 		} else {
 			let prototype = self.function_prototype.as_local(self);
 			let thrower = self.new_native_function(None, 0, &throw_type_error, prototype);

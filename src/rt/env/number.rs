@@ -6,8 +6,8 @@ use syntax::token::name;
 // 15.7.1 The Number Constructor Called as a Function
 // 15.7.2 The Number Constructor
 pub fn Number_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let arg = if args.args.len() > 0 {
-		try!(args.args[0].to_number(env))
+	let arg = if args.argc > 0 {
+		try!(args.arg(env, 0).to_number(env))
 	} else {
 		0f64
 	};
@@ -17,21 +17,24 @@ pub fn Number_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: J
 	if mode == JsFnMode::Call {
 		Ok(arg)
 	} else {
-		let mut this = args.this.unwrap_object(env);
+		let this_arg = args.this(env);
+		let mut this = this_arg.unwrap_object(env);
 		
 		this.set_class(env, Some(name::NUMBER_CLASS));
 		this.set_value(arg);
 		
-		Ok(args.this)
+		Ok(this_arg)
 	}
 }
 
 // 15.7.4.4 Number.prototype.valueOf ( )
 pub fn Number_valueOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	if args.this.class(env) != Some(name::NUMBER_CLASS) {
+	let this_arg = args.this(env);
+	
+	if this_arg.class(env) != Some(name::NUMBER_CLASS) {
 		Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 	} else {
-		let this = args.this.unwrap_object(env);
+		let this = this_arg.unwrap_object(env);
 		Ok(this.value(env))
 	}
 }
@@ -39,7 +42,7 @@ pub fn Number_valueOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArg
 // 15.7.4.2 Number.prototype.toString ( [ radix ] )
 // TODO: This is incomplete.
 pub fn Number_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let this = args.this;
+	let this = args.this(env);
 	
 	let value = match this.ty() {
 		JsType::Object => {
@@ -72,7 +75,7 @@ pub fn Number_toFixed(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArg
 	if digits < 0 || digits > 20 {
 		Err(JsError::new_range(env))
 	} else {
-		let value = try!(args.this.to_number(env));
+		let value = try!(args.this(env).to_number(env));
 		let result = if value.is_nan() {
 			"NaN".to_string()
 		} else {
