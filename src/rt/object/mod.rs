@@ -100,7 +100,7 @@ impl JsObject {
 	}
 }
 
-fn throw_type_error(env: &mut JsEnv, _: JsFnMode, _: bool, _: JsArgs) -> JsResult<Local<JsValue>> {
+fn throw_type_error(env: &mut JsEnv, _mode: JsFnMode, _args: JsArgs) -> JsResult<Local<JsValue>> {
 	Err(JsError::new_type(env, ::errors::TYPE_CANNOT_ACCESS_FUNCTION_PROPERTY))
 }
 

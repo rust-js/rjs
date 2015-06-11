@@ -5,7 +5,7 @@ use syntax::token::name;
 
 // 15.6.1 The Boolean Constructor Called as a Function
 // 15.6.2 The Boolean Constructor
-pub fn Boolean_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Boolean_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let arg = if args.argc > 0 {
 		args.arg(env, 0).to_boolean()
 	} else {
@@ -14,9 +14,7 @@ pub fn Boolean_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: 
 	
 	let arg = env.new_bool(arg);
 	
-	if mode == JsFnMode::Call {
-		Ok(arg)
-	} else {
+	if mode.construct() {
 		let this_arg = args.this(env);
 		let mut this = this_arg.unwrap_object(env);
 		
@@ -24,6 +22,8 @@ pub fn Boolean_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: 
 		this.set_value(arg);
 		
 		Ok(this_arg)
+	} else {
+		Ok(arg)
 	}
 }
 
@@ -40,7 +40,7 @@ fn get_bool_value(env: &mut JsEnv, this: Local<JsValue>) -> JsResult<bool> {
 }
 
 // 15.6.4.3 Boolean.prototype.valueOf ( )
-pub fn Boolean_valueOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Boolean_valueOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let this_arg = args.this(env);
 	let value = try!(get_bool_value(env, this_arg));
 	
@@ -48,7 +48,7 @@ pub fn Boolean_valueOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsAr
 }
 
 // 15.6.4.2 Boolean.prototype.toString ( )
-pub fn Boolean_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Boolean_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let this_arg = args.this(env);
 	let value = try!(get_bool_value(env, this_arg));
 	

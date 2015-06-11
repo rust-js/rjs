@@ -174,7 +174,7 @@ impl JsEnv {
 		let args = JsArgs::new(self, self.new_undefined(), this, &[]);
 		
 		let mut result = self.heap.alloc_root::<JsValue>(GC_VALUE);
-		*result = try!(self.call_block(block, JsFnMode::Call, function.strict, args, &function, scope));
+		*result = try!(self.call_block(block, JsFnMode::new(false, function.strict), args, &function, scope));
 		
 		debugln!("EXIT {}", location);
 		
@@ -421,7 +421,7 @@ pub trait JsItem {
 	fn call(&self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>, strict: bool) -> JsResult<Local<JsValue>> {
 		let args = JsArgs::new(env, self.as_value(env), this, &args);
 		
-		env.call_function(JsFnMode::Call, strict, args)
+		env.call_function(JsFnMode::new(false, strict), args)
 	}
 	
 	fn can_construct(&self, env: &JsEnv) -> bool {
@@ -469,7 +469,7 @@ pub trait JsItem {
 		
 		let obj = obj.as_value(env);
 		let args = JsArgs::new(env, self.as_value(env), obj, &args);
-		let result = try!(env.call_function(JsFnMode::New, false, args));
+		let result = try!(env.call_function(JsFnMode::new(true, false), args));
 		
 		Ok(if result.ty() == JsType::Object {
 			result
@@ -783,9 +783,23 @@ impl JsType {
 }
 
 #[derive(Copy, Clone, PartialEq)]
-pub enum JsFnMode {
-	Call,
-	New
+pub struct JsFnMode(u8);
+
+impl JsFnMode {
+	fn new(construct: bool, strict: bool) -> JsFnMode {
+		JsFnMode(
+			if construct { 1 } else { 0 } |
+			if strict { 2 } else { 0 }
+		)
+	}
+	
+	fn construct(&self) -> bool {
+		(self.0 & 1) != 0
+	}
+	
+	fn strict(&self) -> bool {
+		(self.0 & 2) != 0
+	}
 }
 
 pub struct JsArgs {
@@ -842,10 +856,6 @@ impl JsArgs {
 		self.frame.get(env, 0)
 	}
 	
-	fn raw_function(&self) -> JsValue {
-		self.frame.raw_get(0)
-	}
-	
 	pub fn this(&self, env: &JsEnv) -> Local<JsValue> {
 		self.frame.get(env, 1)
 	}
@@ -859,7 +869,7 @@ impl JsArgs {
 	}
 }
 
-pub type JsFn = Fn(&mut JsEnv, JsFnMode, bool, JsArgs) -> JsResult<Local<JsValue>>;
+pub type JsFn = Fn(&mut JsEnv, JsFnMode, JsArgs) -> JsResult<Local<JsValue>>;
 
 pub enum JsFunction {
 	Ir(FunctionRef),

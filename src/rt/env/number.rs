@@ -5,7 +5,7 @@ use syntax::token::name;
 
 // 15.7.1 The Number Constructor Called as a Function
 // 15.7.2 The Number Constructor
-pub fn Number_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let arg = if args.argc > 0 {
 		try!(args.arg(env, 0).to_number(env))
 	} else {
@@ -14,9 +14,7 @@ pub fn Number_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: J
 	
 	let arg = env.new_number(arg);
 	
-	if mode == JsFnMode::Call {
-		Ok(arg)
-	} else {
+	if mode.construct() {
 		let this_arg = args.this(env);
 		let mut this = this_arg.unwrap_object(env);
 		
@@ -24,11 +22,13 @@ pub fn Number_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: J
 		this.set_value(arg);
 		
 		Ok(this_arg)
+	} else {
+		Ok(arg)
 	}
 }
 
 // 15.7.4.4 Number.prototype.valueOf ( )
-pub fn Number_valueOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_valueOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let this_arg = args.this(env);
 	
 	if this_arg.class(env) != Some(name::NUMBER_CLASS) {
@@ -41,7 +41,7 @@ pub fn Number_valueOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArg
 
 // 15.7.4.2 Number.prototype.toString ( [ radix ] )
 // TODO: This is incomplete.
-pub fn Number_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let this = args.this(env);
 	
 	let value = match this.ty() {
@@ -62,7 +62,7 @@ pub fn Number_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsAr
 // 15.7.4.5 Number.prototype.toFixed (fractionDigits)
 // TODO: Thi isn't a very nice implementation. What we really need is proper
 // formatting methods, which Rust doesn't have.
-pub fn Number_toFixed(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_toFixed(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let digits = args.arg(env, 0);
 	let digits = if digits.is_undefined() {
 		0f64
