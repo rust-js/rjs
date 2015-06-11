@@ -80,7 +80,7 @@ impl JsEnv {
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.2.3
 	// 10.4.3 Entering Function Code
-	pub fn call_function(&mut self, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	pub fn call(&mut self, mode: JsFnMode, args: JsArgs) -> JsResult<()> {
 		let function_obj = args.function(self);
 		
 		if function_obj.ty() != JsType::Object {
@@ -123,19 +123,25 @@ impl JsEnv {
 				let scope = function_obj.scope(self)
 					.unwrap_or_else(|| self.global_scope.as_local(self));
 				
-				let mut result = self.new_value();
-				*result = try!(self.call_block(block, mode, args, &function, scope));
+				try!(self.call_block(block, args, &function, scope));
 				
 				debugln!("EXIT {}", location);
 				
-				Ok(result)
+				Ok(())
 			}
 			JsFunction::Native(_, _, ref callback, can_construct) => {
 				if !can_construct && mode.construct() {
 					return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_CONSTRUCTOR));
 				}
 				
-				Ok(try!((*callback as &JsFn)(self, mode, args)))
+				let frame = args.frame;
+				
+				let result = try!((*callback as &JsFn)(self, mode, args));
+				
+				self.stack.drop_frame(frame);
+				self.stack.push(*result);
+				
+				Ok(())
 			}
 			JsFunction::Bound => {
 				// 15.3.4.5.1 [[Call]]
@@ -156,9 +162,67 @@ impl JsEnv {
 				
 				let args = JsArgs::new(self, target, bound_this, &target_args);
 				
-				self.call_function(mode, args)
+				self.call(mode, args)
 			}
 		}
+	}
+	
+	pub fn construct(&mut self, args: JsArgs) -> JsResult<()> {
+		let function = args.function(self);
+		
+		let is_bound = if function.class(self) == Some(name::FUNCTION_CLASS) {
+			let object = function.as_value(self).unwrap_object(self);
+			let function = object.function().unwrap();
+			function == JsFunction::Bound
+		} else {
+			false
+		};
+		
+		if is_bound {
+			let scope = function.scope(self).unwrap();
+			let target = scope.get(self, 0);
+			
+			let mut target_args = Vec::new();
+			
+			for i in 2..scope.len() {
+				target_args.push(scope.get(self, i));
+			}
+			
+			for i in 0..args.argc {
+				target_args.push(args.arg(self, i));
+			}
+			
+			let result = try!(target.construct(self, target_args));
+			
+			self.stack.drop_frame(args.frame);
+			self.stack.push(*result);
+			
+			return Ok(());
+		}
+		
+		let mut obj = JsObject::new_local(self, JsStoreType::Hash);
+		obj.set_class(self, Some(name::OBJECT_CLASS));
+		
+		let proto = try!(function.get(self, name::PROTOTYPE));
+		if proto.ty() == JsType::Object {
+			obj.set_prototype(self, Some(proto));
+		} else {
+			let proto = self.object_prototype.as_local(self).as_value(self);
+			obj.set_prototype(self, Some(proto));
+		}
+		
+		let obj = obj.as_value(self);
+		
+		args.set_this(*obj);
+		
+		try!(self.call(JsFnMode::new(true, false), args));
+		
+		let frame = self.stack.create_frame(1);
+		if frame.raw_get(0).ty() != JsType::Object {
+			frame.set(0, *obj);
+		}
+		
+		Ok(())
 	}
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.4.3

@@ -1224,21 +1224,19 @@ impl<'a> IrGenerator<'a> {
 	}
 	
 	fn emit_expr_call(&mut self, expr: &'a Expr, args: &'a Vec<Expr>, leave: bool) -> JsResult<()> {
-		let have_this = match *expr {
+		match *expr {
 			Expr::MemberDot(ref expr, ident) => {
 				try!(self.emit_expr(expr, true));
 				self.ir.emit(Ir::Dup);
 				self.ir.emit(Ir::LoadName(ident));
-				true
 			}
 			Expr::MemberIndex(ref expr, ref index) => {
 				try!(self.emit_member_target(expr, index, true));
 				self.ir.emit(Ir::LoadIndex);
-				true
 			}
 			_ => {
+				self.ir.emit(Ir::LoadUndefined);
 				try!(self.emit_expr(expr, true));
-				false
 			}
 		};
 		
@@ -1254,8 +1252,6 @@ impl<'a> IrGenerator<'a> {
 		
 		if is_eval {
 			self.ir.emit(Ir::CallEval(args.len() as u32));
-		} else if have_this {
-			self.ir.emit(Ir::CallThis(args.len() as u32));
 		} else {
 			self.ir.emit(Ir::Call(args.len() as u32));
 		}
@@ -1326,6 +1322,7 @@ impl<'a> IrGenerator<'a> {
 	
 	fn emit_expr_new(&mut self, expr: &'a Expr, leave: bool) -> JsResult<()> {
 		if let Expr::Call(ref expr, ref args) = *expr {
+			self.ir.emit(Ir::LoadUndefined);
 			try!(self.emit_expr(expr, true));
 		
 			for arg in args {
@@ -1334,6 +1331,7 @@ impl<'a> IrGenerator<'a> {
 			
 			self.ir.emit(Ir::New(args.len() as u32));
 		} else {
+			self.ir.emit(Ir::LoadUndefined);
 			try!(self.emit_expr(expr, true));
 		
 			self.ir.emit(Ir::New(0));

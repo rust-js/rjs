@@ -15,17 +15,10 @@ const CALL_PROLOG : usize = 2;
 
 enum Next {
 	Next,
-	Return(JsValue),
+	Return,
 	Throw(JsError),
 	Leave(usize),
 	EndFinally
-}
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-enum CallMode {
-	Global,
-	Eval,
-	This
 }
 
 macro_rules! local_try {
@@ -76,7 +69,7 @@ struct Frame<'a> {
 }
 
 impl JsEnv {
-	pub fn call_block(&mut self, block: Rc<Block>, _mode: JsFnMode, args: JsArgs, function: &IrFunction, scope: Local<JsScope>) -> JsResult<JsValue> {
+	pub fn call_block(&mut self, block: Rc<Block>, args: JsArgs, function: &IrFunction, scope: Local<JsScope>) -> JsResult<()> {
 		// Ensure that we have enough arguments on the stack. We will have the number
 		// of arguments already on the stack that the caller pushed. However,
 		// our load/store param calls will write directly into these locations.
@@ -139,10 +132,8 @@ impl JsEnv {
 			
 			match frame.call_stmt(ir) {
 				Next::Next => {}
-				Next::Return(result) => {
-					frame.env.stack.drop_frame(frame.locals);
-					
-					return Ok(result);
+				Next::Return => {
+					return Ok(());
 				}
 				Next::Throw(error) => {
 					frame.thrown = Some(error.as_runtime(frame.env));
@@ -184,6 +175,8 @@ impl JsEnv {
 					}
 					
 					if !found {
+						frame.env.stack.drop_frame(frame.args.frame);
+						
 						return Err(error);
 					}
 				}
@@ -327,6 +320,8 @@ impl JsEnv {
 						// up the stack.
 						
 						if !found {
+							frame.env.stack.drop_frame(frame.args.frame);
+							
 							return Err(JsError::Runtime(error.clone()));
 						}
 					} else if let Some(leave_) = leave {
@@ -431,9 +426,8 @@ impl<'a> Frame<'a> {
 			Ir::BitNot => numeric_op!(self, bit_not),
 			Ir::BitOr => numeric_bin_op!(self, bit_or),
 			Ir::BitXOr => numeric_bin_op!(self, bit_xor),
-			Ir::Call(count) => local_try!(self.call(count, CallMode::Global)),
-			Ir::CallEval(count) => local_try!(self.call(count, CallMode::Eval)),
-			Ir::CallThis(count) => local_try!(self.call(count, CallMode::This)),
+			Ir::Call(count) => local_try!(self.call(count, false)),
+			Ir::CallEval(count) => local_try!(self.call(count, true)),
 			Ir::CurrentIter(local) => {
 				let _scope = self.env.new_local_scope();
 				
@@ -833,18 +827,13 @@ impl<'a> Frame<'a> {
 			Ir::New(count) => {
 				let _scope = self.env.new_local_scope();
 				
-				let frame = self.env.stack.create_frame(count as usize + 1);
-				let mut args = Vec::new();
-				for i in 0..count as usize {
-					args.push(frame.get(&self.env, i + 1));
-				}
+				let frame = self.env.stack.create_frame(count as usize + CALL_PROLOG);
+				let args = JsArgs {
+					frame: frame,
+					argc: count as usize
+				};
 				
-				let constructor = frame.get(&self.env, 0);
-				
-				let result = local_try!(constructor.construct(self.env, args));
-				
-				self.env.stack.drop_frame(frame);
-				self.env.stack.push(*result);
+				local_try!(self.env.construct(args));
 			}
 			Ir::NewArguments => {
 				let _scope = self.env.new_local_scope();
@@ -895,8 +884,9 @@ impl<'a> Frame<'a> {
 			Ir::Return => {
 				let frame = self.env.stack.create_frame(1);
 				let result = frame.raw_get(0);
-				self.env.stack.drop_frame(frame);
-				return Next::Return(result);
+				self.env.stack.drop_frame(self.args.frame);
+				self.env.stack.push(result);
+				return Next::Return;
 			}
 			Ir::Rsh => numeric_bin_op!(self, rsh),
 			Ir::RshZeroFill => numeric_bin_op!(self, unsigned_rsh),
@@ -1240,50 +1230,43 @@ impl<'a> Frame<'a> {
 		}
 	}
 	
-	fn call(&mut self, count: u32, mode: CallMode) -> JsResult<()> {
+	fn call(&mut self, count: u32, eval: bool) -> JsResult<()> {
 		let _scope = self.env.new_local_scope();
 		
-		let offset = if mode == CallMode::This { 2 } else { 1 };
+		let frame = self.env.stack.create_frame(count as usize + CALL_PROLOG);
 		
-		let frame = self.env.stack.create_frame(count as usize + offset);
-		let mut args = Vec::new();
-		for i in 0..count as usize {
-			args.push(frame.get(&self.env, i + offset));
-		}
-		
-		let this = if mode == CallMode::This {
-			frame.get(&self.env, 0)
-		} else {
-			self.env.new_undefined()
+		let args = JsArgs {
+			frame: frame,
+			argc: count as usize
 		};
-		let function = frame.get(&self.env, offset - 1);
 		
 		// If this is a scoped call (i.e. eval) we need to double check to make
 		// sure that this actually is a direct eval call. Otherwise the
 		// scope is not inherited.
 		
-		let is_eval = if function.ty() == JsType::Object && mode == CallMode::Eval {
-			let global = self.env.global.as_local(self.env);
-			if let Ok(eval) = global.get(&mut self.env, name::EVAL) {
-				function == eval
-			} else {
-				false
+		let mut is_eval = false;
+		
+		if eval {
+			let function = args.function(self.env);
+			if function.ty() == JsType::Object {
+				let global = self.env.global.as_local(self.env);
+				if let Ok(eval) = global.get(&mut self.env, name::EVAL) {
+					is_eval = function == eval;
+				}
 			}
-		} else {
-			false
-		};
+		}
 		
 		// If this actually is an eval, we go directly into eval. Otherwise
 		// we let the normal call mechanism handle the call.
 		
-		let result = if is_eval {
-			let js = if args.len() > 0 {
-				args[0]
+		if is_eval {
+			let js = if args.argc > 0 {
+				args.arg(self.env, 0)
 			} else {
 				self.env.new_undefined()
 			};
 			
-			if js.ty() != JsType::String {
+			let result = if js.ty() != JsType::String {
 				*js
 			} else {
 				let js = js.unwrap_string(self.env).to_string();
@@ -1291,13 +1274,13 @@ impl<'a> Frame<'a> {
 				
 				let this_arg = self.args.this(self.env);
 				*try!(self.env.eval_scoped(&js, self.strict, this_arg, scope, ParseMode::DirectEval)).as_local(self.env)
-			}
+			};
+			
+			self.env.stack.drop_frame(frame);
+			self.env.stack.push(result);
 		} else {
-			*try!(function.call(self.env, this, args, self.strict))
+			try!(self.env.call(JsFnMode::new(false, self.strict), args));
 		};
-		
-		self.env.stack.drop_frame(frame);
-		self.env.stack.push(result);
 		
 		Ok(())
 	}

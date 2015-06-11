@@ -128,7 +128,7 @@ impl JsEnv {
 		let global = self.global.as_value(self);
 		let global_scope = self.global_scope.as_local(self);
 		
-		self.call(function_ref, global, global_scope)
+		self.run_program(function_ref, global, global_scope)
 	}
 	
 	pub fn eval(&mut self, js: &str) -> JsResult<Root<JsValue>> {
@@ -147,10 +147,13 @@ impl JsEnv {
 		try!(self.ir.print_ir(&mut ir));
 		debugln!("{}", ir);
 		
-		self.call(function_ref, this, scope)
+		self.run_program(function_ref, this, scope)
 	}
 	
-	fn call(&mut self, function_ref: FunctionRef, this: Local<JsValue>, scope: Local<JsScope>) -> JsResult<Root<JsValue>> {
+	fn run_program(&mut self, function_ref: FunctionRef, this: Local<JsValue>, scope: Local<JsScope>) -> JsResult<Root<JsValue>> {
+		// TODO: This can be rewritten to a JsObject.call if we create a function
+		// from the function_ref we got here.
+		
 		let function = self.ir.get_function(function_ref);
 		let name = if let Some(name) = function.name {
 			self.ir.interner().get(name).to_string()
@@ -173,8 +176,10 @@ impl JsEnv {
 		// we don't have it here.
 		let args = JsArgs::new(self, self.new_undefined(), this, &[]);
 		
+		try!(self.call_block(block, args, &function, scope));
+
 		let mut result = self.heap.alloc_root::<JsValue>(GC_VALUE);
-		*result = try!(self.call_block(block, JsFnMode::new(false, function.strict), args, &function, scope));
+		*result = self.stack.pop();
 		
 		debugln!("EXIT {}", location);
 		
@@ -421,7 +426,12 @@ pub trait JsItem {
 	fn call(&self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>, strict: bool) -> JsResult<Local<JsValue>> {
 		let args = JsArgs::new(env, self.as_value(env), this, &args);
 		
-		env.call_function(JsFnMode::new(false, strict), args)
+		try!(env.call(JsFnMode::new(false, strict), args));
+		
+		let mut result = env.new_value();
+		*result = env.stack.pop();
+		
+		Ok(result)
 	}
 	
 	fn can_construct(&self, env: &JsEnv) -> bool {
@@ -431,51 +441,14 @@ pub trait JsItem {
 	// 13.2.2 [[Construct]]
 	// 15.3.4.5.2 [[Construct]]
 	fn construct(&self, env: &mut JsEnv, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>> {
-		let is_bound = if self.class(env) == Some(name::FUNCTION_CLASS) {
-			let object = self.as_value(env).unwrap_object(env);
-			let function = object.function().unwrap();
-			function == JsFunction::Bound
-		} else {
-			false
-		};
+		let args = JsArgs::new(env, self.as_value(env), env.new_undefined(), &args);
 		
-		if is_bound {
-			let scope = self.scope(env).unwrap();
-			let target = scope.get(env, 0);
-			
-			let mut target_args = Vec::new();
-			
-			for i in 2..scope.len() {
-				target_args.push(scope.get(env, i));
-			}
-			
-			for arg in args {
-				target_args.push(arg);
-			}
-			
-			return target.construct(env, target_args);
-		}
+		try!(env.construct(args));
 		
-		let mut obj = JsObject::new_local(env, JsStoreType::Hash);
-		obj.set_class(env, Some(name::OBJECT_CLASS));
+		let mut result = env.new_value();
+		*result = env.stack.pop();
 		
-		let proto = try!(self.get(env, name::PROTOTYPE));
-		if proto.ty() == JsType::Object {
-			obj.set_prototype(env, Some(proto));
-		} else {
-			let proto = env.object_prototype.as_local(env).as_value(env);
-			obj.set_prototype(env, Some(proto));
-		}
-		
-		let obj = obj.as_value(env);
-		let args = JsArgs::new(env, self.as_value(env), obj, &args);
-		let result = try!(env.call_function(JsFnMode::new(true, false), args));
-		
-		Ok(if result.ty() == JsType::Object {
-			result
-		} else {
-			obj
-		})
+		Ok(result)
 	}
 	
 	fn has_prototype(&self, env: &JsEnv) -> bool {
@@ -813,8 +786,8 @@ impl JsArgs {
 		
 		let frame = stack.create_frame(0);
 		
-		stack.push(*function);
 		stack.push(*this);
+		stack.push(*function);
 		
 		for arg in args {
 			stack.push(**arg);
@@ -852,20 +825,32 @@ impl JsArgs {
 		args
 	}
 	
-	pub fn function(&self, env: &JsEnv) -> Local<JsValue> {
+	pub fn this(&self, env: &JsEnv) -> Local<JsValue> {
 		self.frame.get(env, 0)
 	}
 	
-	pub fn this(&self, env: &JsEnv) -> Local<JsValue> {
-		self.frame.get(env, 1)
-	}
-	
 	fn set_this(&self, value: JsValue) {
-		self.frame.set(1, value);
+		self.frame.set(0, value);
 	}
 	
 	fn raw_this(&self) -> JsValue {
-		self.frame.raw_get(1)
+		self.frame.raw_get(0)
+	}
+	
+	pub fn result(&self, env: &JsEnv) -> Local<JsValue> {
+		self.this(env)
+	}
+	
+	pub fn set_result(&self, value: JsValue) {
+		self.set_this(value)
+	}
+	
+	pub fn raw_result(&self) -> JsValue {
+		self.raw_this()
+	}
+	
+	pub fn function(&self, env: &JsEnv) -> Local<JsValue> {
+		self.frame.get(env, 1)
 	}
 }
 

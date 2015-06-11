@@ -70,6 +70,7 @@ impl Stack {
 	}
 }
 
+#[derive(Copy)]
 pub struct StackFrame {
 	sp: ptr_t
 }
@@ -96,6 +97,14 @@ impl StackFrame {
 			*transmute::<_, *mut JsValue>(
 				self.sp.offset((size_of::<JsValue>() * offset) as isize)
 			) = value
+		}
+	}
+}
+
+impl Clone for StackFrame {
+	fn clone(&self) -> StackFrame {
+		StackFrame {
+			sp: self.sp
 		}
 	}
 }

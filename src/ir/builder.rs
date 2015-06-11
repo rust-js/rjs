@@ -94,7 +94,6 @@ impl Block {
 				Ir::BitXOr => string.push_str("bit.xor"),
 				Ir::Call(args) => { write!(string, "call {}", args).ok(); }
 				Ir::CallEval(args) => { write!(string, "call.eval {}", args).ok(); } 
-				Ir::CallThis(args) => { write!(string, "call.this {}", args).ok(); }
 				Ir::CurrentIter(local) => {
 					string.push_str("iter.cur ");
 					self.print_local(string, local, interner);
@@ -603,7 +602,6 @@ pub enum Ir {
 	Rsh,
 	RshZeroFill,
 	CallEval(u32),
-	CallThis(u32),
 	StoreGetterUnchecked(FunctionRef),
 	StoreGlobal(Name),
 	StoreIndex,
