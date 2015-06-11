@@ -36,6 +36,7 @@ mod iterator;
 mod scope;
 mod walker;
 mod allocators;
+pub mod result;
 
 const GC_ARRAY_STORE : u32 = 1;
 const GC_ENTRY : u32 = 2;
