@@ -1,7 +1,7 @@
 use syntax::Name;
 use syntax::ast::FunctionRef;
 use syntax::token::name;
-use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString, JsArgs};
+use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString, JsArgs, JsFnMode};
 use rt::{GC_OBJECT, GC_ENTRY};
 use rt::validate_walker_field;
 use rt::value::validate_walker_for_embedded_value;
@@ -100,7 +100,7 @@ impl JsObject {
 	}
 }
 
-fn throw_type_error(env: &mut JsEnv, _: JsArgs) -> JsResult<Local<JsValue>> {
+fn throw_type_error(env: &mut JsEnv, _: JsFnMode, _: bool, _: JsArgs) -> JsResult<Local<JsValue>> {
 	Err(JsError::new_type(env, ::errors::TYPE_CANNOT_ACCESS_FUNCTION_PROPERTY))
 }
 

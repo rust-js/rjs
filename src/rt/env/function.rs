@@ -11,13 +11,13 @@ use std::cmp::max;
 use syntax::Name;
 use syntax::token::name;
 
-pub fn Function_baseConstructor(env: &mut JsEnv, _: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Function_baseConstructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	// Nothing to do. The default result already is undefined.
 	Ok(env.new_undefined())
 }
 
-pub fn Function_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	if args.mode == JsFnMode::Call {
+pub fn Function_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
+	if mode == JsFnMode::Call {
 		return args.function.construct(env, args.args);
 	}
 	
@@ -45,17 +45,17 @@ pub fn Function_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 	source.push_str(&body.to_string());
 	source.push_str(" }");
 	
-	let function_ref = try!(env.ir.parse_string(&source, args.strict, ParseMode::Normal));
+	let function_ref = try!(env.ir.parse_string(&source, strict, ParseMode::Normal));
 	// The function returned is the program, but we need the function. The program
 	// function is created last so we need the last but one.
 	
 	let function_ref = FunctionRef(function_ref.0 - 1);
 	
-	env.new_function(function_ref, None, args.strict)
+	env.new_function(function_ref, None, strict)
 }
 
 // 15.3.4.4 Function.prototype.call (thisArg [ , arg1 [ , arg2, … ] ] )
-pub fn Function_call(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Function_call(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let func = args.this;
 	if !func.is_callable(env) {
 		Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION))
@@ -68,7 +68,7 @@ pub fn Function_call(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 }
 
 // 15.3.4.3 Function.prototype.apply (thisArg, argArray)
-pub fn Function_apply(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Function_apply(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let func = args.this;
 	if !func.is_callable(env) {
 		Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION))
@@ -96,7 +96,7 @@ pub fn Function_apply(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>>
 
 // 15.3.4.2 Function.prototype.toString ( )
 // TODO: This can be greatly improved, e.g. by retaining/getting the real code.
-pub fn Function_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Function_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	if args.this.ty() == JsType::Object {
 		if let Some(ref function) = args.this.unwrap_object(env).function() {
 			fn get_function_details(env: &mut JsEnv, this: Local<JsValue>, function: &JsFunction) -> JsResult<(Option<Name>, Option<u32>)> {
@@ -156,12 +156,12 @@ pub fn Function_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValu
 	Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 }
 
-pub fn Function_toLocaleString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Function_toLocaleString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	unimplemented!();
 }
 
 // 15.3.4.5 Function.prototype.bind (thisArg [, arg1 [, arg2, …]])
-pub fn Function_bind(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Function_bind(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	if !args.this.is_callable(env) {
 		Err(JsError::new_type(env, ::errors::TYPE_NOT_CALLABLE))
 	} else {

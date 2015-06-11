@@ -8,8 +8,8 @@ use syntax::token::name;
 
 // 15.2.1 The Object Constructor Called as a Function
 // 15.2.2 The Object Constructor
-pub fn Object_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
-	if args.mode == JsFnMode::Call {
+pub fn Object_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
+	if mode == JsFnMode::Call {
 		let arg = args.arg(env, 0);
 		if arg.is_null_or_undefined() {
 			Ok(env.create_object().as_value(env))
@@ -31,7 +31,7 @@ pub fn Object_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVal
 	}
 }
 
-pub fn Object_create(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Object_create(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	assert!(args.args.len() <= 1);
 	
 	let mut result = JsObject::new_local(env, JsStoreType::Hash);
@@ -46,7 +46,7 @@ pub fn Object_create(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 }
 
 // 15.2.4.2 Object.prototype.toString ( )
-pub fn Object_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Object_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let result = if args.this.is_undefined() {
 		JsString::from_str(env, "[object Undefined]")
 	} else if args.this.is_null() {
@@ -73,7 +73,7 @@ pub fn Object_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>
 }
 
 // 15.2.4.3 Object.prototype.toLocaleString ( )
-pub fn Object_toLocaleString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Object_toLocaleString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let this = try!(args.this.to_object(env));
 	let to_string = try!(this.get(env, name::TO_STRING));
 	if to_string.is_callable(env) {
@@ -84,12 +84,12 @@ pub fn Object_toLocaleString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<Js
 }
 
 // 15.2.4.4 Object.prototype.valueOf ( )
-pub fn Object_valueOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Object_valueOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	args.this.to_object(env)
 }
 
 // 15.2.4.5 Object.prototype.hasOwnProperty (V)
-pub fn Object_hasOwnProperty(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Object_hasOwnProperty(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let arg = args.arg(env, 0);
 	
 	let name = try!(env.intern_value(arg));
@@ -102,7 +102,7 @@ pub fn Object_hasOwnProperty(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<Js
 }
 
 // 15.2.4.6 Object.prototype.isPrototypeOf (V)
-pub fn Object_isPrototypeOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Object_isPrototypeOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let mut arg = args.arg(env, 0);
 	
 	let result = if arg.ty() != JsType::Object {
@@ -130,7 +130,7 @@ pub fn Object_isPrototypeOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsV
 }
 
 // 15.2.4.7 Object.prototype.propertyIsEnumerable (V)
-pub fn Object_propertyIsEnumerable(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Object_propertyIsEnumerable(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let name = args.arg(env, 0);
 	let name = try!(env.intern_value(name));
 	let object = try!(args.this.to_object(env));
@@ -145,7 +145,7 @@ pub fn Object_propertyIsEnumerable(env: &mut JsEnv, args: JsArgs) -> JsResult<Lo
 }
 
 // 15.2.3.2 Object.getPrototypeOf ( O )
-pub fn Object_getPrototypeOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Object_getPrototypeOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let arg = args.arg(env, 0);
 	
 	if arg.ty() != JsType::Object {
@@ -158,7 +158,7 @@ pub fn Object_getPrototypeOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<Js
 }
 
 // 15.2.3.6 Object.defineProperty ( O, P, Attributes )
-pub fn Object_defineProperty(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Object_defineProperty(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let mut object = args.arg(env, 0);
 	
 	if object.ty() != JsType::Object {
@@ -178,7 +178,7 @@ pub fn Object_defineProperty(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<Js
 }
 
 // http://ecma-international.org/ecma-262/5.1/#sec-15.2.3.3
-pub fn Object_getOwnPropertyDescriptor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Object_getOwnPropertyDescriptor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let object = args.arg(env, 0);
 	
 	if object.ty() != JsType::Object {
@@ -199,7 +199,7 @@ pub fn Object_getOwnPropertyDescriptor(env: &mut JsEnv, args: JsArgs) -> JsResul
 }
 
 // 15.2.3.10 Object.preventExtensions ( O )
-pub fn Object_preventExtensions(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Object_preventExtensions(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let object = args.arg(env, 0);
 	
 	if object.ty() != JsType::Object {
@@ -212,7 +212,7 @@ pub fn Object_preventExtensions(env: &mut JsEnv, args: JsArgs) -> JsResult<Local
 }
 
 // 15.2.3.4 Object.getOwnPropertyNames ( O )
-pub fn Object_getOwnPropertyNames(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Object_getOwnPropertyNames(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let object = args.arg(env, 0);
 	
 	if object.ty() != JsType::Object {

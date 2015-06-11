@@ -5,7 +5,7 @@ use syntax::token::name;
 
 // 15.7.1 The Number Constructor Called as a Function
 // 15.7.2 The Number Constructor
-pub fn Number_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let arg = if args.args.len() > 0 {
 		try!(args.args[0].to_number(env))
 	} else {
@@ -14,7 +14,7 @@ pub fn Number_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVal
 	
 	let arg = env.new_number(arg);
 	
-	if args.mode == JsFnMode::Call {
+	if mode == JsFnMode::Call {
 		Ok(arg)
 	} else {
 		let mut this = args.this.unwrap_object(env);
@@ -27,7 +27,7 @@ pub fn Number_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVal
 }
 
 // 15.7.4.4 Number.prototype.valueOf ( )
-pub fn Number_valueOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_valueOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	if args.this.class(env) != Some(name::NUMBER_CLASS) {
 		Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 	} else {
@@ -38,7 +38,7 @@ pub fn Number_valueOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>>
 
 // 15.7.4.2 Number.prototype.toString ( [ radix ] )
 // TODO: This is incomplete.
-pub fn Number_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let this = args.this;
 	
 	let value = match this.ty() {
@@ -59,7 +59,7 @@ pub fn Number_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>
 // 15.7.4.5 Number.prototype.toFixed (fractionDigits)
 // TODO: Thi isn't a very nice implementation. What we really need is proper
 // formatting methods, which Rust doesn't have.
-pub fn Number_toFixed(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_toFixed(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let digits = args.arg(env, 0);
 	let digits = if digits.is_undefined() {
 		0f64

@@ -80,7 +80,7 @@ impl JsEnv {
 	
 	// http://ecma-international.org/ecma-262/5.1/#sec-11.2.3
 	// 10.4.3 Entering Function Code
-	pub fn call_function(&mut self, args: JsArgs) -> JsResult<Local<JsValue>> {
+	pub fn call_function(&mut self, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 		if args.function.ty() != JsType::Object {
 			return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
 		};
@@ -120,18 +120,18 @@ impl JsEnv {
 					.unwrap_or_else(|| self.global_scope.as_local(self));
 				
 				let mut result = self.new_value();
-				*result = try!(self.call_block(block, args, &function, scope));
+				*result = try!(self.call_block(block, mode, strict, args, &function, scope));
 				
 				debugln!("EXIT {}", location);
 				
 				Ok(result)
 			}
 			JsFunction::Native(_, _, ref callback, can_construct) => {
-				if !can_construct && args.mode == JsFnMode::New {
+				if !can_construct && mode == JsFnMode::New {
 					return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_CONSTRUCTOR));
 				}
 				
-				Ok(try!((*callback as &JsFn)(self, args)))
+				Ok(try!((*callback as &JsFn)(self, mode, strict, args)))
 			}
 			JsFunction::Bound => {
 				// 15.3.4.5.1 [[Call]]
@@ -153,12 +153,10 @@ impl JsEnv {
 				let args = JsArgs {
 					function: target,
 					this: bound_this,
-					args: target_args,
-					strict: args.strict,
-					mode: args.mode
+					args: target_args
 				};
 				
-				self.call_function(args)
+				self.call_function(mode, strict, args)
 			}
 		}
 	}
@@ -611,6 +609,6 @@ impl JsEnv {
 	}
 }
 
-fn throw_type_error(env: &mut JsEnv, _: JsArgs) -> JsResult<Local<JsValue>> {
+fn throw_type_error(env: &mut JsEnv, _: JsFnMode, _: bool, _: JsArgs) -> JsResult<Local<JsValue>> {
 	Err(JsError::new_type(env, ::errors::TYPE_CANNOT_ACCESS_ARGUMENTS_PROPERTY))
 }

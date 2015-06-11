@@ -1,10 +1,10 @@
 #![allow(unused_variables)]
 
 use ::JsResult;
-use rt::{JsEnv, JsArgs, JsValue};
+use rt::{JsEnv, JsArgs, JsValue, JsFnMode};
 use gc::*;
 
-pub fn Date_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Date_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	if args.args.len() > 0 {
 		unimplemented!();
 	}
@@ -12,14 +12,14 @@ pub fn Date_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue
 	Ok(args.this)
 }
 
-pub fn Date_getYear(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Date_getYear(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	unimplemented!();
 }
 
-pub fn Date_setYear(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Date_setYear(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	unimplemented!();
 }
 
-pub fn Date_toGMTString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Date_toGMTString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	unimplemented!();
 }

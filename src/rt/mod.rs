@@ -174,13 +174,11 @@ impl JsEnv {
 		let args = JsArgs {
 			function: self.new_undefined(),
 			this: this,
-			args: Vec::new(),
-			strict: function.strict,
-			mode: JsFnMode::Call
+			args: Vec::new()
 		};
 		
 		let mut result = self.heap.alloc_root::<JsValue>(GC_VALUE);
-		*result = try!(self.call_block(block, args, &function, scope));
+		*result = try!(self.call_block(block, JsFnMode::Call, function.strict, args, &function, scope));
 		
 		debugln!("EXIT {}", location);
 		
@@ -428,12 +426,10 @@ pub trait JsItem {
 		let args = JsArgs {
 			function: self.as_value(env),
 			this: this,
-			args: args,
-			strict: strict,
-			mode: JsFnMode::Call
+			args: args
 		};
 		
-		env.call_function(args)
+		env.call_function(JsFnMode::Call, strict, args)
 	}
 	
 	fn can_construct(&self, env: &JsEnv) -> bool {
@@ -483,12 +479,10 @@ pub trait JsItem {
 		let args = JsArgs {
 			function: self.as_value(env),
 			this: obj,
-			args: args,
-			strict: false,
-			mode: JsFnMode::New
+			args: args
 		};
 		
-		let result = try!(env.call_function(args));
+		let result = try!(env.call_function(JsFnMode::New, false, args));
 		
 		Ok(if result.ty() == JsType::Object {
 			result
@@ -810,9 +804,7 @@ pub enum JsFnMode {
 pub struct JsArgs {
 	function: Local<JsValue>,
 	this: Local<JsValue>,
-	args: Vec<Local<JsValue>>,
-	strict: bool,
-	mode: JsFnMode
+	args: Vec<Local<JsValue>>
 }
 
 impl JsArgs {
@@ -833,7 +825,7 @@ impl JsArgs {
 	}
 }
 
-pub type JsFn = Fn(&mut JsEnv, JsArgs) -> JsResult<Local<JsValue>>;
+pub type JsFn = Fn(&mut JsEnv, JsFnMode, bool, JsArgs) -> JsResult<Local<JsValue>>;
 
 pub enum JsFunction {
 	Ir(FunctionRef),

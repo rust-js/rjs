@@ -11,14 +11,14 @@ use std::cmp::{min, max};
 // 15.5.1 The String Constructor Called as a Function
 // 15.5.2 The String Constructor
 // 15.5.5.1 length
-pub fn String_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn String_constructor(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let arg = if args.args.len() > 0 {
 		try!(args.args[0].to_string(env)).as_value(env)
 	} else {
 		JsString::from_str(env, "").as_value(env)
 	};
 	
-	if args.mode == JsFnMode::Call {
+	if mode == JsFnMode::Call {
 		return Ok(arg);
 	}
 	
@@ -35,7 +35,7 @@ pub fn String_constructor(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVal
 }
 
 // 15.5.4.2 String.prototype.toString ( )
-pub fn String_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn String_toString(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	match args.this.ty() {
 		JsType::String => Ok(args.this),
 		JsType::Object => {
@@ -53,7 +53,7 @@ pub fn String_toString(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>
 }
 
 // 15.5.4.3 String.prototype.valueOf ( )
-pub fn String_valueOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn String_valueOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	match args.this.ty() {
 		JsType::String => Ok(args.this),
 		JsType::Object => {
@@ -70,12 +70,12 @@ pub fn String_valueOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>>
 	}
 }
 
-pub fn String_substr(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn String_substr(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	unimplemented!();
 }
 
 // 15.5.3.2 String.fromCharCode ( [ char0 [ , char1 [ , … ] ] ] )
-pub fn String_fromCharCode(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn String_fromCharCode(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let mut result = JsString::new_local(env, args.args.len());
 	
 	for i in 0..args.args.len() {
@@ -87,7 +87,7 @@ pub fn String_fromCharCode(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsVa
 }
 
 // 15.5.4.4 String.prototype.charAt (pos)
-pub fn String_charAt(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn String_charAt(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let this = try!(args.this.to_string(env));
 	let position = try!(args.arg(env, 0).to_integer(env)) as i32;
 	
@@ -103,7 +103,7 @@ pub fn String_charAt(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> 
 }
 
 // 15.5.4.5 String.prototype.charCodeAt (pos)
-pub fn String_charCodeAt(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn String_charCodeAt(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let this = try!(args.this.to_string(env));
 	let position = try!(args.arg(env, 0).to_integer(env)) as i32;
 	
@@ -189,11 +189,11 @@ fn index_of(env: &mut JsEnv, args: JsArgs, reverse: bool) -> JsResult<Local<JsVa
 }
 
 // 15.5.4.7 String.prototype.indexOf (searchString, position)
-pub fn String_indexOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn String_indexOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	index_of(env, args, false)
 }
 
 // 15.5.4.8 String.prototype.lastIndexOf (searchString, position)
-pub fn String_lastIndexOf(env: &mut JsEnv, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn String_lastIndexOf(env: &mut JsEnv, mode: JsFnMode, strict: bool, args: JsArgs) -> JsResult<Local<JsValue>> {
 	index_of(env, args, true)
 }

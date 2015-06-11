@@ -1,5 +1,5 @@
 use rt::{JsEnv, JsValue, JsString, JsItem, JsIterator, JsScope, JsType, JsArgs};
-use rt::{JsDescriptor, JsPreferredType};
+use rt::{JsDescriptor, JsPreferredType, JsFnMode};
 use gc::*;
 use ::{JsResult, JsError};
 use ir::IrFunction;
@@ -74,7 +74,7 @@ struct Frame<'a> {
 }
 
 impl JsEnv {
-	pub fn call_block(&mut self, block: Rc<Block>, args: JsArgs, function: &IrFunction, scope: Local<JsScope>) -> JsResult<JsValue> {
+	pub fn call_block(&mut self, block: Rc<Block>, mode: JsFnMode, strict: bool, args: JsArgs, function: &IrFunction, scope: Local<JsScope>) -> JsResult<JsValue> {
 		let mut locals = block.locals.len();
 		
 		for _ in 0..block.locals.len() {
