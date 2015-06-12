@@ -405,7 +405,7 @@ pub trait JsItem {
 	}
 	
 	fn call(&self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>, strict: bool) -> JsResult<Local<JsValue>> {
-		let args = JsArgs::new(env, self.as_value(env), this, &args);
+		let args = JsArgs::new(env, this, self.as_value(env), &args);
 		
 		try!(env.call(JsFnMode::new(false, strict), args));
 		
@@ -422,7 +422,7 @@ pub trait JsItem {
 	// 13.2.2 [[Construct]]
 	// 15.3.4.5.2 [[Construct]]
 	fn construct(&self, env: &mut JsEnv, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>> {
-		let args = JsArgs::new(env, self.as_value(env), env.new_undefined(), &args);
+		let args = JsArgs::new(env, env.new_undefined(), self.as_value(env), &args);
 		
 		try!(env.construct(args));
 		
@@ -762,7 +762,7 @@ pub struct JsArgs {
 }
 
 impl JsArgs {
-	pub fn new(env: &JsEnv, function: Local<JsValue>, this: Local<JsValue>, args: &[Local<JsValue>]) -> JsArgs {
+	pub fn new(env: &JsEnv, this: Local<JsValue>, function: Local<JsValue>, args: &[Local<JsValue>]) -> JsArgs {
 		let stack = &*env.stack;
 		
 		let frame = stack.create_frame(0);

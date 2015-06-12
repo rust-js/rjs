@@ -160,7 +160,7 @@ impl JsEnv {
 					target_args.push(args.arg(self, i));
 				}
 				
-				let args = JsArgs::new(self, target, bound_this, &target_args);
+				let args = JsArgs::new(self, bound_this, target, &target_args);
 				
 				self.call(mode, args)
 			}
