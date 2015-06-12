@@ -341,11 +341,16 @@ impl<'a> Parser<'a> {
 		let mut state = program.block.state.borrow_mut();
 		
 		match mode {
-			ParseMode::DirectEval if !program.block.strict => {
-				state.build_scope = ScopeType::None;
+			ParseMode::DirectEval => {
+				if !program.block.strict {
+					state.build_scope = ScopeType::None;
+				} else {
+					assert_eq!(state.build_scope, ScopeType::Thick);
+				}
+				
 				assert_eq!(state.take_scope, true);
 			}
-			ParseMode::Eval | ParseMode::DirectEval => {
+			ParseMode::Eval => {
 				assert_eq!(state.build_scope, ScopeType::Thick);
 				state.take_scope = false;
 			}

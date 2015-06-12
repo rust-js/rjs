@@ -151,20 +151,7 @@ impl JsEnv {
 	}
 	
 	fn run_program(&mut self, function_ref: FunctionRef, this: Local<JsValue>, scope: Local<JsScope>) -> JsResult<Root<JsValue>> {
-		// TODO: This can be rewritten to a JsObject.call if we create a function
-		// from the function_ref we got here.
-		
 		let function = self.ir.get_function(function_ref);
-		let name = if let Some(name) = function.name {
-			self.ir.interner().get(name).to_string()
-		} else {
-			"(anonymous)".to_string()
-		};
-		let location = format!("{}[{}:{}] {}", self.ir.interner().get(function.span.file), function.span.start_line, function.span.start_col, name);
-		
-		debugln!("ENTER {}", location);
-		
-		let block = try!(self.ir.get_function_ir(function_ref));
 		
 		let this = if !function.strict && this.is_undefined() {
 			self.global.as_local(self).as_value(self)
@@ -172,16 +159,10 @@ impl JsEnv {
 			this
 		};
 		
-		// TODO: Validate. Function is just coerced to undefined because
-		// we don't have it here.
-		let args = JsArgs::new(self, self.new_undefined(), this, &[]);
+		let function = try!(self.new_function(function_ref, Some(scope), false));
 		
-		try!(self.call_block(block, args, &function, scope));
-
 		let mut result = self.heap.alloc_root::<JsValue>(GC_VALUE);
-		*result = self.stack.pop();
-		
-		debugln!("EXIT {}", location);
+		*result = *try!(function.call(self, this, Vec::new(), false));
 		
 		Ok(result)
 	}
