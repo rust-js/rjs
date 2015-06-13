@@ -3,6 +3,7 @@ use syntax::ast::FunctionRef;
 use util::interner::StrInterner;
 use std::fmt::Write;
 use std::cmp::Ordering;
+use rt::JsPreferredType;
 
 pub struct Block {
 	pub ir: Vec<Ir>,
@@ -280,6 +281,19 @@ impl Block {
 				Ir::ToBoolean => string.push_str("cast.bool"),
 				Ir::ToNumber => string.push_str("cast.number"),
 				Ir::ToPropertyKey => string.push_str("cast.key"),
+				Ir::ToPrimitive(preferred_ty) => {
+					match preferred_ty {
+						JsPreferredType::String => string.push_str("cast.sprim"),
+						JsPreferredType::Number => string.push_str("cast.nprim"),
+						JsPreferredType::None => string.push_str("prim")
+					}
+				}
+				Ir::ToInteger => string.push_str("cast.int"),
+				Ir::ToInt32 => string.push_str("cast.i32"),
+				Ir::ToUInt32 => string.push_str("cast.u32"),
+				Ir::ToUInt16 => string.push_str("cast.u16"),
+				Ir::ToString => string.push_str("cast.string"),
+				Ir::ToObject => string.push_str("cast.object"),
 				Ir::Typeof => string.push_str("typeof"),
 				Ir::TypeofIndex => string.push_str("typeof.index"),
 				Ir::TypeofName(name) => {
@@ -623,6 +637,13 @@ pub enum Ir {
 	Throw,
 	ToBoolean,
 	ToNumber,
+	ToPrimitive(JsPreferredType),
+	ToInteger,
+	ToInt32,
+	ToUInt32,
+	ToUInt16,
+	ToString,
+	ToObject,
 	ToPropertyKey,
 	Typeof,
 	TypeofIndex,

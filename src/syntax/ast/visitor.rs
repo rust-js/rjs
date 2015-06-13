@@ -250,6 +250,7 @@ pub trait AstVisitor<'a> {
 			Expr::ArrayLiteral(..) => self.visit_expr_array_literal(expr),
 			Expr::Assign(..) => self.visit_expr_assign(expr),
 			Expr::Binary(..) => self.visit_expr_binary(expr),
+			Expr::Cast(..) => self.visit_expr_cast(expr),
 			Expr::Call(..) => self.visit_expr_call(expr),
 			Expr::Function(..) => self.visit_expr_function(expr),
 			Expr::Ident(..) => self.visit_expr_ident(expr),
@@ -285,6 +286,12 @@ pub trait AstVisitor<'a> {
 		if let Expr::Binary(_, ref lhs, ref rhs) = *expr {
 			self.visit_expr(lhs);
 			self.visit_expr(rhs);
+		}
+	}
+	
+	fn visit_expr_cast(&mut self, expr: &'a Expr) {
+		if let Expr::Cast(_, ref expr) = *expr {
+			self.visit_expr(expr);
 		}
 	}
 	

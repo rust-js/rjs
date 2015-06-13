@@ -1,7 +1,7 @@
 pub mod visitor;
 
 use syntax::{Name, Span};
-use syntax::token::Lit;
+use syntax::token::{Lit, name};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fmt;
@@ -220,7 +220,8 @@ pub enum Expr {
 	Paren(ExprSeq),
 	Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
 	This,
-	Unary(Op, Box<Expr>)
+	Unary(Op, Box<Expr>),
+	Cast(CastType, Box<Expr>)
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -347,6 +348,40 @@ impl Op {
 			// 2: Yield
 			// 1: Spread
 			// 0: Comma, sequence
+		}
+	}
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum CastType {
+	Primitive,
+	StringPrimitive,
+	NumberPrimitive,
+	Boolean,
+	Number,
+	Integer,
+	Int32,
+	UInt32,
+	UInt16,
+	String,
+	Object
+}
+
+impl CastType {
+	pub fn from_name(name: Name) -> Option<CastType> {
+		match name {
+			name::PRIM => Some(CastType::Primitive),
+			name::SPRIM => Some(CastType::StringPrimitive),
+			name::NPRIM => Some(CastType::NumberPrimitive),
+			name::BOOL => Some(CastType::Boolean),
+			name::NUMBER => Some(CastType::Number),
+			name::INT => Some(CastType::Integer),
+			name::I32 => Some(CastType::Int32),
+			name::U32 => Some(CastType::UInt32),
+			name::U16 => Some(CastType::UInt16),
+			name::STRING => Some(CastType::String),
+			name::OBJECT => Some(CastType::Object),
+			_ => None
 		}
 	}
 }

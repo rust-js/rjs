@@ -321,4 +321,15 @@ declare_idents! {
 	( "charAt", CHAR_AT, 146 );
 	( "charCodeAt", CHAR_CODE_AT, 147 );
 	( "bind", BIND, 148 );
+	( "prim", PRIM, 149 );
+	( "sprim", SPRIM, 150 );
+	( "nprim", NPRIM, 151 );
+	( "bool", BOOL, 152 );
+	( "number", NUMBER, 153 );
+	( "int", INT, 154 );
+	( "i32", I32, 155 );
+	( "u32", U32, 156 );
+	( "u16", U16, 157 );
+	( "string", STRING, 158 );
+	( "object", OBJECT, 159 );
 }

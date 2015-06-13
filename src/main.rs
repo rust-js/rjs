@@ -20,18 +20,6 @@ fn test() {
 	debug::reset();
 	
 	let result = env.eval(r#"
-var list = [];
-
-for (var i = 0; i < 100000; i++) {
-	list.push({
-		a: 1,
-		b: 2,
-		c: 3,
-		x: 'abc',
-		y: 'def',
-		z: 'ghi'
-	});
-}
 	"#);
 	
 	// print!("{}", debug::reset());

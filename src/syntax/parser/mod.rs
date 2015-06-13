@@ -16,7 +16,8 @@ pub struct Parser<'a> {
 	lexer: &'a mut Lexer<'a>,
 	context: &'a mut AstContext,
 	interner: &'a StrInterner,
-	scopes: Vec<Scope>
+	scopes: Vec<Scope>,
+	privileged: bool
 }
 
 struct Scope {
@@ -282,12 +283,13 @@ impl<'a> Parser<'a> {
 		}
 	}
 	
-	pub fn parse_program(context: &'a mut AstContext, lexer: &'a mut Lexer<'a>, interner: &'a StrInterner, mode: ParseMode) -> JsResult<FunctionRef> {
+	pub fn parse_program(context: &'a mut AstContext, lexer: &'a mut Lexer<'a>, interner: &'a StrInterner, mode: ParseMode, privileged: bool) -> JsResult<FunctionRef> {
 		let mut parser = Parser {
 			lexer: lexer,
 			context: context,
 			scopes: Vec::new(),
-			interner: interner
+			interner: interner,
+			privileged: privileged
 		};
 		
 		parser.push_scope(false);
@@ -766,7 +768,7 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr_binary(&mut self) -> JsResult<Expr> {
-		let mut expr = try!(self.parse_expr_unary());
+		let mut expr = try!(self.parse_expr_cast());
 		
 		loop {
 			let op = match try!(self.peek()) {
@@ -798,7 +800,7 @@ impl<'a> Parser<'a> {
 			
 			try!(self.bump());
 			
-			let right = try!(self.parse_expr_unary());
+			let right = try!(self.parse_expr_cast());
 			
 			let rebalance = if let Expr::Binary(lop, _, _) = expr {
 				lop.precedence() < op.precedence()
@@ -826,6 +828,26 @@ impl<'a> Parser<'a> {
 		}
 		
 		Ok(expr)
+	}
+	
+	fn parse_expr_cast(&mut self) -> JsResult<Expr> {
+		if
+			self.privileged &&
+			try!(self.peek()) == Some(Token::OpenParen) &&
+			try!(self.peek_at(2)) == Some(Token::CloseParen)
+		{
+			if let Some(Token::Identifier(name)) = try!(self.peek_at(1)) {
+				if let Some(cast_ty) = CastType::from_name(name) {
+					try!(self.bump());
+					try!(self.bump());
+					try!(self.bump());
+					
+					return Ok(Expr::Cast(cast_ty, Box::new(try!(self.parse_expr_cast()))));
+				}
+			}
+		}
+		
+		self.parse_expr_unary()
 	}
 	
 	fn parse_expr_unary(&mut self) -> JsResult<Expr> {
@@ -966,7 +988,7 @@ impl<'a> Parser<'a> {
 	fn parse_expr_unary_pre(&mut self, op: Op) -> JsResult<Expr> {
 		try!(self.bump());
 		
-		let expr = try!(self.parse_expr_unary());
+		let expr = try!(self.parse_expr_cast());
 		
 		if op == Op::Negative {
 			match expr {

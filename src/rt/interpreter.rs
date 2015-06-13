@@ -7,7 +7,7 @@ use ir::builder::{Block, Ir};
 use std::rc::Rc;
 use rt::stack::StackFrame;
 use syntax::Name;
-use syntax::ast::ScopeType;
+use syntax::ast::{CastType, ScopeType};
 use syntax::token::name;
 use syntax::parser::ParseMode;
 
@@ -1069,26 +1069,17 @@ impl<'a> Frame<'a> {
 				
 				return Next::Throw(JsError::Runtime(error));
 			}
-			Ir::ToBoolean => {
-				let _scope = self.env.new_local_scope();
-				
-				let frame = self.env.stack.create_frame(1);
-				let arg = frame.get(&self.env, 0);
-				let result = arg.to_boolean();
-				self.env.stack.drop_frame(frame);
-				
-				self.env.stack.push(JsValue::new_bool(result));
-			}
-			Ir::ToNumber => {
-				let _scope = self.env.new_local_scope();
-				
-				let frame = self.env.stack.create_frame(1);
-				let arg = frame.get(&self.env, 0);
-				let result = local_try!(arg.to_number(self.env));
-				self.env.stack.drop_frame(frame);
-				
-				self.env.stack.push(JsValue::new_number(result));
-			}
+			Ir::ToPrimitive(JsPreferredType::String) => local_try!(self.cast(CastType::StringPrimitive)),
+			Ir::ToPrimitive(JsPreferredType::Number) => local_try!(self.cast(CastType::NumberPrimitive)),
+			Ir::ToPrimitive(JsPreferredType::None) => local_try!(self.cast(CastType::Primitive)),
+			Ir::ToBoolean => local_try!(self.cast(CastType::Boolean)),
+			Ir::ToNumber => local_try!(self.cast(CastType::Number)),
+			Ir::ToInteger => local_try!(self.cast(CastType::Integer)),
+			Ir::ToInt32 => local_try!(self.cast(CastType::Int32)),
+			Ir::ToUInt32 => local_try!(self.cast(CastType::UInt32)),
+			Ir::ToUInt16 => local_try!(self.cast(CastType::UInt16)),
+			Ir::ToString => local_try!(self.cast(CastType::String)),
+			Ir::ToObject => local_try!(self.cast(CastType::Object)),
 			Ir::ToPropertyKey => {
 				let _scope = self.env.new_local_scope();
 				
@@ -1312,4 +1303,31 @@ impl<'a> Frame<'a> {
 		
 		Ok(None)
 	}
+	
+	fn cast(&mut self, cast_ty: CastType) -> JsResult<()> {
+		let _scope = self.env.new_local_scope();
+		
+		let frame = self.env.stack.create_frame(1);
+		let arg = frame.get(&self.env, 0);
+		
+		let result = match cast_ty {
+			CastType::Primitive => *try!(arg.to_primitive(self.env, JsPreferredType::None)),
+			CastType::StringPrimitive => *try!(arg.to_primitive(self.env, JsPreferredType::String)),
+			CastType::NumberPrimitive => *try!(arg.to_primitive(self.env, JsPreferredType::Number)),
+			CastType::Boolean => JsValue::new_bool(arg.to_boolean()),
+			CastType::Number => JsValue::new_number(try!(arg.to_number(self.env))),
+			CastType::Integer => JsValue::new_number(try!(arg.to_integer(self.env))),
+			CastType::Int32 => JsValue::new_number(try!(arg.to_int32(self.env)) as f64),
+			CastType::UInt32 => JsValue::new_number(try!(arg.to_uint32(self.env)) as f64),
+			CastType::UInt16 => JsValue::new_number(try!(arg.to_uint16(self.env)) as f64),
+			CastType::String => *try!(arg.to_string(self.env)).as_value(self.env),
+			CastType::Object => *try!(arg.to_object(self.env))
+		};
+		
+		self.env.stack.drop_frame(frame);
+		
+		self.env.stack.push(result);
+		
+		Ok(())
+ 	}
 }

@@ -68,7 +68,8 @@ pub struct JsEnv {
 	date_prototype: Root<JsObject>,
 	regexp_prototype: Root<JsObject>,
 	ir: IrContext,
-	stack: Rc<stack::Stack>
+	stack: Rc<stack::Stack>,
+	privileged: bool
 }
 
 impl JsEnv {
@@ -104,10 +105,14 @@ impl JsEnv {
 			date_prototype: date_prototype,
 			regexp_prototype: regexp_prototype,
 			ir: IrContext::new(),
-			stack: stack
+			stack: stack,
+			privileged: true
 		};
 		
 		try!(env::setup(&mut env));
+		
+		// Turn of privileged mode for normal code (i.e. not setup code).
+		env.privileged = false;
 		
 		Ok(env)
 	}
@@ -117,7 +122,7 @@ impl JsEnv {
 	}
 	
 	pub fn run_strict(&mut self, file_name: &str, strict: bool) -> JsResult<Root<JsValue>> {
-		let function_ref = try!(self.ir.parse_file(file_name, strict));
+		let function_ref = try!(self.ir.parse_file(file_name, strict, self.privileged));
 		
 		let mut ir = String::new();
 		try!(self.ir.print_ir(&mut ir));
@@ -141,7 +146,7 @@ impl JsEnv {
 	}
 	
 	fn eval_scoped(&mut self, js: &str, strict: bool, this: Local<JsValue>, scope: Local<JsScope>, mode: ParseMode) -> JsResult<Root<JsValue>> {
-		let function_ref = try!(self.ir.parse_string(js, strict, mode));
+		let function_ref = try!(self.ir.parse_string(js, strict, mode, self.privileged));
 		
 		let mut ir = String::new();
 		try!(self.ir.print_ir(&mut ir));

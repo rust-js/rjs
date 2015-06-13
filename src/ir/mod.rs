@@ -15,6 +15,7 @@ use ::{JsResult, JsError};
 use std::rc::Rc;
 use std::fmt::Write;
 use std::io::Read;
+use rt::JsPreferredType;
 
 #[derive(Copy, Clone)]
 struct NamedLabel {
@@ -64,7 +65,7 @@ impl IrContext {
 		&self.interner
 	}
 	
-	pub fn parse_file(&mut self, file_name: &str, strict: bool) -> JsResult<FunctionRef> {
+	pub fn parse_file(&mut self, file_name: &str, strict: bool, privileged: bool) -> JsResult<FunctionRef> {
 		let mut js = String::new();
 		let mut file = match File::open(file_name) {
 			Ok(ok) => ok,
@@ -74,11 +75,11 @@ impl IrContext {
 			return Err(JsError::Io(err));
 		}
 		
-		self.build_ir(&mut StringReader::new(file_name, &js), strict, ParseMode::Normal)
+		self.build_ir(&mut StringReader::new(file_name, &js), strict, ParseMode::Normal, privileged)
 	}
 	
-	pub fn parse_string(&mut self, js: &str, strict: bool, mode: ParseMode) -> JsResult<FunctionRef> {
-		self.build_ir(&mut StringReader::new("(global)", js), strict, mode)
+	pub fn parse_string(&mut self, js: &str, strict: bool, mode: ParseMode, privileged: bool) -> JsResult<FunctionRef> {
+		self.build_ir(&mut StringReader::new("(global)", js), strict, mode, privileged)
 	}
 	
 	pub fn get_function_ir(&mut self, function_ref: FunctionRef) -> JsResult<Rc<builder::Block>> {
@@ -87,7 +88,7 @@ impl IrContext {
 		Ok(self.functions[function_ref.usize()].as_ref().unwrap().clone())
 	}
 	
-	fn build_ir(&mut self, reader: &mut StringReader, strict: bool, mode: ParseMode) -> JsResult<FunctionRef> {
+	fn build_ir(&mut self, reader: &mut StringReader, strict: bool, mode: ParseMode, privileged: bool) -> JsResult<FunctionRef> {
 		let offset = self.ast.functions.len();
 		
 		let program_ref = {
@@ -97,7 +98,7 @@ impl IrContext {
 				lexer.set_strict(true);
 			}
 			
-			try!(Parser::parse_program(&mut self.ast, &mut lexer, &self.interner, mode))
+			try!(Parser::parse_program(&mut self.ast, &mut lexer, &self.interner, mode, privileged))
 		};
 		
 		// Strict eval programs need to build a thick scope to isolate
@@ -957,6 +958,7 @@ impl<'a> IrGenerator<'a> {
 			Expr::Assign(op, ref lhs, ref rhs) => self.emit_expr_assign(op, lhs, rhs, leave),
 			Expr::Binary(op, ref lhs, ref rhs) => self.emit_expr_binary(op, lhs, rhs, leave),
 			Expr::Call(ref expr, ref args) => self.emit_expr_call(expr, args, leave),
+			Expr::Cast(ref cast_ty, ref expr) => self.emit_expr_cast(*cast_ty, expr),
 			Expr::Function(function_ref) => self.emit_expr_function(function_ref, leave),
 			Expr::Ident(ref ident) => self.emit_expr_ident(ident, leave),
 			Expr::Literal(ref lit) => self.emit_expr_literal(&lit, leave),
@@ -1218,6 +1220,26 @@ impl<'a> IrGenerator<'a> {
 		
 		if !leave {
 			self.ir.emit(Ir::Pop);
+		}
+		
+		Ok(())
+	}
+	
+	fn emit_expr_cast(&mut self, cast_ty: CastType, expr: &'a Expr) -> JsResult<()> {
+		try!(self.emit_expr(expr, true));
+		
+		match cast_ty {
+			CastType::Primitive => self.ir.emit(Ir::ToPrimitive(JsPreferredType::None)),
+			CastType::StringPrimitive => self.ir.emit(Ir::ToPrimitive(JsPreferredType::String)),
+			CastType::NumberPrimitive => self.ir.emit(Ir::ToPrimitive(JsPreferredType::Number)),
+			CastType::Boolean => self.ir.emit(Ir::ToBoolean),
+			CastType::Number => self.ir.emit(Ir::ToNumber),
+			CastType::Integer => self.ir.emit(Ir::ToInteger),
+			CastType::Int32 => self.ir.emit(Ir::ToInt32),
+			CastType::UInt32 => self.ir.emit(Ir::ToUInt32),
+			CastType::UInt16 => self.ir.emit(Ir::ToUInt16),
+			CastType::String => self.ir.emit(Ir::ToString),
+			CastType::Object => self.ir.emit(Ir::ToObject)
 		}
 		
 		Ok(())
