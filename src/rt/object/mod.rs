@@ -16,6 +16,7 @@ use std::mem::{transmute, zeroed};
 
 mod hash_store;
 mod array_store;
+mod sparse_array;
 
 // Modifications to this struct must be synchronized with the GC walker.
 pub struct JsObject {
@@ -749,6 +750,7 @@ pub unsafe fn validate_walker(walker: &GcWalker) {
 	validate_walker_for_entry(walker);
 	array_store::validate_walker_for_array_store(walker);
 	hash_store::validate_walker_for_hash_store(walker);
+	sparse_array::validate_walker(walker);
 }
 
 unsafe fn validate_walker_for_object(walker: &GcWalker) {

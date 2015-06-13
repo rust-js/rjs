@@ -48,6 +48,8 @@ const GC_STRING : u32 = 7;
 const GC_U16 : u32 = 8;
 const GC_U32 : u32 = 9;
 const GC_VALUE : u32 = 10;
+const GC_ARRAY_CHUNK : u32 = 11;
+const GC_SPARSE_ARRAY : u32 = 12;
 
 impl Root<JsObject> {
 	pub fn as_value(&self, env: &JsEnv) -> Local<JsValue> {

@@ -1,7 +1,7 @@
 use gc::{GcWalker, GcWalk, GcRootWalker, ptr_t};
 use rt::{JsType};
 use rt::{GC_ARRAY_STORE, GC_ENTRY, GC_HASH_STORE, GC_ITERATOR, GC_OBJECT};
-use rt::{GC_SCOPE, GC_STRING, GC_U16, GC_U32, GC_VALUE};
+use rt::{GC_SCOPE, GC_STRING, GC_U16, GC_U32, GC_VALUE, GC_SPARSE_ARRAY, GC_ARRAY_CHUNK};
 use rt::stack::Stack;
 use std::mem::transmute;
 use std::rc::Rc;
@@ -33,7 +33,7 @@ impl GcWalker for Walker {
 			match ty {
 				GC_ARRAY_STORE => {
 					match index {
-						2 | 3 => GcWalk::Pointer,
+						1 | 2 => GcWalk::Pointer,
 						_ => GcWalk::Skip
 					}
 				}
@@ -84,6 +84,18 @@ impl GcWalker for Walker {
 				GC_VALUE => {
 					match index {
 						1 if is_value_ptr(ptr, 0) => GcWalk::Pointer,
+						_ => GcWalk::Skip
+					}
+				}
+				GC_SPARSE_ARRAY => {
+					match index {
+						0 | 1 => GcWalk::Pointer,
+						_ => GcWalk::Skip
+					}
+				}
+				GC_ARRAY_CHUNK => {
+					match index {
+						1 => GcWalk::Pointer,
 						_ => GcWalk::Skip
 					}
 				}
