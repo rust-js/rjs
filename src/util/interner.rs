@@ -23,7 +23,7 @@ use std::hash::Hash;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::str::FromStr;
-use std::i32;
+use std::u32;
 
 #[derive(Clone, PartialEq, Hash, PartialOrd)]
 pub struct RcStr {
@@ -98,7 +98,7 @@ impl StrInterner {
     	// TODO: Improve. We shouldn't have to create a string again. Instead we
     	// should parse the val to verify that it will be equal to the index.
     	if let Ok(index) = u32::from_str(val) {
-    		if val == index.to_string() && index <= i32::MAX as u32 {
+    		if val == index.to_string() && index < u32::MAX {
 	    		return Some(index as usize);
     		}
     	}

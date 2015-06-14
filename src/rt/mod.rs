@@ -111,7 +111,20 @@ impl JsEnv {
 			privileged: true
 		};
 		
-		try!(env::setup(&mut env));
+		if let Err(error) = env::setup(&mut env) {
+			let _scope = env.new_local_scope();
+			
+			let error = error.as_runtime(&mut env);
+			let error = error.as_local(&env);
+			
+			let error = if let Ok(error) = error.to_string(&mut env) {
+				error.to_string()
+			} else {
+				"(cannot convert error to string)".to_string()
+			};
+			
+			panic!("(setup): Uncaught {}", error);
+		}
 		
 		// Turn of privileged mode for normal code (i.e. not setup code).
 		env.privileged = false;
@@ -200,7 +213,7 @@ impl JsEnv {
 		
 		let mut proto = self.create_object();
 		let value = proto.as_value(self);
-		result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false).ok();
+		result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, false, false, false), false).ok();
 		proto.define_own_property(self, name::CONSTRUCTOR, JsDescriptor::new_value(result, true, false, true), false).ok();
 		
 		result
@@ -324,8 +337,16 @@ pub trait JsItem {
 		if let Some(desc) = self.get_property(env, property) {
 			if desc.is_accessor() {
 				let this = self.as_value(env);
-				try!(desc.set(env).call(env, this, vec![value], false));
-				return Ok(());
+				let set = desc.set(env);
+				// TODO: This is not conform the specs. The specs state that
+				// this cannot be undefined. However nothing is stopping
+				// you from only specifying a getter.
+				return if !set.is_undefined() {
+					try!(set.call(env, this, vec![value], false));
+					Ok(())
+				} else {
+					Err(JsError::new_type(env, ::errors::TYPE_PROPERTY_ONLY_HAS_GETTER))
+				};
 			}
 		}
 		

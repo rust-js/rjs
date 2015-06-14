@@ -11,9 +11,28 @@ use syntax::token::Token;
 use syntax::token::name;
 use gc::{Local, Ptr, AsPtr, ptr_t, GcWalker, GcAllocator};
 use std::fmt;
-use std::mem::{transmute, zeroed};
+use std::mem::{transmute, zeroed, size_of};
 use std::f64;
 use std::cmp::PartialEq;
+use std::num::Wrapping;
+
+#[allow(dead_code)]
+const FLOAT_EXPONENT_BIAS    : u32 = 127;
+#[allow(dead_code)]
+const FLOAT_EXPONENT_SHIFT   : u32 = 23;
+#[allow(dead_code)]
+const FLOAT_SIGN_BIT         : u32 = 0x80000000u32;
+#[allow(dead_code)]
+const FLOAT_EXPONENT_BITS    : u32 = 0x7F800000u32;
+#[allow(dead_code)]
+const FLOAT_SIGNIFICANT_BITS : u32 = 0x007FFFFFu32;
+
+const DOUBLE_EXPONENT_BIAS    : u32 = 1023;
+const DOUBLE_EXPONENT_SHIFT   : u32 = 52;
+const DOUBLE_SIGN_BIT         : u64 = 0x8000000000000000u64;
+const DOUBLE_EXPONENT_BITS    : u64 = 0x7ff0000000000000u64;
+#[allow(dead_code)]
+const DOUBLE_SIGNIFICANT_BITS : u64 = 0x000fffffffffffffu64;
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct JsValue {
@@ -307,7 +326,15 @@ impl Local<JsValue> {
 	}
 	
 	fn get_number_from_string(&self, env: &JsEnv) -> JsResult<f64> {
-		let mut reader = StringReader::new("", &self.unwrap_string(env).to_string());
+		let value = self.unwrap_string(env).to_string();
+		
+		match &*value {
+			"Infinity" => return Ok(f64::INFINITY),
+			"-Infinity" => return Ok(f64::NEG_INFINITY),
+			_ => {}
+		}
+		
+		let mut reader = StringReader::new("", &value);
 		if let Ok(mut lexer) = Lexer::new(&mut reader, env.ir.interner()) {
 			// Skip over the + or - sign if we have one.
 			
@@ -362,7 +389,7 @@ impl Local<JsValue> {
 		} else if number == 0f64 || number.is_infinite() {
 			number
 		} else {
-			number.round()
+			number.trunc()
 		};
 		
 		Ok(result)
@@ -382,16 +409,87 @@ impl Local<JsValue> {
 	}
 	
 	// 9.6 ToUint32: (Unsigned 32 Bit Integer)
-	// TODO: This does not adhere to the full specs.
 	pub fn to_uint32(&self, env: &mut JsEnv) -> JsResult<u32> {
 		let number = try!(self.to_number(env));
-		let result = if number.is_nan() || number == 0f64 || number.is_infinite() {
-			0
+		
+		Ok(Self::f64_to_u32(number))
+	}
+	
+	// Taken from http://mxr.mozilla.org/mozilla-central/source/js/public/Conversions.h#255.
+	fn f64_to_u32(number: f64) -> u32 {
+		let bits = unsafe { transmute::<_, u64>(number) };
+		
+		// Extract the exponent component.  (Be careful here!  It's not technically
+		// the exponent in NaN, infinities, and subnormals.)
+		
+		let exp =
+			((bits & DOUBLE_EXPONENT_BITS) >> DOUBLE_EXPONENT_SHIFT) as i16 -
+			DOUBLE_EXPONENT_BIAS as i16;
+		
+		// If the exponent's less than zero, abs(d) < 1, so the result is 0.  (This
+		// also handles subnormals.)
+		
+		if exp < 0 {
+			return 0;
+		}
+		
+		let exponent = exp as u32;
+		
+		// If the exponent is greater than or equal to the bits of precision of a
+		// double plus ResultType's width, the number is either infinite, NaN, or
+		// too large to have lower-order bits in the congruent value.  (Example:
+		// 2**84 is exactly representable as a double.  The next exact double is
+		// 2**84 + 2**32.  Thus if ResultType is int32_t, an exponent >= 84 implies
+		// floor(abs(d)) == 0 mod 2**32.)  Return 0 in all these cases.
+		
+		let result_width = (8 * size_of::<u32>()) as u32;
+		if exponent >= DOUBLE_EXPONENT_SHIFT + result_width {
+			return 0;
+		}
+		
+		// The significand contains the bits that will determine the final result.
+		// Shift those bits left or right, according to the exponent, to their
+		// locations in the unsigned binary representation of floor(abs(d)).
+		
+		let mut result = if exponent > DOUBLE_EXPONENT_SHIFT {
+			(bits << (exponent - DOUBLE_EXPONENT_SHIFT)) as u32
 		} else {
-			number as u32
+			(bits >> (DOUBLE_EXPONENT_SHIFT - exponent)) as u32
 		};
 		
-		Ok(result)
+		// Two further complications remain.  First, |result| may contain bogus
+		// sign/exponent bits.  Second, IEEE-754 numbers' significands (excluding
+		// subnormals, but we already handled those) have an implicit leading 1
+		// which may affect the final result.
+		//
+		// It may appear that there's complexity here depending on how ResultWidth
+		// and DoubleExponentShift relate, but it turns out there's not.
+		//
+		// Assume ResultWidth < DoubleExponentShift:
+		//   Only right-shifts leave bogus bits in |result|.  For this to happen,
+		//   we must right-shift by > |DoubleExponentShift - ResultWidth|, implying
+		//   |exponent < ResultWidth|.
+		//   The implicit leading bit only matters if it appears in the final
+		//   result -- if |2**exponent mod 2**ResultWidth != 0|.  This implies
+		//   |exponent < ResultWidth|.
+		// Otherwise assume ResultWidth >= DoubleExponentShift:
+		//   Any left-shift less than |ResultWidth - DoubleExponentShift| leaves
+		//   bogus bits in |result|.  This implies |exponent < ResultWidth|.  Any
+		//   right-shift less than |ResultWidth| does too, which implies
+		//   |DoubleExponentShift - ResultWidth < exponent|.  By assumption, then,
+		//   |exponent| is negative, but we excluded that above.  So bogus bits
+		//   need only |exponent < ResultWidth|.
+		//   The implicit leading bit matters identically to the other case, so
+		//   again, |exponent < ResultWidth|.
+		
+		if exponent < result_width {
+			let implicit_one = 1u32 << exponent;
+			result &= implicit_one - 1; // remove bogus bits
+			result += implicit_one; // add the implicit bit
+		}
+		
+		// Compute the congruent value in the signed range.
+		if (bits & DOUBLE_SIGN_BIT) != 0 { (Wrapping(!result) + Wrapping(1)).0 } else { result }
 	}
 	
 	// 9.6 ToUint32: (Unsigned 32 Bit Integer)
@@ -438,7 +536,7 @@ impl Local<JsValue> {
 				} else if number == 0f64 {
 					JsString::from_str(env, "0")
 				} else if number.is_infinite() {
-					JsString::from_str(env, "Infinity")
+					JsString::from_str(env, if number.is_sign_negative() { "-Infinity" } else { "Infinity" })
 				} else {
 					// TODO: This is very wrong. See 9.8.1 ToString Applied to the Number Type
 					// for the full specifications. A C# implementation can be found at

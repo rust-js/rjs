@@ -11,7 +11,6 @@ use self::hash_store::HashStore;
 use self::array_store::ArrayStore;
 use std::mem;
 use std::str::FromStr;
-use std::u32;
 use std::mem::{transmute, zeroed};
 
 mod hash_store;
@@ -239,7 +238,7 @@ impl Local<JsObject> {
 	fn define_own_array_property(&mut self, env: &mut JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
 		let mut old_len_desc = self.get_own_property(env, name::LENGTH).unwrap();
 		// This is safe because we control the value of length.
-		let old_len = old_len_desc.value.unwrap().unwrap_number() as usize;
+		let mut old_len = old_len_desc.value.unwrap().unwrap_number() as u32;
 		
 		if property == name::LENGTH {
 			return match descriptor.value {
@@ -253,7 +252,7 @@ impl Local<JsObject> {
 				}
 				Some(desc_value) => {
 					let mut new_len_desc = descriptor.clone();
-					let new_len = try!(desc_value.to_uint32(env)) as usize;
+					let new_len = try!(desc_value.to_uint32(env));
 					
 					if new_len as f64 != try!(desc_value.to_number(env)) {
 						Err(JsError::new_range(env))
@@ -270,11 +269,11 @@ impl Local<JsObject> {
 						} else if !old_len_desc.is_writable() {
 							if throw { Err(JsError::new_type(env, ::errors::TYPE_CANNOT_WRITE)) } else { Ok(false) }
 						} else {
-							let new_writable = if new_len_desc.is_writable() {
-								true
-							} else {
+							let new_writable = if new_len_desc.writable == Some(false) {
 								new_len_desc.writable = Some(true);
 								false
+							} else {
+								true
 							};
 							
 							let succeeded = try!(self.define_own_object_property(
@@ -287,14 +286,34 @@ impl Local<JsObject> {
 								return if throw { Err(JsError::new_type(env, ::errors::TYPE_CANNOT_WRITE)) } else { Ok(false) };
 							}
 							
-							/*
-							// The array store itself takes care of truncation.
-							while new_len < old_len {
-								old_len -= 1;
+							// The mechanism below ensures that we don't iterate over entries
+							// that do not exist in the array. This is specifically important
+							// for sparse arrays. This mechanism depends on the fact that
+							// entries are stored ordered, even for sparse arrays.
+							//
+							// TODO: This however can still be optimized. For one, when we find
+							// an index that matches i, we know that all names we get after that
+							// are equal to their name. We then don't have to call get_key
+							// anymore because we know what it's gonna say.
+							
+							let end = self.store.capacity(env);
+							
+							for i in (0..end).rev() {
+								let index = match self.store.get_key(env, i) {
+									JsStoreKey::Missing => continue,
+									JsStoreKey::Key(index, _) => index.index().unwrap(),
+									_ => panic!()
+								};
+								
+								if index < new_len as usize {
+									break;
+								}
+								
+								old_len = index as u32;
 								
 								let delete_succeeded = try!(self.delete(
 									env,
-									Name::from_index(old_len),
+									Name::from_index(old_len as usize),
 									false
 								));
 								
@@ -313,7 +332,6 @@ impl Local<JsObject> {
 									return if throw { Err(JsError::new_type(env, ::errors::TYPE_CANNOT_WRITE)) } else { Ok(false) };
 								}
 							}
-							*/
 							
 							if !new_writable {
 								try!(self.define_own_object_property(
@@ -333,9 +351,9 @@ impl Local<JsObject> {
 				}
 			}
 		} else {
-			match Self::parse_array_index(env, property) {
+			match property.index() {
 				Some(index) => {
-					if index >= old_len && !old_len_desc.is_writable() {
+					if index >= old_len as usize && !old_len_desc.is_writable() {
 						if throw { Err(JsError::new_type(env, ::errors::TYPE_CANNOT_WRITE)) } else { Ok(false) }
 					} else {
 						let succeeded = try!(self.define_own_object_property(
@@ -347,7 +365,7 @@ impl Local<JsObject> {
 						
 						if !succeeded {
 							if throw { Err(JsError::new_type(env, ::errors::TYPE_CANNOT_WRITE)) } else { Ok(false) }
-						} else if index >= old_len {
+						} else if index >= old_len as usize {
 							old_len_desc.value = Some(env.new_number((index + 1) as f64));
 							try!(self.define_own_object_property(
 								env,
@@ -378,19 +396,6 @@ impl Local<JsObject> {
 			}
 		}
 	}
-	
-	// 15.4 Array Objects
-	fn parse_array_index(env: &JsEnv, name: Name) -> Option<usize> {
-		match name.index() {
-			Some(index) => Some(index),
-			None => {
-				match u32::from_str(&env.ir.interner().get(name)) {
-					Ok(value) => if value != u32::MAX { Some(value as usize) } else { None },
-					Err(..) => None
-				}
-			}
-		}
-	}
 }
 
 impl JsItem for Local<JsObject> {
@@ -400,6 +405,14 @@ impl JsItem for Local<JsObject> {
 
 	// 8.12.1 [[GetOwnProperty]] (P)
 	fn get_own_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
+		if property.index().is_some() {
+			if self.value.ty() == JsType::String {
+				if let Some(result) = self.value(env).get_own_property(env, property) {
+					return Some(result);
+				} 
+			}
+		}
+		
 		self.store.get_value(env, property)
 	}
 	
@@ -434,7 +447,11 @@ impl JsItem for Local<JsObject> {
 	}
 	
 	fn can_construct(&self, _: &JsEnv) -> bool {
-		self.function.is_some()
+		match self.function {
+			Some(JsFunction::Native(_, _, _, can_construct)) => can_construct,
+			Some(..) => true,
+			_ => false
+		}
 	}
 	
 	fn has_prototype(&self, _: &JsEnv) -> bool {
@@ -551,13 +568,15 @@ impl JsItem for Local<JsObject> {
 trait Store {
 	fn add(&mut self, env: &JsEnv, name: Name, value: &JsDescriptor);
 	
-	fn remove(&mut self, env: &JsEnv, name: Name) -> bool;
+	fn remove(&mut self, env: &JsEnv, name: Name);
 	
 	fn get_value(&self, env: &JsEnv, name: Name) -> Option<JsDescriptor>;
 	
 	fn replace(&mut self, env: &JsEnv, name: Name, value: &JsDescriptor) -> bool;
 	
 	fn get_key(&self, env: &JsEnv, offset: usize) -> JsStoreKey;
+	
+	fn capacity(&self, env: &JsEnv) -> usize;
 }
 
 pub enum JsStoreKey {
@@ -616,7 +635,7 @@ impl Store for StorePtr {
 		delegate!(self, env, add(env, name, value))
 	}
 	
-	fn remove(&mut self, env: &JsEnv, name: Name) -> bool {
+	fn remove(&mut self, env: &JsEnv, name: Name) {
 		delegate!(self, env, remove(env, name))
 	}
 	
@@ -630,6 +649,10 @@ impl Store for StorePtr {
 	
 	fn get_key(&self, env: &JsEnv, offset: usize) -> JsStoreKey {
 		delegate!(self, env, get_key(env, offset))
+	}
+	
+	fn capacity(&self, env: &JsEnv) -> usize {
+		delegate!(self, env, capacity(env))
 	}
 }
 

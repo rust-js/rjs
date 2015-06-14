@@ -4,6 +4,7 @@ use ::JsResult;
 use rt::{JsEnv, JsArgs, JsValue, JsType, JsFnMode};
 use gc::*;
 use syntax::parser::ParseMode;
+use std::f64;
 
 pub fn Global_escape(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	unimplemented!();
@@ -13,8 +14,84 @@ pub fn Global_unescape(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResu
 	unimplemented!();
 }
 
+// 15.1.2.2 parseInt (string , radix)
 pub fn Global_parseInt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-	unimplemented!();
+	let string = try!(args.arg(env, 0).to_string(env));
+	let mut radix = try!(args.arg(env, 1).to_int32(env)) as i64;
+	
+	let mut offset = 0;
+	let chars = string.to_string().chars().collect::<Vec<_>>();
+	
+	while offset < chars.len() {
+		if !chars[offset].is_whitespace() {
+			break;
+		}
+		
+		offset += 1;
+	}
+	
+	let sign = if offset < chars.len() {
+		match chars[offset] {
+			'-' => {
+				offset += 1;
+				-1
+			}
+			'+' => {
+				offset += 1;
+				1
+			}
+			_ => {
+				1
+			}
+		}
+	} else {
+		1
+	};
+	
+	if radix != 0 {
+		if radix < 2 || radix > 36 {
+			return Ok(env.new_number(f64::NAN));
+		}
+	} else {
+		radix = 10;
+	}
+	
+	if radix == 16 && offset < chars.len() - 1 {
+		if chars[offset] == '0' && (chars[offset + 1] == 'x' || chars[offset + 1] == 'X') {
+			offset += 2;
+		} 
+	}
+	
+	let start = offset;
+	let mut result = 0i64;
+	
+	while offset < chars.len() {
+		let c = chars[offset];
+		offset += 1;
+		
+		let digit = if c >= '0' && c <= '9' {
+			c as i64 - '0' as i64
+		} else if c >= 'a' && c <= 'z' {
+			c as i64 - 'a' as i64 + 10
+		} else if c >= 'A' && c <= 'Z' {
+			c as i64 - 'A' as i64 + 10
+		} else {
+			break;
+		};
+		
+		if digit >= radix {
+			break;
+		}
+		
+		result *= radix;
+		result += digit;
+	}
+	
+	if offset == start {
+		Ok(env.new_number(f64::NAN))
+	} else {
+		Ok(env.new_number((result * sign) as f64))
+	}
 }
 
 pub fn Global_parseFloat(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {

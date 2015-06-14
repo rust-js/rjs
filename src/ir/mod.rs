@@ -1005,10 +1005,7 @@ impl<'a> IrGenerator<'a> {
 						self.ir.emit(Ir::Dup);
 						self.ir.emit(Ir::LoadI32(i as i32));
 						try!(self.emit_expr(&exprs[i], true));
-						// TODO: This is not conforming the specs. The specs state that
-						// array initialization should use [[DefineOwnProperty]] should
-						// be used but StoreIndex resolved to [[Put]].
-						self.ir.emit(Ir::StoreIndex);
+						self.ir.emit(Ir::StoreIndexUnchecked);
 						
 						length = i + 1;
 					} else if i == exprs.len() - 1 {

@@ -2,7 +2,7 @@ use util::interner::StrInterner;
 use util::interner::RcStr;
 use std::fmt;
 use std::ops::Deref;
-use std::i32;
+use std::{i32, u32};
 
 pub mod reader;
 pub mod lexer;
@@ -42,19 +42,19 @@ impl Span {
 }
 
 #[derive(Eq, Ord, PartialEq, PartialOrd, Hash, Clone, Copy, Debug)]
-pub struct Name(i32);
+pub struct Name(i64);
 
 impl Name {
 	pub fn from_name(name: usize) -> Name {
 		assert!(name < i32::MAX as usize);
 		
-		Name(-(name as i32 + 1))
+		Name(-(name as i64 + 1))
 	}
 	
 	pub fn from_index(index: usize) -> Name {
-		assert!(index <= i32::MAX as usize);
+		assert!(index < u32::MAX as usize);
 		
-		Name(index as i32)
+		Name(index as i64)
 	}
 	
 	pub fn as_str<'a>(&'a self, interner: &StrInterner) -> &'a str {
@@ -88,7 +88,7 @@ impl Name {
 		}
 	}
 	
-	pub fn value(&self) -> i32 {
+	pub fn value(&self) -> i64 {
 		self.0
 	}
 }

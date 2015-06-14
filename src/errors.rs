@@ -18,3 +18,4 @@ pub static TYPE_CANNOT_ACCESS_FUNCTION_PROPERTY : &'static str = "Cannot access 
 pub static TYPE_CANNOT_CALL_TO_STRING : &'static str = "Cannot call toString";
 pub static SYNTAX_CANNOT_RESOLVE_PROPERTY : &'static str = "Cannot resolve property";
 pub static TYPE_NOT_CALLABLE : &'static str = "Target must be callable";
+pub static TYPE_PROPERTY_ONLY_HAS_GETTER : &'static str = "Cannot set property because it only has a getter";

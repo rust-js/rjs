@@ -253,7 +253,7 @@ fn run_safe(file: String) {
 		if let Header::List(ref items) = *header {
 			for item in items {
 				match &**item {
-					"arrow-function" | "generators" | "let" => {
+					"arrow-function" | "generators" | "let" | "Array#find" => {
 						is_es6 = true;
 					}
 					_ => {}
@@ -280,6 +280,22 @@ fn run_safe(file: String) {
 		}
 	}
 	
+	// First try running with debug disabled. If this succeeds, we stop here.
+	
+	if let Ok(mut env) = JsEnv::new() {
+		for include in &includes {
+			env.run(&("tests/tc39/harness/".to_string() + include)).ok().unwrap();
+		}
+		
+		if env.run(&file).is_ok() {
+			return;
+		}
+	}
+	
+	// There was an error. Enable debugging and retry.
+	
+	rjs::debug::debug_enable(true);
+	
 	let mut env = JsEnv::new().ok().unwrap();
 	
 	for include in &includes {
@@ -287,13 +303,15 @@ fn run_safe(file: String) {
 		env.run(&("tests/tc39/harness/".to_string() + include)).ok().unwrap();
 	}
 	
-	debug::reset();
+//	debug::reset();
 	
 	match env.run(&file) {
 		Ok(_) => {
 			if let Some(negative) = negative {
-				panic!("Expected exception {} from negative test", negative);
+				panic!("expected exception {} from negative test", negative);
 			}
+			
+			panic!("test failed before; why isn't it failing now?");
 		},
 		Err(error) => {
 			let _scope = env.new_local_scope();
@@ -319,7 +337,7 @@ fn run_safe(file: String) {
 				"(cannot convert error to string)".to_string()
 			};
 			
-			panic!("{}: Uncaught {}", file, error)
+			panic!("{}: uncaught {}", file, error)
 		}
 	}
 }

@@ -33,7 +33,7 @@ impl GcWalker for Walker {
 			match ty {
 				GC_ARRAY_STORE => {
 					match index {
-						1 | 2 => GcWalk::Pointer,
+						0 | 1 => GcWalk::Pointer,
 						_ => GcWalk::Skip
 					}
 				}
@@ -58,8 +58,8 @@ impl GcWalker for Walker {
 				}
 				GC_OBJECT => {
 					match index {
-						2 if is_value_ptr(ptr, 1) => GcWalk::Pointer,
-						9 | 10 | 12 => GcWalk::Pointer,
+						3 if is_value_ptr(ptr, 2) => GcWalk::Pointer,
+						12 | 13 | 15 => GcWalk::Pointer,
 						_ => GcWalk::Skip
 					}
 				}

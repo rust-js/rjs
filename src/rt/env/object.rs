@@ -248,3 +248,35 @@ pub fn Object_getOwnPropertyNames(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs
 		Ok(result.as_value(env))
 	}
 }
+
+// 15.2.3.9 Object.freeze ( O )
+pub fn Object_freeze(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let object = args.arg(env, 0);
+	
+	if object.ty() != JsType::Object {
+		Err(JsError::new_type(env, ::errors::TYPE_INVALID))
+	} else {
+		let mut target = object.unwrap_object(env);
+		
+		for offset in 0.. {
+			match target.get_key(env, offset) {
+				JsStoreKey::Key(name, _) => {
+					// The GetOwnProperty call cannot fail because we got this
+					// name from the object itself.
+					let mut desc = target.get_own_property(env, name).unwrap();
+					if desc.is_data() {
+						desc.writable = Some(false);
+					}
+					desc.configurable = Some(false);
+					try!(target.define_own_property(env, name, desc, true));
+				}
+				JsStoreKey::Missing => {},
+				JsStoreKey::End => break
+			}
+		}
+		
+		target.set_extensible(false);
+		
+		Ok(object)
+	}
+}

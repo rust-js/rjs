@@ -1,21 +1,23 @@
 use gc::{Array, Local, ptr_t, GcWalker};
 use rt::JsEnv;
 use rt::object::{JsStoreKey, Entry};
-use std::cmp;
+use std::cmp::{min, max};
 use rt::{GC_ENTRY, GC_ARRAY_CHUNK, GC_SPARSE_ARRAY, validate_walker_field};
 use syntax::Name;
-use std::usize;
 use std::mem::{transmute, zeroed};
 
 const CHUNK_SHIFT : usize = 5;
 const CHUNK_SIZE : usize = 1 << CHUNK_SHIFT;
 const INITIAL_VALUE_SIZE : usize = 20;
 const INITIAL_CHUNK_COUNT : usize = 10;
+const MAX_ARRAY_SIZE : usize = 1024;
+const MAX_ARRAY_SIZE_FILL_FACTOR : f64 = 0.5f64;
 
 pub struct SparseArray {
 	items: Array<Entry>,
 	chunks: Array<Chunk>,
-	chunk_count: usize
+	chunk_count: usize,
+	used: usize
 }
 
 #[derive(Copy, Clone)]
@@ -61,7 +63,8 @@ impl SparseArray {
 		*array = SparseArray {
 			items: unsafe { env.heap.alloc_array(GC_ENTRY, INITIAL_VALUE_SIZE) },
 			chunks: Array::null(),
-			chunk_count: 0
+			chunk_count: 0,
+			used: 0
 		};
 		
 		array
@@ -69,6 +72,16 @@ impl SparseArray {
 }
 
 impl Local<SparseArray> {
+	pub fn capacity(&self) -> usize {
+		let items = self.items;
+		
+		if !items.is_null() {
+			items.len()
+		} else {
+			self.chunk_count * CHUNK_SIZE
+		}
+	}
+	
 	pub fn get_value(&self, index: usize) -> Entry {
 		let items = self.items;
 		
@@ -91,13 +104,27 @@ impl Local<SparseArray> {
 	
 	pub fn set_value(&mut self, env: &JsEnv, index: usize, value: Entry) {
 		if !self.items.is_null() {
+			self.used += 1;
+			
 			let len = self.items.len();
 			
 			if index < len {
 				self.items[index] = value;
 				return;
 			}
-			if index < len * 2 {
+			
+			// If someone is specifically hitting our growth strategy, we
+			// may end up with a very large array that is barely filled.
+			// We stop this process when we go over MAX_ARRAY_SIZE.
+			
+			let transfer = if len >= MAX_ARRAY_SIZE {
+				let fill_factor = self.used as f64 / len as f64;
+				fill_factor < MAX_ARRAY_SIZE_FILL_FACTOR
+			} else {
+				index >= len * 2
+			};
+			
+			if !transfer {
                 // We allow the array to double in size every time
                 // we grow it.
 				
@@ -123,7 +150,7 @@ impl Local<SparseArray> {
 	
 	fn transfer_to_chunks(&mut self, env: &JsEnv) {
 		let chunk_count = (self.items.len() >> CHUNK_SHIFT) + 1;
-		self.chunks = unsafe { env.heap.alloc_array(GC_ARRAY_CHUNK, INITIAL_CHUNK_COUNT) };
+		self.chunks = unsafe { env.heap.alloc_array(GC_ARRAY_CHUNK, max(chunk_count, INITIAL_CHUNK_COUNT)) };
 		
 		for i in 0..chunk_count {
 			let offset = i * CHUNK_SIZE;
@@ -132,7 +159,7 @@ impl Local<SparseArray> {
 			let to_copy = if i < chunk_count - 1 {
 				CHUNK_SIZE
 			} else {
-				cmp::min(self.items.len() - offset, CHUNK_SIZE)
+				min(self.items.len() - offset, CHUNK_SIZE)
 			};
 			
 			Array::copy(self.items, offset, self.chunks[i].items, 0, to_copy);
@@ -168,7 +195,7 @@ impl Local<SparseArray> {
 		assert!(chunk_count > 0);
 		
 		if self.chunks.len() == chunk_count {
-			let new_size = cmp::max(
+			let new_size = max(
 				(chunk_count as f64 * 1.2) as usize,
 				chunk_count + 1
 			);
@@ -240,50 +267,17 @@ impl Local<SparseArray> {
 				JsStoreKey::Missing
 			}
 		} else {
-			let chunk = offset >> CHUNK_SHIFT;
-			let items = self.chunks[chunk].items;
+			let chunk = &self.chunks[offset >> CHUNK_SHIFT];
+			let items = chunk.items;
 			if items.is_null() {
 				JsStoreKey::Missing
 			} else {
-				let entry = items[offset & (CHUNK_SIZE - 1)];
+				let offset = offset & (CHUNK_SIZE - 1);
+				let entry = items[offset];
 				if entry.is_valid() {
-					JsStoreKey::Key(Name::from_index(offset), entry.is_enumerable())
+					JsStoreKey::Key(Name::from_index(chunk.offset + offset), entry.is_enumerable())
 				} else {
 					JsStoreKey::Missing
-				}
-			}
-		}
-	}
-	
-	pub fn clear(&mut self, start: usize, end: usize) {
-		let mut items = self.items;
-		
-		if !items.is_null() {
-			for i in start..end {
-				items[i] = Entry::empty();
-			}
-		} else {
-			let chunks = self.chunks;
-			
-			let mut offset = usize::MAX;
-			let mut items = Array::null();
-			
-			for i in start..end {
-				let this_offset = Self::get_offset_from_index(i);
-				
-				if offset != this_offset {
-					offset = this_offset;
-					
-					let chunk = self.find_chunk(offset);
-					items = if chunk.found() {
-						chunks[chunk.index()].items
-					} else {
-						Array::null()
-					};
-				}
-				
-				if !items.is_null() {
-					items[i - offset] = Entry::empty()
 				}
 			}
 		}
@@ -310,6 +304,10 @@ unsafe fn validate_walker_for_sparse_array(walker: &GcWalker) {
 	object.chunk_count = 1;
 	validate_walker_field(walker, GC_SPARSE_ARRAY, ptr, false);
 	object.chunk_count = 0;
+	
+	object.used = 1;
+	validate_walker_field(walker, GC_SPARSE_ARRAY, ptr, false);
+	object.used = 0;
 }
 
 unsafe fn validate_walker_for_array_chunk(walker: &GcWalker) {

@@ -155,7 +155,7 @@ macro_rules! declare_idents {(
 		use util::interner::StrInterner;
 		
 		$(
-			pub const $name: syntax::Name = syntax::Name(-($num as i32 + 1));
+			pub const $name: syntax::Name = syntax::Name(-($num as i64 + 1));
 		)*
 		
 		pub fn new_interner() -> StrInterner {
@@ -332,4 +332,11 @@ declare_idents! {
 	( "u16", U16, 157 );
 	( "string", STRING, 158 );
 	( "object", OBJECT, 159 );
+	( "Intrinsics", INTRINSICS_CLASS, 160 );
+	( "isCallable", IS_CALLABLE, 161 );
+	( "hasProperty", HAS_PROPERTY, 162 );
+	( "min", MIN, 163 );
+	( "max", MAX, 164 );
+	( "registerFunction", REGISTER_FUNCTION, 165 );
+	( "freeze", FREEZE, 166 );
 }

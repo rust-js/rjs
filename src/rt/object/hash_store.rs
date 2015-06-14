@@ -63,16 +63,12 @@ impl Local<HashStore> {
 		self.count as usize
 	}
 	
-	fn capacity(&self) -> usize {
-		self.entries.len()
-	}
-	
 	fn hash(&self, name: Name) -> u32 {
-		name.value() as u32 % self.capacity() as u32
+		name.value() as u32 % self.entries.len() as u32
 	}
 	
 	fn max_load_factor(&self) -> u32 {
-		(self.capacity() * 7 / 10) as u32
+		(self.entries.len() * 7 / 10) as u32
 	}
 	
 	fn grow_entries(&mut self, env: &JsEnv) {
@@ -181,7 +177,7 @@ impl Store for Local<HashStore> {
 		}
 	}
 	
-	fn remove(&mut self, _: &JsEnv, name: Name) -> bool {
+	fn remove(&mut self, _: &JsEnv, name: Name) {
 		// Find the position of the element.
 		
 		let mut last = -1;
@@ -192,9 +188,7 @@ impl Store for Local<HashStore> {
 			index = self.entries[index as usize].next;
 		}
 		
-		if index < 0 {
-			false
-		} else {
+		if index >= 0 {
         	// If this is not the tail of the chain, we need to fixup.
         	
         	let index = index as usize;
@@ -225,8 +219,6 @@ impl Store for Local<HashStore> {
         	// Decrement the count.
         	
         	self.count -= 1;
-        	
-        	true
         }
 	}
 	
@@ -260,6 +252,10 @@ impl Store for Local<HashStore> {
 				JsStoreKey::Missing
 			}
 		}
+	}
+	
+	fn capacity(&self, _: &JsEnv) -> usize {
+		self.entries.len()
 	}
 }
 

@@ -487,7 +487,26 @@ impl<'a> Lexer<'a> {
 	}
 	
 	fn parse_number(&mut self, c: char, positive: bool) -> JsResult<Token> {
-		if c == '0' {
+		// Scan for a decimal point or exponent letter. If so, don't parse this
+		// number as having a leading zero.
+		
+		let mut is_decimal = false;
+		let pos = self.reader.offset();
+		
+		while !self.reader.is_eof() {
+			match self.reader.next() {
+				'.' | 'e' | 'E' => {
+					is_decimal = true;
+					break;
+				}
+				'0'...'9' => {},
+				_ => break
+			}
+		}
+		
+		self.reader.seek(pos);
+		
+		if !is_decimal && c == '0' {
 			if self.reader.is_eof() {
 				if positive {
 					Ok(Literal(Lit::Integer(0)))
@@ -498,12 +517,6 @@ impl<'a> Lexer<'a> {
 				self.parse_hex(positive)
 			} else if !self.strict && is_oct(self.reader.peek()) {
 				self.parse_oct(positive)
-			} else if self.reader.consume('.') {
-				let prefix = if positive { "0." } else { "-0." };
-				self.parse_decimal_tail(prefix.to_string())
-			} else if self.reader.peek() == 'e' || self.reader.peek() == 'E' {
-				let prefix = if positive { "0." } else { "-0." };
-				self.parse_decimal_tail(prefix.to_string())
 			} else {
 				if positive {
 					Ok(Literal(Lit::Integer(0)))

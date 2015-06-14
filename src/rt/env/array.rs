@@ -5,7 +5,8 @@ use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsDescriptor, JsType, JsStrin
 use gc::*;
 use syntax::Name;
 use syntax::token::name;
-use std::cmp::{self, Ordering};
+use std::cmp::Ordering;
+use std::u32;
 
 macro_rules! local_try {
 	( $expr:expr, $error:ident ) => {
@@ -249,7 +250,15 @@ pub fn Array_push(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Lo
 	
 	for i in 0..args.argc {
 		let arg = args.arg(env, i);
-		try!(array.put(env, Name::from_index(index), arg, true));
+		
+		let name = if index >= u32::MAX as usize {
+			env.intern(&index.to_string())
+		} else {
+			Name::from_index(index)
+		};
+		
+		try!(array.put(env, name, arg, true));
+		
 		index += 1;
 	}
 	
@@ -320,7 +329,7 @@ pub fn Array_shift(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<L
 		}
 		
 		try!(array.delete(env, Name::from_index(len - 1), true));
-		let length = env.new_number(len as f64);
+		let length = env.new_number((len - 1) as f64);
 		try!(array.put(env, name::LENGTH, length, true));
 		
 		first
@@ -334,33 +343,28 @@ pub fn Array_slice(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<L
 	let array = try!(args.this(env).to_object(env));
 	let mut result = env.create_array();
 	let len_val = try!(array.get(env, name::LENGTH));
-	let len = try!(len_val.to_uint32(env)) as isize;
+	let len = try!(len_val.to_uint32(env)) as usize;
 	
-	let relative_start = if args.argc >= 1 {
-		try!(args.arg(env, 0).to_integer(env)) as isize
+	let relative_start = try!(args.arg(env, 0).to_integer(env));
+	let mut k = if relative_start < 0f64 {
+		let k = len as f64 + relative_start;
+		if k < 0f64 { 0 } else { k as usize }
 	} else {
-		0
+		if relative_start < len as f64 { relative_start as usize } else { len }
 	};
 	
-	let mut k = if relative_start < 0 {
-		cmp::max(len + relative_start, 0) as usize
+	let end = args.arg(env, 1);
+	let relative_end = if end.is_undefined() {
+		len as f64
 	} else {
-		cmp::min(relative_start, len) as usize
+		try!(end.to_integer(env))
 	};
 	
-	let relative_end = {
-		let arg = args.arg(env, 1);
-		if arg.is_undefined() {
-			len
-		} else {
-			try!(arg.to_integer(env)) as isize
-		}
-	};
-	
-	let final_ = if relative_end < 0 {
-		cmp::max(len + relative_end, 0) as usize
+	let final_ = if relative_end < 0f64 {
+		let final_ = len as f64 + relative_end;
+		if final_ > 0f64 { final_ as usize } else { 0 }
 	} else {
-		cmp::min(relative_end, len) as usize
+		if relative_end < len as f64 { relative_end as usize } else { len }
 	};
 	
 	let mut n = 0;
@@ -479,31 +483,23 @@ pub fn Array_splice(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
 	let mut array = try!(args.this(env).to_object(env));
 	let mut result = env.create_array();
 	let len_val = try!(array.get(env, name::LENGTH));
-	let len = try!(len_val.to_uint32(env)) as isize;
+	let len = try!(len_val.to_uint32(env)) as usize;
 	
-	let relative_start = if args.argc > 0 {
-		try!(args.arg(env, 0).to_integer(env)) as isize
+	let relative_start = try!(args.arg(env, 0).to_integer(env));
+	let actual_start = if relative_start < 0f64 {
+		let actual_start = len as f64 + relative_start;
+		if actual_start < 0f64 { 0 } else { actual_start as usize }
 	} else {
-		0
+		if relative_start < len as f64 { relative_start as usize } else { len }
 	};
 	
-	let actual_start = if relative_start < 0 {
-		cmp::max(relative_start + len, 0) as usize
+	let delete_count = try!(args.arg(env, 1).to_integer(env));
+	let delete_count = if delete_count < 0f64 { 0f64 } else { delete_count };
+	let actual_delete_count = if delete_count < (len - actual_start) as f64 {
+		delete_count as usize
 	} else {
-		cmp::min(relative_start, len) as usize
+		len - actual_start
 	};
-	
-	let delete_count = if args.argc > 1 {
-		try!(args.arg(env, 1).to_integer(env)) as isize
-	} else {
-		0
-	};
-	let actual_delete_count = cmp::min(
-		cmp::max(delete_count, 0) as usize,
-		len as usize - actual_start
-	);
-	
-	let len = len as usize;
 	
 	for k in 0..actual_delete_count {
 		let from = Name::from_index(actual_start + k);
@@ -614,18 +610,19 @@ pub fn Array_indexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
 		-1
 	} else {
 		let n = if args.argc > 1 {
-			try!(args.arg(env, 1).to_integer(env)) as isize
+			try!(args.arg(env, 1).to_integer(env))
 		} else {
-			0
+			0f64
 		};
 		
-		if n == len as isize {
+		if n >= len as f64 {
 			-1
 		} else {
-			let k = if n >= 0 {
+			let k = if n >= 0f64 {
 				n as usize
 			} else {
-				cmp::max(len - n.abs() as usize, 0)
+				let k = len as f64 - n.abs();
+				if k < 0f64 { 0 } else { k as usize }
 			};
 			
 			for i in k..len {
@@ -649,32 +646,41 @@ pub fn Array_indexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
 pub fn Array_lastIndexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let array = try!(args.this(env).to_object(env));
 	let len_value = try!(array.get(env, name::LENGTH));
-	let len = try!(len_value.to_uint32(env)) as isize;
+	let len = try!(len_value.to_uint32(env)) as usize;
 	
 	let result = if len == 0 {
 		-1
 	} else {
-		let n = if args.argc > 0 {
-			try!(args.arg(env, 0).to_integer(env)) as isize
+		let n = if args.argc > 1 {
+			try!(args.arg(env, 1).to_integer(env))
 		} else {
-			len as isize - 1
+			(len - 1) as f64
 		};
 		
-		let mut k = if n == 0 {
-			cmp::min(n, len - 1)
+		let mut k = if n >= 0f64 {
+			if n > (len - 1) as f64 { len - 1 } else { n as usize }
 		} else {
-			len - n.abs()
+			let n = n.abs();
+			if n > len as f64 {
+				return Ok(env.new_number(-1f64));
+			} else {
+				len - n as usize
+			}
 		};
 		
 		let search_element = args.arg(env, 0);
 		
-		while k >= 0 {
-			let k_present = array.has_property(env, Name::from_index(k as usize));
+		loop {
+			let k_present = array.has_property(env, Name::from_index(k));
 			if k_present {
-				let element_k = try!(array.get(env, Name::from_index(k as usize)));
+				let element_k = try!(array.get(env, Name::from_index(k)));
 				if env.strict_eq(search_element, element_k) {
 					return Ok(env.new_number(k as f64));
 				}
+			}
+			
+			if k == 0 {
+				break
 			}
 			
 			k -= 1;
@@ -749,7 +755,7 @@ pub fn Array_forEach(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
 		return Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
 	};
 	
-	let this_arg = args.arg(env, 0);
+	let this_arg = args.arg(env, 1);
 	
 	for k in 0..len {
 		let p_k = Name::from_index(k);
@@ -786,26 +792,28 @@ pub fn Array_map(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Loc
 		return Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
 	};
 	
-	let this_arg = args.arg(env, 0);
+	let this_arg = args.arg(env, 1);
 	
 	let mut result = env.create_array();
 	
 	for k in 0..len {
 		let p_k = Name::from_index(k);
 		let k_present = array.has_property(env, p_k);
-		if k_present {
+		let mapped_value = if k_present {
 			let k_value = try!(array.get(env, p_k));
 			let k = env.new_number(k as f64);
 			
-			let mapped_value = try!(callback_fn.call(
+			try!(callback_fn.call(
 				env,
 				this_arg,
 				vec![k_value, k, array],
 				false
-			));
-			
-			try!(result.define_own_property(env, p_k, JsDescriptor::new_simple_value(mapped_value), false));
-		}
+			))
+		} else {
+			env.new_undefined()
+		};
+		
+		try!(result.define_own_property(env, p_k, JsDescriptor::new_simple_value(mapped_value), false));
 	}
 	
 	Ok(result.as_value(env))
@@ -827,7 +835,7 @@ pub fn Array_filter(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
 		return Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
 	};
 	
-	let this_arg = args.arg(env, 0);
+	let this_arg = args.arg(env, 1);
 	
 	let mut result = env.create_array();
 	
@@ -885,7 +893,7 @@ pub fn Array_reduce(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
 	
 	let mut k = 0usize;
 	
-	let accumulator = if args.argc > 1 {
+	let mut accumulator = if args.argc > 1 {
 		args.arg(env, 1)
 	} else {
 		let mut accumulator = None;
@@ -914,10 +922,10 @@ pub fn Array_reduce(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
 		if k_present {
 			let k_value = try!(array.get(env, p_k));
 			let k = env.new_number(k as f64);
-			let accumulator = try!(callback_fn.call(
+			accumulator = try!(callback_fn.call(
 				env,
 				undefined,
-				vec![k_value, k, array],
+				vec![accumulator, k_value, k, array],
 				false
 			));
 		}
@@ -950,12 +958,12 @@ pub fn Array_reduceRight(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
 	
 	let mut k = len - 1;
 	
-	let accumulator = if args.argc > 1 {
+	let mut accumulator = if args.argc > 1 {
 		args.arg(env, 1)
 	} else {
 		let mut accumulator = None;
 		
-		while accumulator.is_none() && k >= len {
+		while accumulator.is_none() && k >= 0 {
 			let p_k = Name::from_index(k as usize);
 			let k_present = array.has_property(env, p_k);
 			if k_present {
@@ -973,16 +981,16 @@ pub fn Array_reduceRight(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
 	
 	let undefined = env.new_undefined();
 	
-	while k >= len {
+	while k >= 0 {
 		let p_k = Name::from_index(k as usize);
 		let k_present = array.has_property(env, p_k);
 		if k_present {
 			let k_value = try!(array.get(env, p_k));
 			let k = env.new_number(k as f64);
-			let accumulator = try!(callback_fn.call(
+			accumulator = try!(callback_fn.call(
 				env,
 				undefined,
-				vec![k_value, k, array],
+				vec![accumulator, k_value, k, array],
 				false
 			));
 		}
@@ -1000,9 +1008,15 @@ pub fn Array_isArray(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
 	let result = if arg.ty() != JsType::Object {
 		false
 	} else {
-		match arg.class(env) {
-			Some(class) => class == name::ARRAY_CLASS,
-			None => false
+		if arg.class(env) == Some(name::ARRAY_CLASS) {
+			true
+		} else if arg.get_ptr() == env.array_prototype.as_ptr() {
+			// TODO: This is not conform the specs (the specs state that only the [[Class]]
+			// should be checked) but the ECMA test suite tests for this and Chrome
+			// passes this test.
+			true
+		} else {
+			false
 		}
 	};
 	

@@ -6,6 +6,7 @@ use gc::os::Memory;
 use gc::{GcRootWalker, GcOpts, GcMemHeader, GcWalker, GcWalk, ptr_t};
 use std::ptr;
 use std::mem::{size_of, transmute, swap};
+use std::cmp::max;
 
 const PAGE_SIZE : usize = 4 * 1024;
 
@@ -102,10 +103,11 @@ impl Copying {
 		};
 		
 		let mut target_size = self.from.offset + self.last_failed;
+		
 		self.last_failed = 0;
 		
 		if self.last_used > 0f64 {
-			target_size = (target_size as f64 * self.last_used) as usize
+			target_size = max((target_size as f64 * self.last_used) as usize, target_size)
 		}
 		
 		if target_size < self.opts.initial_heap {
@@ -118,8 +120,6 @@ impl Copying {
 		if target_size < self.last_size {
 			target_size = self.last_size;
 		}
-		
-		self.last_failed = 0;
 		
 		// Ensure that the target heap is large enough.
 		

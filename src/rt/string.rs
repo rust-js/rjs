@@ -104,6 +104,7 @@ impl JsItem for Local<JsString> {
 			let value = env.new_number(self.chars.len() as f64);
 			return Some(JsDescriptor::new_simple_value(value));
 		}
+		
 		if let Some(index) = property.index() {
 			let chars = self.chars;
 			if index < chars.len() {

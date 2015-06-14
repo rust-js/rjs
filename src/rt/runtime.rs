@@ -87,6 +87,10 @@ impl JsEnv {
 			return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
 		};
 		
+		if mode.construct() && !function_obj.can_construct(self) {
+			return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_CONSTRUCTOR));
+		}
+		
 		let function = function_obj.unwrap_object(self).function();
 		if !function.is_some() {
 			return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
@@ -129,11 +133,7 @@ impl JsEnv {
 				
 				Ok(())
 			}
-			JsFunction::Native(_, _, ref callback, can_construct) => {
-				if !can_construct && mode.construct() {
-					return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_CONSTRUCTOR));
-				}
-				
+			JsFunction::Native(_, _, ref callback, _) => {
 				let frame = args.frame;
 				
 				let result = try!((*callback as &JsFn)(self, mode, args));
