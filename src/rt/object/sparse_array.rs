@@ -116,6 +116,9 @@ impl Local<SparseArray> {
 			// If someone is specifically hitting our growth strategy, we
 			// may end up with a very large array that is barely filled.
 			// We stop this process when we go over MAX_ARRAY_SIZE.
+			//
+			// TODO: This can (will?) allocate empty chunks. We should
+			// check for that and skip those.
 			
 			let transfer = if len >= MAX_ARRAY_SIZE {
 				let fill_factor = self.used as f64 / len as f64;

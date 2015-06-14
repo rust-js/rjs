@@ -257,5 +257,6 @@
   "built-ins/Array/prototype/splice/S15.4.4.12_A3_T1.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
   "built-ins/Array/prototype/splice/S15.4.4.12_A3_T3.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
   "built-ins/Array/prototype/unshift/S15.4.4.13_A3_T2.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
+  "built-ins/Boolean/S9.2_A6_T1.js": "Date has not yet been implemented.",
   "": ""
 }
