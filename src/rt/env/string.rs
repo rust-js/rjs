@@ -29,7 +29,7 @@ pub fn String_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsRe
 	object.set_class(env, Some(name::STRING_CLASS));
 	object.set_value(arg);
 	
-	let value = env.new_number(arg.unwrap_string(env).chars.len() as f64);
+	let value = env.new_number(arg.unwrap_string(env).chars().len() as f64);
 	try!(object.define_own_property(env, name::LENGTH, JsDescriptor::new_value(value, false, false, false), false));
 	
 	Ok(this_arg)
@@ -83,9 +83,13 @@ pub fn String_substr(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
 pub fn String_fromCharCode(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let mut result = JsString::new_local(env, args.argc);
 	
-	for i in 0..args.argc {
-		let c = try!(args.arg(env, i).to_uint16(env));
-		result.chars[i] = c;
+	{
+		let chars = result.chars_mut();
+		
+		for i in 0..args.argc {
+			let c = try!(args.arg(env, i).to_uint16(env));
+			chars[i] = c;
+		}
 	}
 	
 	Ok(result.as_value(env))
@@ -94,9 +98,8 @@ pub fn String_fromCharCode(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> Js
 // 15.5.4.4 String.prototype.charAt (pos)
 pub fn String_charAt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let this = try!(args.this(env).to_string(env));
+	let chars = this.chars();
 	let position = try!(args.arg(env, 0).to_integer(env)) as i32;
-	
-	let chars = this.chars;
 	
 	let result = if position < 0 || position >= chars.len() as i32 {
 		"".to_string()
@@ -110,9 +113,8 @@ pub fn String_charAt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
 // 15.5.4.5 String.prototype.charCodeAt (pos)
 pub fn String_charCodeAt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let this = try!(args.this(env).to_string(env));
+	let chars = this.chars();
 	let position = try!(args.arg(env, 0).to_integer(env)) as i32;
-	
-	let chars = this.chars;
 	
 	let result = if position < 0 || position >= chars.len() as i32 {
 		f64::NAN
@@ -129,7 +131,7 @@ fn index_of(env: &mut JsEnv, args: JsArgs, reverse: bool) -> JsResult<Local<JsVa
 	let string = try!(args.this(env).to_string(env));
 	let search = try!(args.arg(env, 0).to_string(env));
 	
-	let len = string.chars.len();
+	let len = string.chars().len();
 	
 	let position = {
 		let position = args.arg(env, 1);
@@ -150,8 +152,8 @@ fn index_of(env: &mut JsEnv, args: JsArgs, reverse: bool) -> JsResult<Local<JsVa
 	};
 	
 	let start = min(max(position, 0), len as i32) as usize;
-	let string = string.chars;
-	let search = search.chars;
+	let string = string.chars();
+	let search = search.chars();
 	
 	fn matches(string: &[u16], search: &[u16], index: usize) -> bool {
 		for i in 0..search.len() {

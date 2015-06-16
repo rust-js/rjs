@@ -301,7 +301,7 @@ impl Local<JsValue> {
 				let value = self.unwrap_number();
 				!(value == 0f64 || value.is_nan())
 			}
-			JsType::String => self.get_ptr::<JsString>().chars.len() > 0,
+			JsType::String => self.get_ptr::<JsString>().chars().len() > 0,
 			JsType::Object => true,
 			_ => panic!("unexpected type")
 		}

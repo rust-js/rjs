@@ -285,8 +285,8 @@ impl JsEnv {
 		let x = x.unwrap_string(self);
 		let y = y.unwrap_string(self);
 		
-		let x = x.chars;
-		let y = y.chars;
+		let x = x.chars();
+		let y = y.chars();
 		
 		let x_len = x.len();
 		let y_len = y.len();
@@ -452,8 +452,8 @@ impl JsEnv {
 					let lval = lval.unwrap_string(self);
 					let rval = rval.unwrap_string(self);
 					
-					let x = &*lval.chars;
-					let y = &*rval.chars;
+					let x = lval.chars();
+					let y = rval.chars();
 					
 					if x.len() != y.len() {
 						false
