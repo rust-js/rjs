@@ -824,6 +824,24 @@ impl JsArgs {
 		}
 	}
 	
+	pub fn map_or<U, F: FnOnce(&mut JsEnv, Local<JsValue>) -> U>(&self, env: &mut JsEnv, index: usize, def: U, f: F) -> U {
+		if self.argc > index {
+			let value = self.frame.get(env, index + 2);
+			f(env, value)
+		} else {
+			def
+		}
+	}
+	
+	pub fn map_or_else<U, D: FnOnce(&mut JsEnv) -> U, F: FnOnce(&mut JsEnv, Local<JsValue>) -> U>(&self, env: &mut JsEnv, index: usize, def: D, f: F) -> U {
+		if self.argc > index {
+			let value = self.frame.get(env, index + 2);
+			f(env, value)
+		} else {
+			def(env)
+		}
+	}
+	
 	pub fn args(&self, env: &JsEnv) -> Vec<Local<JsValue>> {
 		let mut args = Vec::new();
 		

@@ -71,3 +71,9 @@ pub fn Math_max(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Loca
 		_ => env.new_number(f64::NAN)
 	})
 }
+
+// 15.8.2.1 abs (x)
+pub fn Math_abs(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let arg = try!(args.arg(env, 0).to_number(env));
+	Ok(env.new_number(arg.abs()))
+}

@@ -258,5 +258,14 @@
   "built-ins/Array/prototype/splice/S15.4.4.12_A3_T3.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
   "built-ins/Array/prototype/unshift/S15.4.4.13_A3_T2.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
   "built-ins/Boolean/S9.2_A6_T1.js": "Date has not yet been implemented.",
+  "built-ins/Date/15.9.1.15-1.js": "Chrome and Firefox don't do this. This test depends on invalid ISO parsing.",
+  "built-ins/Date/prototype/toISOString/15.9.5.43-0-11.js": "The values used in this test are out of range of what Chrono can handle.",
+  "built-ins/Date/prototype/toISOString/15.9.5.43-0-12.js": "The values used in this test are out of range of what Chrono can handle.",
+  "built-ins/Date/S15.9.3.1_A5_T1.js": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
+  "built-ins/Date/S15.9.3.1_A5_T2.js": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
+  "built-ins/Date/S15.9.3.1_A5_T3.js": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
+  "built-ins/Date/S15.9.3.1_A5_T4.js": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
+  "built-ins/Date/S15.9.3.1_A5_T5.js": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
+  "built-ins/Date/S15.9.3.1_A5_T6.js": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
   "": ""
 }

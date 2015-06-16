@@ -276,14 +276,61 @@ fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 }
 
 fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
-	let class = env.new_native_function(Some(name::DATE_CLASS), 1, &Date_constructor, function_prototype);	
+	let mut class = env.new_native_function(Some(name::DATE_CLASS), 7, &Date_constructor, function_prototype);	
 	
+	function!(class, name::PARSE, Date_parse, 1, function_prototype, env);
+	function!(class, name::UTC, Date_UTC, 7, function_prototype, env);
+	function!(class, name::NOW, Date_now, 0, function_prototype, env);
+
 	property!(global, name::DATE_CLASS, class, true, false, true, env);
 
 	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
 	
 	env.date_prototype = prototype.as_root(env);
 	
+	function!(&mut prototype, name::TO_STRING, Date_toString, 0, function_prototype, env);
+	function!(&mut prototype, name::TO_DATE_STRING, Date_toDateString, 0, function_prototype, env);
+	function!(&mut prototype, name::TO_TIME_STRING, Date_toTimeString, 0, function_prototype, env);
+	function!(&mut prototype, name::TO_LOCALE_STRING, Date_toLocaleString, 0, function_prototype, env);
+	function!(&mut prototype, name::TO_LOCALE_DATE_STRING, Date_toLocaleDateString, 0, function_prototype, env);
+	function!(&mut prototype, name::TO_LOCALE_TIME_STRING, Date_toLocaleTimeString, 0, function_prototype, env);
+	function!(&mut prototype, name::VALUE_OF, Date_valueOf, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_TIME, Date_getTime, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_FULL_YEAR, Date_getFullYear, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_UTC_FULL_YEAR, Date_getUTCFullYear, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_MONTH, Date_getMonth, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_UTC_MONTH, Date_getUTCMonth, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_DATE, Date_getDate, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_UTC_DATE, Date_getUTCDate, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_DAY, Date_getDay, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_UTC_DAY, Date_getUTCDay, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_HOURS, Date_getHours, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_UTC_HOURS, Date_getUTCHours, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_MINUTES, Date_getMinutes, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_UTC_MINUTES, Date_getUTCMinutes, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_SECONDS, Date_getSeconds, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_UTC_SECONDS, Date_getUTCSeconds, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_MILLISECONDS, Date_getMilliseconds, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_UTC_MILLISECONDS, Date_getUTCMilliseconds, 0, function_prototype, env);
+	function!(&mut prototype, name::GET_TIMEZONE_OFFSET, Date_getTimezoneOffset, 0, function_prototype, env);
+	function!(&mut prototype, name::SET_TIME, Date_setTime, 1, function_prototype, env);
+	function!(&mut prototype, name::SET_MILLISECONDS, Date_setMilliseconds, 1, function_prototype, env);
+	function!(&mut prototype, name::SET_UTC_MILLISECONDS, Date_setUTCMilliseconds, 1, function_prototype, env);
+	function!(&mut prototype, name::SET_SECONDS, Date_setSeconds, 2, function_prototype, env);
+	function!(&mut prototype, name::SET_UTC_SECONDS, Date_setUTCSeconds, 2, function_prototype, env);
+	function!(&mut prototype, name::SET_MINUTES, Date_setMinutes, 3, function_prototype, env);
+	function!(&mut prototype, name::SET_UTC_MINUTES, Date_setUTCMinutes, 3, function_prototype, env);
+	function!(&mut prototype, name::SET_HOURS, Date_setHours, 4, function_prototype, env);
+	function!(&mut prototype, name::SET_UTC_HOURS, Date_setUTCHours, 4, function_prototype, env);
+	function!(&mut prototype, name::SET_DATE, Date_setDate, 1, function_prototype, env);
+	function!(&mut prototype, name::SET_UTC_DATE, Date_setUTCDate, 1, function_prototype, env);
+	function!(&mut prototype, name::SET_MONTH, Date_setMonth, 2, function_prototype, env);
+	function!(&mut prototype, name::SET_UTC_MONTH, Date_setUTCMonth, 2, function_prototype, env);
+	function!(&mut prototype, name::SET_FULL_YEAR, Date_setFullYear, 3, function_prototype, env);
+	function!(&mut prototype, name::SET_UTC_FULL_YEAR, Date_setUTCFullYear, 3, function_prototype, env);
+	function!(&mut prototype, name::TO_UTC_STRING, Date_toUTCString, 0, function_prototype, env);
+	function!(&mut prototype, name::TO_ISO_STRING, Date_toISOString, 0, function_prototype, env);
+	function!(&mut prototype, name::TO_JSON, Date_toJSON, 1, function_prototype, env);
 	function!(&mut prototype, name::GET_YEAR, Date_getYear, 0, function_prototype, env);
 	function!(&mut prototype, name::SET_YEAR, Date_setYear, 1, function_prototype, env);
 	function!(&mut prototype, name::TO_GMT_STRING, Date_toGMTString, 0, function_prototype, env);
@@ -342,6 +389,7 @@ fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototyp
 	function!(class, name::FLOOR, Math_floor, 1, function_prototype, env);
 	function!(class, name::MIN, Math_min, 2, function_prototype, env);
 	function!(class, name::MAX, Math_max, 2, function_prototype, env);
+	function!(class, name::ABS, Math_abs, 1, function_prototype, env);
 }
 
 fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
