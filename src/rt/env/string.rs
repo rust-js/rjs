@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 
 use ::{JsResult, JsError};
-use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsString, JsType, JsDescriptor};
+use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsString, JsType, JsDescriptor, JsHandle};
 use gc::*;
 use syntax::token::name;
 use std::char;
@@ -25,7 +25,7 @@ pub fn String_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsRe
 	let this_arg = args.this(env);
 	let mut object = this_arg.unwrap_object(env);
 	
-	object.set_prototype(env, Some(env.string_prototype.as_value(env)));
+	object.set_prototype(env, Some(env.handle(JsHandle::String).as_value(env)));
 	object.set_class(env, Some(name::STRING_CLASS));
 	object.set_value(arg);
 	

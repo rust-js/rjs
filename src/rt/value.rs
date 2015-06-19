@@ -1,7 +1,7 @@
 extern crate libc;
 
 use rt::{JsEnv, JsString, JsType, JsObject, JsItem, JsDescriptor, JsScope, JsPreferredType};
-use rt::{JsNull, JsUndefined, JsNumber, JsBoolean, JsIterator, GC_VALUE};
+use rt::{JsNull, JsUndefined, JsNumber, JsBoolean, JsIterator, JsHandle, GC_VALUE};
 use rt::{validate_walker_field, validate_walker_field_at};
 use ::{JsResult, JsError};
 use syntax::Name;
@@ -560,7 +560,7 @@ impl Local<JsValue> {
 		match self.ty {
 			JsType::Null | JsType::Undefined => Err(JsError::new_type(env, ::errors::TYPE_INVALID)),
 			JsType::String => {
-				let constructor = try!(env.global().as_local(env).get(env, name::STRING_CLASS));
+				let constructor = try!(env.handle(JsHandle::Global).get(env, name::STRING_CLASS));
 				let object = try!(constructor.construct(env, vec![*self]));
 				Ok(object)
 			}
@@ -572,7 +572,7 @@ impl Local<JsValue> {
 					_ => unreachable!()
 				};
 				
-				let constructor = try!(env.global().as_local(env).get(env, class));
+				let constructor = try!(env.handle(JsHandle::Global).get(env, class));
 				let object = try!(constructor.construct(env, Vec::new()));
 				object.unwrap_object(env).set_value(*self);
 				Ok(object)

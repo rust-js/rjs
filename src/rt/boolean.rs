@@ -1,4 +1,4 @@
-use rt::{JsItem, JsEnv, JsValue};
+use rt::{JsItem, JsEnv, JsValue, JsHandle};
 use gc::Local;
 
 pub struct JsBoolean {
@@ -23,6 +23,6 @@ impl JsItem for JsBoolean {
 	}
 	
 	fn prototype(&self, env: &JsEnv) -> Option<Local<JsValue>> {
-		Some(env.boolean_prototype.as_value(env))
+		Some(env.handle(JsHandle::Boolean).as_value(env))
 	}
 }

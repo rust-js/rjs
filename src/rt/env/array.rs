@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 
 use ::{JsResult, JsError};
-use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsDescriptor, JsType, JsString};
+use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsDescriptor, JsType, JsString, JsHandle};
 use gc::*;
 use syntax::Name;
 use syntax::token::name;
@@ -58,7 +58,7 @@ pub fn Array_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResul
 	let array = try!(args.this(env).to_object(env));
 	let mut func = try!(array.get(env, name::JOIN));
 	if !func.is_callable(env) {
-		func = try!(env.object_prototype.as_local(env).get(env, name::TO_STRING));
+		func = try!(env.handle(JsHandle::Object).get(env, name::TO_STRING));
 	}
 	
 	func.call(env, array, Vec::new(), false)
@@ -1010,7 +1010,7 @@ pub fn Array_isArray(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
 	} else {
 		if arg.class(env) == Some(name::ARRAY_CLASS) {
 			true
-		} else if arg.get_ptr() == env.array_prototype.as_ptr() {
+		} else if arg.get_ptr() == env.handle(JsHandle::Array).as_ptr() {
 			// TODO: This is not conform the specs (the specs state that only the [[Class]]
 			// should be checked) but the ECMA test suite tests for this and Chrome
 			// passes this test.

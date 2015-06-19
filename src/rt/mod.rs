@@ -57,18 +57,32 @@ impl Root<JsObject> {
 	}
 }
 
+#[repr(usize)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum JsHandle {
+	Global = 0,
+	Object = 1,
+	Function = 2,
+	Array = 3,
+	String = 4,
+	Date = 5,
+	Number = 6,
+	Boolean = 7,
+	RegExp = 8,
+	Error = 9,
+	EvalError = 10,
+	RangeError = 11,
+	ReferenceError = 12,
+	SyntaxError = 13,
+	TypeError = 14,
+	URIError = 15,
+	NativeError = 16
+}
+
 pub struct JsEnv {
 	heap: GcHeap,
-	global: Root<JsObject>,
+	handles: Vec<Root<JsObject>>,
 	global_scope: Root<JsScope>,
-	object_prototype: Root<JsObject>,
-	array_prototype: Root<JsObject>,
-	function_prototype: Root<JsObject>,
-	string_prototype: Root<JsObject>,
-	number_prototype: Root<JsObject>,
-	boolean_prototype: Root<JsObject>,
-	date_prototype: Root<JsObject>,
-	regexp_prototype: Root<JsObject>,
 	ir: IrContext,
 	stack: Rc<stack::Stack>,
 	privileged: bool
@@ -83,32 +97,15 @@ impl JsEnv {
 		
 		let heap = GcHeap::new(walker, GcOpts::default());
 		
-		let global = heap.alloc_root::<JsObject>(GC_OBJECT);
 		let global_scope = heap.alloc_root::<JsScope>(GC_SCOPE);
-		let object_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
-		let array_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
-		let function_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
-		let string_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
-		let number_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
-		let boolean_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
-		let date_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
-		let regexp_prototype = heap.alloc_root::<JsObject>(GC_OBJECT);
 		
 		let mut env = JsEnv {
 			heap: heap,
-			global: global,
 			global_scope: global_scope,
-			object_prototype: object_prototype,
-			array_prototype: array_prototype,
-			function_prototype: function_prototype,
-			string_prototype: string_prototype,
-			number_prototype: number_prototype,
-			boolean_prototype: boolean_prototype,
-			date_prototype: date_prototype,
-			regexp_prototype: regexp_prototype,
 			ir: IrContext::new(),
 			stack: stack,
-			privileged: true
+			privileged: true,
+			handles: Vec::new()
 		};
 		
 		if let Err(error) = env::setup(&mut env) {
@@ -132,6 +129,19 @@ impl JsEnv {
 		Ok(env)
 	}
 	
+	pub fn handle(&self, handle: JsHandle) -> Local<JsObject> {
+		self.handles[unsafe { transmute::<_, usize>(handle) }].as_local(self)
+	}
+	
+	fn add_handle(&mut self, handle: JsHandle, local: Local<JsObject>) {
+		let index = unsafe { transmute(handle) };
+		if self.handles.len() != index {
+			panic!("unexpected handle order; got {:?} expected {:?}", handle, unsafe { transmute::<_, JsHandle>(self.handles.len()) });
+		}
+		let root = local.as_root(self);
+		self.handles.push(root);
+	}
+	
 	pub fn run(&mut self, file_name: &str) -> JsResult<Root<JsValue>> {
 		self.run_strict(file_name, false)
 	}
@@ -145,7 +155,7 @@ impl JsEnv {
 		
 		let _scope = self.new_local_scope();
 		
-		let global = self.global.as_value(self);
+		let global = self.handle(JsHandle::Global).as_value(self);
 		let global_scope = self.global_scope.as_local(self);
 		
 		self.run_program(function_ref, global, global_scope)
@@ -154,7 +164,7 @@ impl JsEnv {
 	pub fn eval(&mut self, js: &str) -> JsResult<Root<JsValue>> {
 		let _scope = self.new_local_scope();
 		
-		let global = self.global.as_value(self);
+		let global = self.handle(JsHandle::Global).as_value(self);
 		let global_scope = self.global_scope.as_local(self);
 		
 		self.eval_scoped(js, false, global, global_scope, ParseMode::Normal)
@@ -174,7 +184,7 @@ impl JsEnv {
 		let function = self.ir.get_function(function_ref);
 		
 		let this = if !function.strict && this.is_undefined() {
-			self.global.as_local(self).as_value(self)
+			self.handle(JsHandle::Global).as_value(self)
 		} else {
 			this
 		};
@@ -185,11 +195,6 @@ impl JsEnv {
 		*result = *try!(function.call(self, this, Vec::new(), false));
 		
 		Ok(result)
-	}
-	
-	/// Returns a new GC handle to the global object.
-	pub fn global(&self) -> &Root<JsObject> {
-		&self.global
 	}
 	
 	pub fn intern(&self, name: &str) -> Name {
@@ -369,7 +374,7 @@ pub trait JsItem {
 	// 8.12.8 [[DefaultValue]] (hint)
 	fn default_value(&self, env: &mut JsEnv, hint: JsPreferredType) -> JsResult<Local<JsValue>> {
 		let hint = if hint == JsPreferredType::None {
-			let date_class = try!(env.global.as_value(env).get(env, name::DATE_CLASS));
+			let date_class = try!(env.handle(JsHandle::Global).as_value(env).get(env, name::DATE_CLASS));
 			
 			let object = self.as_value(env);
 			if try!(date_class.has_instance(env, object)) {

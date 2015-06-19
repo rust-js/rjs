@@ -130,7 +130,7 @@ impl JsEnv {
 					let this = args.this(self);
 					
 					let this = if this.is_null_or_undefined() {
-						self.global.as_value(self)
+						self.handle(JsHandle::Global).as_value(self)
 					} else {
 						try!(this.to_object(self))
 					};
@@ -229,7 +229,7 @@ impl JsEnv {
 		if proto.ty() == JsType::Object {
 			obj.set_prototype(self, Some(proto));
 		} else {
-			let proto = self.object_prototype.as_local(self).as_value(self);
+			let proto = self.handle(JsHandle::Object).as_value(self);
 			obj.set_prototype(self, Some(proto));
 		}
 		
@@ -377,7 +377,7 @@ impl JsEnv {
 	}
 	
 	pub fn new_function(&mut self, function_ref: FunctionRef, scope: Option<Local<JsScope>>, strict: bool) -> JsResult<Local<JsValue>> {
-		let function_prototype = self.function_prototype.as_local(self);
+		let function_prototype = self.handle(JsHandle::Function);
 		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), function_prototype, strict).as_value(self);
 		
 		let function = self.ir.get_function(function_ref);
@@ -499,7 +499,7 @@ impl JsEnv {
 	pub fn create_object(&self) -> Local<JsObject> {
 		let mut obj = JsObject::new_local(self, JsStoreType::Hash);
 		
-		obj.set_prototype(self, Some(self.object_prototype.as_value(self)));
+		obj.set_prototype(self, Some(self.handle(JsHandle::Object).as_value(self)));
 		obj.set_class(self, Some(name::OBJECT_CLASS));
 		
 		obj
@@ -522,7 +522,7 @@ impl JsEnv {
 			false
 		).ok();
 		
-		obj.set_prototype(self, Some(self.array_prototype.as_value(self)));
+		obj.set_prototype(self, Some(self.handle(JsHandle::Array).as_value(self)));
 		obj.set_class(self, Some(name::ARRAY_CLASS));
 		
 		obj
@@ -583,7 +583,7 @@ impl JsEnv {
 			let function = args.function(self);
 			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_value(function, true, false, true), false));
 		} else {
-			let prototype = self.function_prototype.as_local(self);
+			let prototype = self.handle(JsHandle::Function);
 			let thrower = self.new_native_function(None, 0, &throw_type_error, prototype);
 			
 			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false));

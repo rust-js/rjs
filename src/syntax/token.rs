@@ -393,4 +393,5 @@ declare_idents! {
 	( "toLocaleLowerCase", TO_LOCALE_LOWER_CASE, 218 );
 	( "toUpperCase", TO_UPPER_CASE, 219 );
 	( "toLocaleUpperCase", TO_LOCALE_UPPER_CASE, 220 );
+	( "message", MESSAGE, 221 );
 }

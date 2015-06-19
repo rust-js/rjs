@@ -2,7 +2,7 @@ extern crate chrono;
 extern crate time;
 
 use ::{JsResult, JsError};
-use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsPreferredType, JsType, JsString, JsItem};
+use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsPreferredType, JsType, JsString, JsItem, JsHandle};
 use syntax::token::name;
 use gc::{self, AsPtr};
 use std::f64;
@@ -496,7 +496,7 @@ fn get_time_from_args(env: &mut JsEnv, args: &JsArgs) -> JsResult<f64> {
 		if let Some(prototype) = this.prototype(env) {
 			if
 				prototype.ty() == JsType::Object &&
-				prototype.unwrap_object(env).as_ptr() == env.date_prototype.as_ptr()
+				prototype.unwrap_object(env).as_ptr() == env.handle(JsHandle::Date).as_ptr()
 			{
 				return Ok(this.value(env).unwrap_number());
 			}
@@ -513,7 +513,7 @@ pub fn Date_parse(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc
 	let time = parse(&string);
 	let time = env.new_number(time);
 	
-	let constructor = try!(env.date_prototype.as_local(env).get(env, name::CONSTRUCTOR));
+	let constructor = try!(env.handle(JsHandle::Date).get(env, name::CONSTRUCTOR));
 	let date = try!(constructor.construct(env, vec![time]));
 	
 	Ok(date.as_value(env))
@@ -703,7 +703,7 @@ pub fn Date_setTime(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
 		if let Some(prototype) = this.prototype(env) {
 			if
 				prototype.ty() == JsType::Object &&
-				prototype.unwrap_object(env).as_ptr() == env.date_prototype.as_ptr()
+				prototype.unwrap_object(env).as_ptr() == env.handle(JsHandle::Date).as_ptr()
 			{
 				let time = time_clip(try!(args.arg(env, 0).to_number(env)));
 				let time = env.new_number(time);

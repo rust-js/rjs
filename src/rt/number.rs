@@ -1,4 +1,4 @@
-use rt::{JsItem, JsEnv, JsValue};
+use rt::{JsItem, JsEnv, JsValue, JsHandle};
 use gc::Local;
 
 pub struct JsNumber {
@@ -23,6 +23,6 @@ impl JsItem for JsNumber {
 	}
 	
 	fn prototype(&self, env: &JsEnv) -> Option<Local<JsValue>> {
-		Some(env.number_prototype.as_value(env))
+		Some(env.handle(JsHandle::Number).as_value(env))
 	}
 }

@@ -1,5 +1,5 @@
 use gc::{Array, Local};
-use rt::{JsEnv, JsValue, JsItem, JsDescriptor, GC_STRING, GC_U16};
+use rt::{JsEnv, JsValue, JsItem, JsDescriptor, JsHandle, GC_STRING, GC_U16};
 use rt::utf;
 use syntax::Name;
 use syntax::token::name;
@@ -110,7 +110,7 @@ impl JsItem for Local<JsString> {
 	}
 	
 	fn prototype(&self, env: &JsEnv) -> Option<Local<JsValue>> {
-		Some(env.string_prototype.as_value(env))
+		Some(env.handle(JsHandle::String).as_value(env))
 	}
 	
 	fn get_own_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {

@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 
 use ::{JsResult, JsError};
-use rt::{JsEnv, JsArgs, JsValue, JsType, JsFnMode, JsString};
+use rt::{JsEnv, JsArgs, JsValue, JsType, JsFnMode, JsString, JsHandle, JsItem};
 use gc::*;
 use syntax::parser::ParseMode;
 use std::{char, f64};
@@ -118,7 +118,7 @@ pub fn Global_eval(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Lo
 		Ok(arg)
 	} else {
 		let arg = arg.unwrap_string(env).to_string();
-		let global = env.global.as_value(env);
+		let global = env.handle(JsHandle::Global).as_value(env);
 		let global_scope = env.global_scope.as_local(env);
 		
 		env.eval_scoped(&arg, mode.strict(), global, global_scope, ParseMode::Eval).map(|result| result.as_local(env))

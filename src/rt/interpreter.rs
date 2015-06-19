@@ -1,5 +1,5 @@
 use rt::{JsEnv, JsValue, JsString, JsItem, JsIterator, JsScope, JsType, JsArgs};
-use rt::{JsDescriptor, JsPreferredType, JsFnMode};
+use rt::{JsDescriptor, JsPreferredType, JsFnMode, JsHandle};
 use gc::*;
 use ::{JsResult, JsError};
 use ir::IrFunction;
@@ -699,7 +699,7 @@ impl<'a> Frame<'a> {
 			Ir::LoadGlobal(name) => {
 				let _scope = self.env.new_local_scope();
 				
-				let global = self.env.global.as_value(self.env);
+				let global = self.env.handle(JsHandle::Global).as_value(self.env);
 				
 				if !global.has_property(self.env, name) {
 					return Next::Throw(JsError::new_reference(self.env));
@@ -712,7 +712,7 @@ impl<'a> Frame<'a> {
 			Ir::LoadGlobalObject => {
 				let _scope = self.env.new_local_scope();
 				
-				let global = self.env.global.as_value(self.env);
+				let global = self.env.handle(JsHandle::Global).as_value(self.env);
 				
 				self.env.stack.push(*global);
 			}
@@ -1001,7 +1001,7 @@ impl<'a> Frame<'a> {
 				
 				let frame = self.env.stack.create_frame(1);
 				let value = frame.get(&self.env, 0);
-				let mut global = self.env.global.as_value(self.env);
+				let mut global = self.env.handle(JsHandle::Global).as_value(self.env);
 				
 				if self.strict && !global.has_property(self.env, name) {
 					return Next::Throw(JsError::new_reference(self.env));
@@ -1221,7 +1221,7 @@ impl<'a> Frame<'a> {
 		if must_exist {
 			Err(JsError::new_reference(self.env))
 		} else {
-			Ok(self.env.global.as_value(self.env))
+			Ok(self.env.handle(JsHandle::Global).as_value(self.env))
 		}
 	}
 	
@@ -1244,7 +1244,7 @@ impl<'a> Frame<'a> {
 		if eval {
 			let function = args.function(self.env);
 			if function.ty() == JsType::Object {
-				let global = self.env.global.as_local(self.env);
+				let global = self.env.handle(JsHandle::Global);
 				if let Ok(eval) = global.get(&mut self.env, name::EVAL) {
 					is_eval = function == eval;
 				}

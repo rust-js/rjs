@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 
 use ::{JsResult, JsError};
-use rt::{JsEnv, JsString, JsFnMode, JsArgs, JsValue, JsItem, JsFunction, JsType};
+use rt::{JsEnv, JsString, JsFnMode, JsArgs, JsValue, JsItem, JsFunction, JsType, JsHandle};
 use rt::{JsScope, JsDescriptor, JsObject};
 use syntax::ast::FunctionRef;
 use syntax::parser::ParseMode;
@@ -185,7 +185,7 @@ pub fn Function_bind(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
 			}
 		}
 		
-		let function_prototype = env.function_prototype.as_local(env);
+		let function_prototype = env.handle(JsHandle::Function);
 		let mut result = JsObject::new_function(env, JsFunction::Bound, function_prototype, true);
 		
 		let length = if this_arg.class(env) == Some(name::FUNCTION_CLASS) {

@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
-use rt::{JsEnv, JsObject, JsFunction, JsFn, JsFnRef, JsValue, JsDescriptor, JsItem, JsStoreType, JsScope};
+use rt::{JsEnv, JsObject, JsFunction, JsFn, JsFnRef, JsValue, JsDescriptor, JsItem};
+use rt::{JsStoreType, JsScope, JsString, JsHandle};
 use ::JsResult;
 use syntax::Name;
 use syntax::token::name;
@@ -18,6 +19,7 @@ use self::boolean::*;
 use self::regexp::*;
 use self::math::*;
 use self::console::*;
+use self::error::*;
 
 mod global;
 mod object;
@@ -30,6 +32,7 @@ mod boolean;
 mod regexp;
 mod math;
 mod console;
+mod error;
 
 macro_rules! function {
 	( $target:expr , $name:expr , $function:ident , $arity:expr , $prototype:expr , $env:expr ) => {
@@ -66,22 +69,7 @@ macro_rules! value {
 }
 
 pub fn setup(env: &mut JsEnv) -> JsResult<()> {
-	// Setup the native environment.
-	
 	setup_global(env);
-	
-	// Run setup to initialize the rest. We concatenate the contents of all
-	// files in release mode for performance.
-	
-	if cfg!(ndebug) {
-		let mut js = String::new();
-		
-		js.push_str(include_str!("error.js"));
-		
-		try!(env.eval(&js));
-	} else {
-		try!(env.eval(include_str!("error.js")));
-	}
 	
 	Ok(())
 }
@@ -89,18 +77,19 @@ pub fn setup(env: &mut JsEnv) -> JsResult<()> {
 fn setup_global(env: &mut JsEnv) {
 	let _scope = env.new_local_scope();
 	
-	*env.global = JsObject::new(&env, JsStoreType::Hash);
+	let global = JsObject::new_local(&env, JsStoreType::Hash);
+	env.add_handle(JsHandle::Global, global);
 	
 	env.global_scope = {
-		let global = env.global.as_local(env);
+		let global = env.handle(JsHandle::Global);
 		let global_scope = JsScope::new_local_thick(&env, global, None, true);
 		global_scope.as_root(env)
 	};
 	
-	let mut global = env.global().as_value(env);
+	let mut global = env.handle(JsHandle::Global).as_value(env);
 	
 	let mut object_prototype = JsObject::new_local(&env, JsStoreType::Hash);
-	env.object_prototype = object_prototype.as_root(env);
+	env.add_handle(JsHandle::Object, object_prototype);
 	
 	global.set_prototype(env, Some(object_prototype.as_value(env)));
 	global.set_class(env, Some(name::OBJECT_CLASS));
@@ -118,6 +107,7 @@ fn setup_global(env: &mut JsEnv) {
 	setup_regexp(env, global, function_prototype);
 	setup_json(env, global, function_prototype);
 	setup_console(env, global, function_prototype);
+	setup_error(env, global, function_prototype);
 	
 	// Build global functions
 	
@@ -140,7 +130,7 @@ fn setup_global(env: &mut JsEnv) {
 
 fn setup_function(env: &mut JsEnv, mut global: Local<JsValue>, object_prototype: Local<JsObject>) -> Local<JsObject> {
 	let mut prototype = new_naked_function(env, None, 0, &Function_baseConstructor, object_prototype, false).unwrap_object(env);
-	env.function_prototype = prototype.as_root(env);
+	env.add_handle(JsHandle::Function, prototype);
 	
 	let class = new_naked_function(env, Some(name::FUNCTION_CLASS), 1, &Function_constructor, prototype, true);
 	
@@ -216,7 +206,7 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototy
 	
 	let array_prototype = prototype.as_value(env);
 	// Set the [[Prototype]] value as usual.
-	prototype.set_prototype(env, Some(env.object_prototype.as_value(env)));
+	prototype.set_prototype(env, Some(env.handle(JsHandle::Object).as_value(env)));
 	prototype.set_class(env, Some(name::ARRAY_CLASS));
 	
 	// Create the class as usual.
@@ -252,7 +242,7 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototy
 	function!(prototype, name::REDUCE, Array_reduce, 1, function_prototype, env);
 	function!(prototype, name::REDUCE_RIGHT, Array_reduceRight, 1, function_prototype, env);
 	
-	env.array_prototype = prototype.as_root(env);
+	env.add_handle(JsHandle::Array, prototype);
 	
 	function!(class, name::IS_ARRAY, Array_isArray, 1, function_prototype, env);
 }
@@ -266,7 +256,7 @@ fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 
 	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
 
-	env.string_prototype = prototype.as_root(env);
+	env.add_handle(JsHandle::String, prototype);
 	
 	function!(&mut prototype, name::SUBSTR, String_substr, 1, function_prototype, env);
 	function!(&mut prototype, name::TO_STRING, String_toString, 0, function_prototype, env);
@@ -293,7 +283,7 @@ fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototyp
 
 	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
 	
-	env.date_prototype = prototype.as_root(env);
+	env.add_handle(JsHandle::Date, prototype);
 	
 	function!(&mut prototype, name::TO_STRING, Date_toString, 0, function_prototype, env);
 	function!(&mut prototype, name::TO_DATE_STRING, Date_toDateString, 0, function_prototype, env);
@@ -356,7 +346,7 @@ fn setup_number<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 
 	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
 	
-	env.number_prototype = prototype.as_root(env);
+	env.add_handle(JsHandle::Number, prototype);
 
 	function!(&mut prototype, name::VALUE_OF, Number_valueOf, 0, function_prototype, env);
 	function!(&mut prototype, name::TO_STRING, Number_toString, 0, function_prototype, env);
@@ -370,7 +360,7 @@ fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_proto
 	
 	let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
 	
-	env.boolean_prototype = prototype.as_root(env);
+	env.add_handle(JsHandle::Boolean, prototype);
 	
 	function!(&mut prototype, name::VALUE_OF, Boolean_valueOf, 0, function_prototype, env);
 	function!(&mut prototype, name::TO_STRING, Boolean_toString, 0, function_prototype, env);
@@ -406,7 +396,7 @@ fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	
 	let prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
 	
-	env.regexp_prototype = prototype.as_root(env);
+	env.add_handle(JsHandle::RegExp, prototype);
 }
 
 fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>, _function_prototype: Local<JsObject>) {
@@ -425,6 +415,34 @@ fn setup_console<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_proto
 	property!(global, name::CONSOLE, class.as_value(env), true, false, true, env);
 	
 	function!(class, name::LOG, console_log, 1, function_prototype, env);
+}
+
+fn setup_error<'a>(env: &mut JsEnv, global: Local<JsValue>, function_prototype: Local<JsObject>) {
+	fn register_error(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>, name: Name, handle: JsHandle) {
+		let class = env.new_native_function(Some(name), 1, &Error_constructor, function_prototype);
+		
+		let class_obj = class.unwrap_object(env);
+		env.add_handle(handle, class_obj);
+		
+		property!(global, name, class, true, false, true, env);
+		
+		let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
+		
+		let value = JsString::from_str(env, "").as_value(env);
+		value!(&mut prototype, name::MESSAGE, value, true, false, true, env);
+		let value = JsString::from_str(env, &*env.ir.interner().get(name)).as_value(env);
+		value!(&mut prototype, name::NAME, value, true, false, true, env);
+		function!(&mut prototype, name::TO_STRING, Error_toString, 0, function_prototype, env);
+	}
+	
+	register_error(env, global, function_prototype, name::ERROR_CLASS, JsHandle::Error);
+	register_error(env, global, function_prototype, name::EVAL_ERROR_CLASS, JsHandle::EvalError);
+	register_error(env, global, function_prototype, name::RANGE_ERROR_CLASS, JsHandle::RangeError);
+	register_error(env, global, function_prototype, name::REFERENCE_ERROR_CLASS, JsHandle::ReferenceError);
+	register_error(env, global, function_prototype, name::SYNTAX_ERROR_CLASS, JsHandle::SyntaxError);
+	register_error(env, global, function_prototype, name::TYPE_ERROR_CLASS, JsHandle::TypeError);
+	register_error(env, global, function_prototype, name::URI_ERROR_CLASS, JsHandle::URIError);
+	register_error(env, global, function_prototype, name::NATIVE_ERROR_CLASS, JsHandle::NativeError);
 }
 
 fn new_naked_function<'a>(env: &mut JsEnv, name: Option<Name>, args: u32, function: &JsFn, prototype: Local<JsObject>, can_construct: bool) -> Local<JsValue> {
