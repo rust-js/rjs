@@ -618,6 +618,8 @@ impl<'a> Frame<'a> {
 				}
 			}
 			Ir::JumpFalse(label) => {
+				let _scope = self.env.new_local_scope();
+				
 				let frame = self.env.stack.create_frame(1);
 				let jump = !frame.get(&self.env, 0).to_boolean();
 				self.env.stack.drop_frame(frame);
@@ -627,6 +629,8 @@ impl<'a> Frame<'a> {
 				}
 			}
 			Ir::JumpTrue(label) => {
+				let _scope = self.env.new_local_scope();
+				
 				let frame = self.env.stack.create_frame(1);
 				let jump = frame.get(&self.env, 0).to_boolean();
 				self.env.stack.drop_frame(frame);

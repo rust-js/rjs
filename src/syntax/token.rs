@@ -386,4 +386,5 @@ declare_idents! {
 	( "abs", ABS, 211 );
 	( "decodeURI", DECODE_URI, 212 );
 	( "substring", SUBSTRING, 213 );
+	( "decodeURIComponent", DECODE_URI_COMPONENT, 214 );
 }

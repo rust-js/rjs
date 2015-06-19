@@ -129,6 +129,7 @@ fn setup_global(env: &mut JsEnv) {
 	function!(global, name::IS_FINITE, Global_isFinite, 1, function_prototype, env);
 	function!(global, name::EVAL, Global_eval, 1, function_prototype, env);
 	function!(global, name::DECODE_URI, Global_decodeURI, 1, function_prototype, env);
+	function!(global, name::DECODE_URI_COMPONENT, Global_decodeURIComponent, 1, function_prototype, env);
 	
 	value!(global, name::NAN, env.new_number(f64::NAN), false, false, false, env);
 	value!(global, name::INFINITY, env.new_number(f64::INFINITY), false, false, false, env);

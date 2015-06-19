@@ -129,6 +129,10 @@ pub fn Global_decodeURI(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResu
 	decode(env, mode, args, &DECODE_URI_RESERVED_SET)
 }
 
+pub fn Global_decodeURIComponent(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	decode(env, mode, args, &[])
+}
+
 static DECODE_URI_RESERVED_SET : [char; 11] = [';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '#'];
 	
 fn decode(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, reserved_set: &[char]) -> JsResult<Local<JsValue>> {
