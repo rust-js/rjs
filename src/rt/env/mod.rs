@@ -20,6 +20,7 @@ use self::regexp::*;
 use self::math::*;
 use self::console::*;
 use self::error::*;
+use self::json::*;
 
 mod global;
 mod object;
@@ -33,6 +34,7 @@ mod regexp;
 mod math;
 mod console;
 mod error;
+mod json;
 
 macro_rules! function {
 	( $target:expr , $name:expr , $function:ident , $arity:expr , $prototype:expr , $env:expr ) => {
@@ -400,12 +402,14 @@ fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	env.add_handle(JsHandle::RegExp, prototype);
 }
 
-fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>, _function_prototype: Local<JsObject>) {
+fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
 	let mut class = JsObject::new_local(env, JsStoreType::Hash);
 	
 	class.set_class(env, Some(name::JSON_CLASS));
 	
 	property!(global, name::JSON_CLASS, class.as_value(env), true, false, true, env);
+	
+	function!(class, name::PARSE, JSON_parse, 2, function_prototype, env);
 }
 
 fn setup_console<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {

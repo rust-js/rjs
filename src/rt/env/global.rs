@@ -105,8 +105,11 @@ pub fn Global_isNaN(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
 	Ok(env.new_bool(result))
 }
 
+// 15.1.2.5 isFinite (number)
 pub fn Global_isFinite(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-	unimplemented!();
+	let result = try!(args.arg(env, 0).to_number(env)).is_finite();
+	
+	Ok(env.new_bool(result))
 }
 
 // 15.1.2.1 eval (x)
