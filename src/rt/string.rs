@@ -39,12 +39,19 @@ impl JsString {
 		result
 	}
 	
-	pub fn chars(&self) -> &[u16] {
-		&*self.chars
+	pub fn from_u16(env: &JsEnv, chars: &[u16]) -> Local<JsString> {
+		let result = JsString::new_local(env, chars.len());
+		let mut result_chars = result.chars;
+		
+		for i in 0..chars.len() {
+			result_chars[i] = chars[i];
+		}
+		
+		result
 	}
 	
-	pub fn chars_mut(&mut self) -> &mut [u16] {
-		&mut *self.chars
+	pub fn chars(&self) -> &[u16] {
+		&*self.chars
 	}
 	
 	pub fn concat<'a>(env: &'a JsEnv, lhs: Local<JsString>, rhs: Local<JsString>) -> Local<JsString> {

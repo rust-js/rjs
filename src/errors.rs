@@ -20,3 +20,4 @@ pub static SYNTAX_CANNOT_RESOLVE_PROPERTY : &'static str = "Cannot resolve prope
 pub static TYPE_NOT_CALLABLE : &'static str = "Target must be callable";
 pub static TYPE_PROPERTY_ONLY_HAS_GETTER : &'static str = "Cannot set property because it only has a getter";
 pub static TYPE_NOT_DATE : &'static str = "Object is not a Date";
+pub static TYPE_NOT_COERCIBLE : &'static str = "Value is null or undefined";

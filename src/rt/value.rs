@@ -581,6 +581,15 @@ impl Local<JsValue> {
 			_ => panic!("unexpected type")
 		}
 	}
+	
+	// 9.10 CheckObjectCoercible
+	pub fn check_object_coercible(&self, env: &mut JsEnv) -> JsResult<()> {
+		if self.is_null_or_undefined() {
+			Err(JsError::new_type(env, ::errors::TYPE_NOT_COERCIBLE))
+		} else {
+			Ok(())
+		}
+	}
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]

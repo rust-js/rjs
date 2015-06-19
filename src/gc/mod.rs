@@ -70,6 +70,7 @@ impl LocalScopeData {
 
 pub struct GcOpts {
 	pub initial_heap: usize,
+	pub init_gc: f64,
 	pub slow_growth_factor: f64,
 	pub fast_growth_factor: f64
 }
@@ -78,6 +79,7 @@ impl GcOpts {
 	pub fn default() -> GcOpts {
 		GcOpts {
 			initial_heap: 16 * 1024 * 1024, // 16M
+			init_gc: 0.95_f64,
 			slow_growth_factor: 1.5f64,
 			fast_growth_factor: 3f64
 		}
@@ -197,6 +199,9 @@ impl GcHeap {
 		}
 		if opts.slow_growth_factor <= 1f64 {
 			panic!("slow_growth_factor must be more than 1");
+		}
+		if opts.init_gc > 1_f64 {
+			panic!("init_gc must be less than or equal to 1");
 		}
 		
 		GcHeap {

@@ -291,7 +291,6 @@ fn run_safe(file: String) {
 			return;
 		}
 	}
-	
 	// There was an error. Enable debugging and retry.
 	
 	rjs::debug::debug_enable(true);

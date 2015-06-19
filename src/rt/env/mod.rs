@@ -128,6 +128,7 @@ fn setup_global(env: &mut JsEnv) {
 	function!(global, name::IS_NAN, Global_isNaN, 1, function_prototype, env);
 	function!(global, name::IS_FINITE, Global_isFinite, 1, function_prototype, env);
 	function!(global, name::EVAL, Global_eval, 1, function_prototype, env);
+	function!(global, name::DECODE_URI, Global_decodeURI, 1, function_prototype, env);
 	
 	value!(global, name::NAN, env.new_number(f64::NAN), false, false, false, env);
 	value!(global, name::INFINITY, env.new_number(f64::INFINITY), false, false, false, env);
@@ -273,6 +274,7 @@ fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	function!(&mut prototype, name::CHAR_CODE_AT, String_charCodeAt, 1, function_prototype, env);
 	function!(&mut prototype, name::INDEX_OF, String_indexOf, 1, function_prototype, env);
 	function!(&mut prototype, name::LAST_INDEX_OF, String_lastIndexOf, 1, function_prototype, env);
+	function!(&mut prototype, name::SUBSTRING, String_substring, 2, function_prototype, env);
 }
 
 fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {

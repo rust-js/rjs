@@ -384,4 +384,6 @@ declare_idents! {
 	( "toJSON", TO_JSON, 209 );
 	( "setTime", SET_TIME, 210 );
 	( "abs", ABS, 211 );
+	( "decodeURI", DECODE_URI, 212 );
+	( "substring", SUBSTRING, 213 );
 }

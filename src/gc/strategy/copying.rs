@@ -38,14 +38,15 @@ impl Header {
 
 struct Block {
 	memory: Memory,
-	offset: usize
+	offset: usize,
+	high_mark: usize
 }
 
 impl Block {
 	unsafe fn alloc(&mut self, size: usize) -> ptr_t {
 		let size = size + size_of::<Header>();
 		
-		if self.offset + size > self.memory.size() {
+		if self.offset + size > self.high_mark {
 			return ptr::null_mut();
 		}
 		
@@ -63,7 +64,6 @@ pub struct Copying {
 	opts: GcOpts,
 	from: Block,
 	to: Memory,
-	last_size: usize,
 	last_used: f64,
 	last_failed: usize
 }
@@ -71,23 +71,22 @@ pub struct Copying {
 impl Copying {
 	pub fn new(opts: GcOpts) -> Copying {
 		let memory = Memory::alloc(opts.initial_heap).unwrap();
+		let high_mark = (opts.initial_heap * (opts.init_gc * 100_f64) as usize) / 100;
 		
 		Copying {
 			opts: opts,
 			from: Block {
 				memory: memory,
-				offset: 0
+				offset: 0,
+				high_mark: high_mark
 			},
 			to: Memory::empty(),
-			last_size: 0,
 			last_used: 0f64,
 			last_failed: 0
 		}
 	}
 	
 	unsafe fn copy(&mut self, mut walkers: Vec<Box<GcRootWalker>>, walker: &GcWalker) {
-		let allocated = self.from.offset;
-		
 		// Calculate the new size of the heap. We use the fill factor of the previous
 		// run as a basis and ensure that we have at least enough room to accept the
 		// allocation that failed last (were we not able to reclaim any memory).
@@ -96,30 +95,38 @@ impl Copying {
 		// fill factor times the growth factor. The growth factor is taken from
 		// the configuration. 
 		
-		let growth_factor = if self.last_used > 0.8 {
-			self.opts.fast_growth_factor
-		} else {
-			self.opts.slow_growth_factor
-		};
+		// We need at least enough room to fit the last allocation. If we're not
+		// able to reclaim any memory, the current offset plus the last allocation
+		// need to fit.
+		let mut target_size = max(self.from.memory.size(), self.from.offset + self.last_failed);
+
+		tracegc!("last offset {} last failed {} target size {}", self.from.offset, self.last_failed, target_size);
 		
-		let mut target_size = self.from.offset + self.last_failed;
+		// If we had a fill of more than 50% last time, adjust with the growth factor.
+		// If the growth factor is over 85%, we choose the fast growth factor. Otherwise
+		// the slow one.
+		if self.last_used > 0.5 {
+			let growth_factor = if self.last_used > 0.85 {
+				self.opts.fast_growth_factor
+			} else {
+				self.opts.slow_growth_factor
+			};
+			
+			target_size = (target_size * (growth_factor * 100_f64) as usize) / 100;
+			tracegc!("last used {} over 50% target size {} growth factor {}", self.last_used, target_size, growth_factor);
+		}
+
+		// The minimum is set to the last used size.
+		target_size = max(target_size, (target_size * (self.last_used * 100_f64) as usize) / 100);
+		tracegc!("last used {} target size {}", self.last_used, target_size);
+		
+		// We don't shrink beyond the initial heap size.
+		target_size = max(target_size, self.opts.initial_heap);
+		tracegc!("initial heap {} target_size {}", self.opts.initial_heap, target_size);
 		
 		self.last_failed = 0;
 		
-		if self.last_used > 0f64 {
-			target_size = max((target_size as f64 * self.last_used) as usize, target_size)
-		}
-		
-		if target_size < self.opts.initial_heap {
-			target_size = self.opts.initial_heap;
-		}
-		
-		target_size = (target_size as f64 * growth_factor) as usize;
 		target_size = (target_size + (PAGE_SIZE - 1)) & !(PAGE_SIZE - 1);
-		
-		if target_size < self.last_size {
-			target_size = self.last_size;
-		}
 		
 		// Ensure that the target heap is large enough.
 		
@@ -186,11 +193,12 @@ impl Copying {
 		
 		self.from.offset = forwarder.target as usize - self.to.ptr() as usize;
 		swap(&mut self.from.memory, &mut self.to);
+		self.from.high_mark = (self.from.memory.size() * (self.opts.init_gc * 100_f64) as usize) / 100;
 		
 		// Calculate the current fill rate.
 		
-		self.last_size = self.to.size();
-		self.last_used = self.from.offset as f64 / allocated as f64;
+		self.last_used = self.from.offset as f64 / self.from.memory.size() as f64;
+		tracegc!("from offset {} from size {} last used {}", self.from.offset, self.from.memory.size(), self.last_used);
 	}
 }
 
@@ -272,6 +280,25 @@ impl Strategy for Copying {
 		
 		let elapsed = (time::precise_time_ns() - start) / 1_000_000;
 
-		println!("=== GC === allocated {} used {} ms {}", self.mem_allocated(), self.mem_used(), elapsed);
+		println!("=== GC === allocated {} ({}) used {} ms {}", nice_size(self.from.memory.size()), nice_size(self.mem_allocated()), nice_size(self.mem_used()), elapsed);
+	}
+}
+
+fn nice_size(size: usize) -> String {
+	if size < 1024 {
+		format!("{} B", size)
+	} else {
+		let mut size = size as f64 / 1024_f64;
+		if size < 1024_f64 {
+			format!("{:.1} KB", size)
+		} else {
+			size /= 1024_f64;
+			if size < 1024_f64 {
+				format!("{:.1} MB", size)
+			} else {
+				size /= 1024_f64;
+				format!("{:.1} GB", size)
+			}
+		}
 	}
 }

@@ -81,18 +81,13 @@ pub fn String_substr(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
 
 // 15.5.3.2 String.fromCharCode ( [ char0 [ , char1 [ , … ] ] ] )
 pub fn String_fromCharCode(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let mut result = JsString::new_local(env, args.argc);
+	let mut chars = Vec::new();
 	
-	{
-		let chars = result.chars_mut();
-		
-		for i in 0..args.argc {
-			let c = try!(args.arg(env, i).to_uint16(env));
-			chars[i] = c;
-		}
+	for i in 0..args.argc {
+		chars.push(try!(args.arg(env, i).to_uint16(env)));
 	}
 	
-	Ok(result.as_value(env))
+	Ok(env.new_string(JsString::from_u16(env, &chars)))
 }
 
 // 15.5.4.4 String.prototype.charAt (pos)
@@ -203,4 +198,31 @@ pub fn String_indexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResul
 // 15.5.4.8 String.prototype.lastIndexOf (searchString, position)
 pub fn String_lastIndexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	index_of(env, args, true)
+}
+
+// 15.5.4.15 String.prototype.substring (start, end)
+pub fn String_substring(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let this = args.this(env);
+	try!(this.check_object_coercible(env));
+	
+	let string = try!(this.to_string(env));
+	let len = string.chars().len();
+	
+	let start = try!(args.arg(env, 0).to_integer(env)) as usize;
+	let end = args.arg(env, 1);
+	let end = if end.is_undefined() {
+		len
+	} else {
+		try!(end.to_integer(env)) as usize
+	};
+	
+	let start = min(max(start, 0), len);
+	let end = min(max(end, 0), len);
+	
+	let from = min(start, end);
+	let to = max(start, end);
+	
+	let result = JsString::from_u16(env, &string.chars()[from..to]);
+	
+	Ok(result.as_value(env))
 }

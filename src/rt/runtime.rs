@@ -97,7 +97,21 @@ impl JsEnv {
 		}
 		
 		let function = function.as_ref().unwrap();
+		let frame = args.frame;
 		
+		let result = self.do_call(mode, args, function_obj, function);
+		
+		// If we're throwing an exception, we need to pop the stack here. Otherwise
+		// the stack will have been popped by the callee.
+		
+		if result.is_err() {
+			self.stack.drop_frame(frame);
+		}
+		
+		result
+	}
+	
+	fn do_call(&mut self, mode: JsFnMode, args: JsArgs, function_obj: Local<JsValue>, function: &JsFunction) -> JsResult<()> {
 		match *function {
 			JsFunction::Ir(function_ref) => {
 				let block = try!(self.ir.get_function_ir(function_ref));
@@ -192,12 +206,20 @@ impl JsEnv {
 				target_args.push(args.arg(self, i));
 			}
 			
-			let result = try!(target.construct(self, target_args));
+			let result = target.construct(self, target_args);
+			
+			// Unwind the stack. We only need to push the result if we have one.
+			// If we get an error, we still need to clean up the stack.
 			
 			self.stack.drop_frame(args.frame);
-			self.stack.push(*result);
 			
-			return Ok(());
+			return match result {
+				Ok(result) => {
+					self.stack.push(*result);
+					Ok(())
+				}
+				Err(error) => Err(error)
+			};
 		}
 		
 		let mut obj = JsObject::new_local(self, JsStoreType::Hash);
