@@ -394,4 +394,5 @@ declare_idents! {
 	( "toUpperCase", TO_UPPER_CASE, 219 );
 	( "toLocaleUpperCase", TO_LOCALE_UPPER_CASE, 220 );
 	( "message", MESSAGE, 221 );
+	( "isExtensible", IS_EXTENSIBLE, 222 );
 }

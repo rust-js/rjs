@@ -299,5 +299,9 @@
   "built-ins/encodeURIComponent/S15.1.3.4_A2.4_T1.js": "This takes a very long time. It does however pass",
   "built-ins/encodeURIComponent/S15.1.3.4_A2.4_T2.js": "This takes a very long time. It does however pass",
   "built-ins/encodeURIComponent/S15.1.3.4_A2.5_T1.js": "This takes a very long time. It does however pass",
+  "built-ins/Function/prototype/apply/S15.3.4.3_A16.js": "RegExp has not yet been implemented.",
+  "built-ins/Function/prototype/bind/S15.3.4.5_A16.js": "RegExp has not yet been implemented.",
+  "built-ins/Function/prototype/call/S15.3.4.4_A16.js": "RegExp has not yet been implemented.",
+  "built-ins/Function/prototype/toString/S15.3.4.2_A15.js": "RegExp has not yet been implemented.",
   "": ""
 }

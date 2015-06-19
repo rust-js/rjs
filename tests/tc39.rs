@@ -1,6 +1,7 @@
 extern crate rjs;
 
 use rjs::ir::IrContext;
+use rjs::syntax::parser::ParseMode;
 use std::io::prelude::*;
 use std::fs::File;
 
@@ -13139,7 +13140,7 @@ fn parse(file: &str) {
 	}
 	
 	let mut ctx = IrContext::new();
-	ctx.parse_string(&js, false, false).ok();
+	ctx.parse_string(&js, false, ParseMode::Normal, false).ok();
 	
 	ctx.print_ir(&mut String::new()).ok();
 }

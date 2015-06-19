@@ -1825,6 +1825,7 @@ impl<'a, F> AstVisitor<'a> for FunctionFinder<F>
 #[cfg(test)]
 mod test {
 	use super::*;
+	use syntax::parser::ParseMode;
 
 	#[test]
 	fn test() {
@@ -1852,7 +1853,7 @@ mod test {
 	
 	fn parse(js: &str) -> String {
 		let mut ctx = IrContext::new();
-		ctx.parse_string(js, false, false).ok();
+		ctx.parse_string(js, false, ParseMode::Normal, false).ok();
 		
 		let mut ir = String::new();
 		ctx.print_ir(&mut ir).ok();

@@ -31,8 +31,6 @@ pub fn Function_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> Js
 	if args.argc == 0 {
 		body = JsString::from_str(env, "");
 	} else {
-		body = try!(args.arg(env, args.argc - 1).to_string(env));
-		
 		for i in 0..args.argc - 1 {
 			if i > 0 {
 				source.push_str(", ");
@@ -40,6 +38,8 @@ pub fn Function_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> Js
 			let arg = try!(args.arg(env, i).to_string(env));
 			source.push_str(&arg.to_string());
 		}
+		
+		body = try!(args.arg(env, args.argc - 1).to_string(env));
 	}
 	
 	source.push_str(") { ");
@@ -84,6 +84,11 @@ pub fn Function_apply(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResul
 		let call_args = if call_args.is_null_or_undefined() {
 			Vec::new()
 		} else {
+			match call_args.class(env) {
+				Some(name::ARRAY_CLASS) | Some(name::ARGUMENTS_CLASS) => {},
+				_ => return Err(JsError::new_type(env, ::errors::TYPE_INVALID_ARGUMENTS_ARRAY))
+			}
+			
 			let len = try!(call_args.get(env, name::LENGTH));
 			let len = try!(len.to_uint32(env));
 			let mut result = Vec::new();
@@ -190,11 +195,8 @@ pub fn Function_bind(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
 		
 		let length = if this_arg.class(env) == Some(name::FUNCTION_CLASS) {
 			let length = try!(this_arg.get(env, name::LENGTH)).unwrap_number() as usize;
-			if length > 0 && args.argc > 1 {
-				length - (args.argc - 1)
-			} else {
-				length
-			}
+			let argc = if args.argc > 1 { args.argc - 1 } else { 0 };
+			if argc > length { 0 } else { length - argc }
 		} else {
 			0
 		};

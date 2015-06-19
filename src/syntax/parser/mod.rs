@@ -768,6 +768,228 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr_binary(&mut self) -> JsResult<Expr> {
+		self.parse_expr_logical_or()
+	}
+	
+	fn parse_expr_logical_or(&mut self) -> JsResult<Expr> {
+		let mut expr = try!(self.parse_expr_logical_and());
+		
+		loop {
+			let op = match try!(self.peek()) {
+				Some(Token::Or) => Op::Or,
+				_ => break
+			};
+			
+			try!(self.bump());
+			
+			let right = try!(self.parse_expr_logical_and());
+			
+			expr = Expr::Binary(
+				op,
+				Box::new(expr),
+				Box::new(right)
+			);
+		}
+		
+		Ok(expr)
+	}
+	
+	fn parse_expr_logical_and(&mut self) -> JsResult<Expr> {
+		let mut expr = try!(self.parse_expr_bitwise_or());
+		
+		loop {
+			let op = match try!(self.peek()) {
+				Some(Token::And) => Op::And,
+				_ => break
+			};
+			
+			try!(self.bump());
+			
+			let right = try!(self.parse_expr_bitwise_or());
+			
+			expr = Expr::Binary(
+				op,
+				Box::new(expr),
+				Box::new(right)
+			);
+		}
+		
+		Ok(expr)
+	}
+	
+	fn parse_expr_bitwise_or(&mut self) -> JsResult<Expr> {
+		let mut expr = try!(self.parse_expr_bitwise_xor());
+		
+		loop {
+			let op = match try!(self.peek()) {
+				Some(Token::BitOr) => Op::BitOr,
+				_ => break
+			};
+			
+			try!(self.bump());
+			
+			let right = try!(self.parse_expr_bitwise_xor());
+			
+			expr = Expr::Binary(
+				op,
+				Box::new(expr),
+				Box::new(right)
+			);
+		}
+		
+		Ok(expr)
+	}
+	
+	fn parse_expr_bitwise_xor(&mut self) -> JsResult<Expr> {
+		let mut expr = try!(self.parse_expr_bitwise_and());
+		
+		loop {
+			let op = match try!(self.peek()) {
+				Some(Token::BitXOr) => Op::BitXOr,
+				_ => break
+			};
+			
+			try!(self.bump());
+			
+			let right = try!(self.parse_expr_bitwise_and());
+			
+			expr = Expr::Binary(
+				op,
+				Box::new(expr),
+				Box::new(right)
+			);
+		}
+		
+		Ok(expr)
+	}
+	
+	fn parse_expr_bitwise_and(&mut self) -> JsResult<Expr> {
+		let mut expr = try!(self.parse_expr_equality());
+		
+		loop {
+			let op = match try!(self.peek()) {
+				Some(Token::BitAnd) => Op::BitAnd,
+				_ => break
+			};
+			
+			try!(self.bump());
+			
+			let right = try!(self.parse_expr_equality());
+			
+			expr = Expr::Binary(
+				op,
+				Box::new(expr),
+				Box::new(right)
+			);
+		}
+		
+		Ok(expr)
+	}
+	
+	fn parse_expr_equality(&mut self) -> JsResult<Expr> {
+		let mut expr = try!(self.parse_expr_relational());
+		
+		loop {
+			let op = match try!(self.peek()) {
+				Some(Token::Equals) => Op::Equals,
+				Some(Token::NotEquals) => Op::NotEquals,
+				Some(Token::IdentityEquals) => Op::IdentityEquals,
+				Some(Token::IdentityNotEquals) => Op::IdentityNotEquals,
+				_ => break
+			};
+			
+			try!(self.bump());
+			
+			let right = try!(self.parse_expr_relational());
+			
+			expr = Expr::Binary(
+				op,
+				Box::new(expr),
+				Box::new(right)
+			);
+		}
+		
+		Ok(expr)
+	}
+	
+	fn parse_expr_relational(&mut self) -> JsResult<Expr> {
+		let mut expr = try!(self.parse_expr_shift());
+		
+		loop {
+			let op = match try!(self.peek()) {
+				Some(Token::LessThan) => Op::LessThan,
+				Some(Token::GreaterThan) => Op::GreaterThan,
+				Some(Token::LessThanEquals) => Op::LessThanEquals,
+				Some(Token::GreaterThanEquals) => Op::GreaterThanEquals,
+				Some(Token::Instanceof) => Op::InstanceOf,
+				Some(Token::In) => Op::In,
+				_ => break
+			};
+			
+			try!(self.bump());
+			
+			let right = try!(self.parse_expr_shift());
+			
+			expr = Expr::Binary(
+				op,
+				Box::new(expr),
+				Box::new(right)
+			);
+		}
+		
+		Ok(expr)
+	}
+	
+	fn parse_expr_shift(&mut self) -> JsResult<Expr> {
+		let mut expr = try!(self.parse_expr_additive());
+		
+		loop {
+			let op = match try!(self.peek()) {
+				Some(Token::LeftShiftArithmetic) => Op::LeftShiftArithmetic,
+				Some(Token::RightShiftArithmetic) => Op::RightShiftArithmetic,
+				Some(Token::RightShiftLogical) => Op::RightShiftLogical,
+				_ => break
+			};
+			
+			try!(self.bump());
+			
+			let right = try!(self.parse_expr_additive());
+			
+			expr = Expr::Binary(
+				op,
+				Box::new(expr),
+				Box::new(right)
+			);
+		}
+		
+		Ok(expr)
+	}
+	
+	fn parse_expr_additive(&mut self) -> JsResult<Expr> {
+		let mut expr = try!(self.parse_expr_multiplicative());
+		
+		loop {
+			let op = match try!(self.peek()) {
+				Some(Token::Plus) => Op::Add,
+				Some(Token::Minus) => Op::Subtract,
+				_ => break
+			};
+			
+			try!(self.bump());
+			
+			let right = try!(self.parse_expr_multiplicative());
+			
+			expr = Expr::Binary(
+				op,
+				Box::new(expr),
+				Box::new(right)
+			);
+		}
+		
+		Ok(expr)
+	}
+	
+	fn parse_expr_multiplicative(&mut self) -> JsResult<Expr> {
 		let mut expr = try!(self.parse_expr_cast());
 		
 		loop {
@@ -775,26 +997,6 @@ impl<'a> Parser<'a> {
 				Some(Token::Multiply) => Op::Multiply,
 				Some(Token::Divide) => Op::Divide,
 				Some(Token::Modulus) => Op::Modulus,
-				Some(Token::Plus) => Op::Add,
-				Some(Token::Minus) => Op::Subtract,
-				Some(Token::LeftShiftArithmetic) => Op::LeftShiftArithmetic,
-				Some(Token::RightShiftArithmetic) => Op::RightShiftArithmetic,
-				Some(Token::RightShiftLogical) => Op::RightShiftLogical,
-				Some(Token::LessThan) => Op::LessThan,
-				Some(Token::GreaterThan) => Op::GreaterThan,
-				Some(Token::LessThanEquals) => Op::LessThanEquals,
-				Some(Token::GreaterThanEquals) => Op::GreaterThanEquals,
-				Some(Token::Instanceof) => Op::InstanceOf,
-				Some(Token::In) => Op::In,
-				Some(Token::Equals) => Op::Equals,
-				Some(Token::NotEquals) => Op::NotEquals,
-				Some(Token::IdentityEquals) => Op::IdentityEquals,
-				Some(Token::IdentityNotEquals) => Op::IdentityNotEquals,
-				Some(Token::BitAnd) => Op::BitAnd,
-				Some(Token::BitXOr) => Op::BitXOr,
-				Some(Token::BitOr) => Op::BitOr,
-				Some(Token::And) => Op::And,
-				Some(Token::Or) => Op::Or,
 				_ => break
 			};
 			
@@ -802,29 +1004,11 @@ impl<'a> Parser<'a> {
 			
 			let right = try!(self.parse_expr_cast());
 			
-			let rebalance = if let Expr::Binary(lop, _, _) = expr {
-				lop.precedence() < op.precedence()
-			} else {
-				false
-			};
-			
-			expr = if rebalance {
-				if let Expr::Binary(lop, lleft, lright) = expr {
-					Expr::Binary(
-						lop,
-						lleft,
-						Box::new(Expr::Binary(
-							op,
-							lright,
-							Box::new(right)
-						))
-					)
-				} else {
-					unreachable!();
-				}
-			} else {
-				Expr::Binary(op, Box::new(expr), Box::new(right))
-			};
+			expr = Expr::Binary(
+				op,
+				Box::new(expr),
+				Box::new(right)
+			);
 		}
 		
 		Ok(expr)
@@ -888,14 +1072,14 @@ impl<'a> Parser<'a> {
 			Some(Token::BitNot) => self.parse_expr_unary_pre(Op::BitNot),
 			Some(Token::Not) => self.parse_expr_unary_pre(Op::Not),
 			Some(Token::Identifier(..)) => self.parse_expr_ident(),
-			Some(Token::Literal(..)) => self.parse_expr_literal(),
 			Some(Token::OpenParen) => self.parse_expr_paren(),
 			Some(Token::OpenBracket) => self.parse_expr_array_literal(),
 			Some(Token::OpenBrace) => self.parse_expr_object_literal(),
 			_ => {
-				let message = { format!("Cannot parse expression, got {:?}", self.peek()) };
-				
-				return self.fatal(&message);
+				// Fallback is mandatory literal. Parsing literal switches
+				// to allow regexp mode. If we couldn't parse anything
+				// else, it must be a literal anyway.
+				self.parse_expr_literal()
 			}
 		});
 		
@@ -1054,11 +1238,18 @@ impl<'a> Parser<'a> {
 	}
 	
 	fn parse_expr_literal(&mut self) -> JsResult<Expr> {
-		if let Token::Literal(lit) = try!(self.next()) {
-			return Ok(Expr::Literal(lit));
-		}
+		self.lexer.set_allow_regexp(true);
 		
-		self.fatal("Expected literal")
+		let token = try!(self.next());
+		
+		self.lexer.set_allow_regexp(false);
+		
+		if let Token::Literal(lit) = token {
+			Ok(Expr::Literal(lit))
+		} else {
+			let message = format!("Cannot parse expression, got {:?}", token);
+			self.fatal(&message)
+		}
 	}
 	
 	fn parse_expr_paren(&mut self) -> JsResult<Expr> {

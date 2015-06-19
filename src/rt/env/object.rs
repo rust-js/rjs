@@ -280,3 +280,14 @@ pub fn Object_freeze(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
 		Ok(object)
 	}
 }
+
+// 15.2.3.13 Object.isExtensible ( O )
+pub fn Object_isExtensible(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let arg = args.arg(env, 0);
+	if arg.ty() != JsType::Object {
+		Err(JsError::new_type(env, ::errors::TYPE_INVALID))
+	} else {
+		let result = arg.unwrap_object(env).extensible();
+		Ok(env.new_bool(result))
+	}
+}

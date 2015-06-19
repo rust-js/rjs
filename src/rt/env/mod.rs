@@ -137,7 +137,7 @@ fn setup_function(env: &mut JsEnv, mut global: Local<JsValue>, object_prototype:
 	let mut class_object = class.unwrap_object(env);
 
 	let value = prototype.as_value(env);
-	class_object.define_own_property(env, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, true), false).ok();
+	class_object.define_own_property(env, name::PROTOTYPE, JsDescriptor::new_value(value, false, false, false), false).ok();
 	prototype.define_own_property(env, name::CONSTRUCTOR, JsDescriptor::new_value(class, true, false, true), false).ok();
 	
 	class_object.set_class(env, Some(name::FUNCTION_CLASS));
@@ -178,6 +178,7 @@ fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut
 	function!(class, name::GET_OWN_PROPERTY_DESCRIPTOR, Object_getOwnPropertyDescriptor, 2, function_prototype, env);
 	function!(class, name::GET_OWN_PROPERTY_NAMES, Object_getOwnPropertyNames, 1, function_prototype, env);
 	function!(class, name::FREEZE, Object_freeze, 1, function_prototype, env);
+	function!(class, name::IS_EXTENSIBLE, Object_isExtensible, 1, function_prototype, env);
 }
 
 fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
