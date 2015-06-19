@@ -125,17 +125,21 @@ pub fn Global_eval(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Lo
 	}
 }
 
-pub fn Global_decodeURI(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-	decode(env, mode, args, &DECODE_URI_RESERVED_SET)
+fn is_uri_unescape(c: char) -> bool {
+	match c {
+		'a'...'z' | 'A'...'Z' | '0'...'9' | '-' | '_' | '.' | '!' | '~' | '*' | '\'' | '(' | ')' => true,
+		_ => false
+	}
 }
 
-pub fn Global_decodeURIComponent(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-	decode(env, mode, args, &[])
+fn is_uri_reserved(c: char) -> bool {
+	match c {
+		';' | '/' | '?' | ':' | '@' | '&' | '=' | '+' | '$' | ',' => true,
+		_ => false
+	}
 }
 
-static DECODE_URI_RESERVED_SET : [char; 11] = [';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '#'];
-	
-fn decode(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, reserved_set: &[char]) -> JsResult<Local<JsValue>> {
+fn decode<F: Fn(char) -> bool>(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, is_reserved: F) -> JsResult<Local<JsValue>> {
 	fn parse_hex(env: &mut JsEnv, c: char) -> JsResult<u8> {
 		if c >= '0' && c <= '9' {
 			Ok(((c as u32) - ('0' as u32)) as u8)
@@ -177,7 +181,7 @@ fn decode(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, reserved_set: &[char])
 		if let Some(value) = try!(decode_part(env, chars, i)) {
 			if value <= 127 {
 				let c = value as char;
-				if reserved_set.contains(&c) {
+				if is_reserved(c) {
 					for j in 0..3 {
 						result.push(chars[i + j]);
 					}
@@ -233,7 +237,7 @@ fn decode(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, reserved_set: &[char])
 					Err(..) => return Err(JsError::new_uri(env))
 				};
 				
-				if reserved_set.contains(&c) {
+				if is_reserved(c) {
 					for j in start..i {
 						result.push(chars[j]);
 					}
@@ -259,4 +263,89 @@ fn decode(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, reserved_set: &[char])
 	}
 	
 	Ok(env.new_string(JsString::from_u16(env, &result)))
+}
+
+// 15.1.3 URI Handling Function Properties
+fn encode<F: Fn(char) -> bool>(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, is_reserved: F) -> JsResult<Local<JsValue>> {
+	fn to_hex(octet: u8) -> char {
+		if octet < 10 {
+			(('0' as u8) + octet) as char
+		} else {
+			(('A' as u8) + (octet - 10)) as char
+		}
+	}
+	
+	let string = try!(args.arg(env, 0).to_string(env));
+	let chars = string.chars();
+	let mut result = Vec::new();
+	
+	let len = chars.len();
+	
+	let mut i = 0;
+	
+	while i < len {
+		let value = chars[i];
+		
+		let reserved = match char::from_u32(value as u32) {
+			Some(c) => is_reserved(c),
+			None => false
+		};
+		
+		if reserved {
+			result.push(value);
+		} else {
+			let code_point = if value >= 0xDC00 && value <= 0xDFFF {
+				return Err(JsError::new_uri(env));
+			} else if value < 0xD800 || value > 0xDBFF {
+				value as u32
+			} else {
+				i += 1;
+				if i == len {
+					return Err(JsError::new_uri(env));
+				}
+				
+				let value2 = chars[i];
+				if value2 < 0xDC00 || value2 > 0xDFFF {
+					return Err(JsError::new_uri(env));
+				}
+				
+				((value as u32 - 0xD800) * 0x400 + (value2 as u32 - 0xDC00) + 0x10000)
+			};
+			
+			let c = match char::from_u32(code_point) {
+				Some(c) => c,
+				None => return Err(JsError::new_uri(env))
+			};
+			
+			for octet in c.to_string().into_bytes() {
+				result.push('%' as u16);
+				result.push(to_hex(octet >> 4) as u16);
+				result.push(to_hex(octet & 0xF) as u16);
+			}
+		}
+		
+		i += 1;
+	}
+	
+	Ok(env.new_string(JsString::from_u16(env, &result)))
+}
+
+// 15.1.3.1 decodeURI (encodedURI)
+pub fn Global_decodeURI(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	decode(env, mode, args, |c| is_uri_reserved(c) || c == '#')
+}
+
+// 15.1.3.2 decodeURIComponent (encodedURIComponent)
+pub fn Global_decodeURIComponent(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	decode(env, mode, args, |_| false)
+}
+
+// 15.1.3.3 encodeURI (uri)
+pub fn Global_encodeURI(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	encode(env, mode, args, |c| is_uri_reserved(c) || is_uri_unescape(c) || c == '#')
+}
+
+// 15.1.3.4 encodeURIComponent (uriComponent)
+pub fn Global_encodeURIComponent(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	encode(env, mode, args, |c| is_uri_unescape(c))
 }

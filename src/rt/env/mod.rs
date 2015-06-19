@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use rt::{JsEnv, JsObject, JsFunction, JsFn, JsValue, JsDescriptor, JsItem, JsStoreType, JsScope};
+use rt::{JsEnv, JsObject, JsFunction, JsFn, JsFnRef, JsValue, JsDescriptor, JsItem, JsStoreType, JsScope};
 use ::JsResult;
 use syntax::Name;
 use syntax::token::name;
@@ -130,6 +130,8 @@ fn setup_global(env: &mut JsEnv) {
 	function!(global, name::EVAL, Global_eval, 1, function_prototype, env);
 	function!(global, name::DECODE_URI, Global_decodeURI, 1, function_prototype, env);
 	function!(global, name::DECODE_URI_COMPONENT, Global_decodeURIComponent, 1, function_prototype, env);
+	function!(global, name::ENCODE_URI, Global_encodeURI, 1, function_prototype, env);
+	function!(global, name::ENCODE_URI_COMPONENT, Global_encodeURIComponent, 1, function_prototype, env);
 	
 	value!(global, name::NAN, env.new_number(f64::NAN), false, false, false, env);
 	value!(global, name::INFINITY, env.new_number(f64::INFINITY), false, false, false, env);
@@ -174,8 +176,7 @@ fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut
 	function!(prototype, name::DEFINE_PROPERTY, Object_defineProperty, 1, function_prototype, env);
 	function!(prototype, name::PREVENT_EXTENSIONS, Object_preventExtensions, 1, function_prototype, env);
 	
-	let constructor = &Object_constructor;
-	let class = JsObject::new_function(env, JsFunction::Native(Some(name::OBJECT_CLASS), 1, constructor as *const JsFn, true), function_prototype, false);
+	let class = JsObject::new_function(env, JsFunction::Native(Some(name::OBJECT_CLASS), 1, JsFnRef::new(&Object_constructor), true), function_prototype, false);
 	let mut class = class.as_value(env);
 	
 	property!(global, name::OBJECT_CLASS, class, true, false, true, env);
@@ -219,8 +220,7 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototy
 	prototype.set_class(env, Some(name::ARRAY_CLASS));
 	
 	// Create the class as usual.
-	let constructor = &Array_constructor;
-	let mut class = JsObject::new_function(env, JsFunction::Native(Some(name::ARRAY_CLASS), 1, constructor as *const JsFn, true), function_prototype, false).as_value(env);
+	let mut class = JsObject::new_function(env, JsFunction::Native(Some(name::ARRAY_CLASS), 1, JsFnRef::new(&Array_constructor), true), function_prototype, false).as_value(env);
 	
 	// But set the prototype to our array intance.
 	class.define_own_property(env, name::PROTOTYPE, JsDescriptor::new_value(array_prototype, false, false, false), false).ok();
@@ -276,6 +276,10 @@ fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_protot
 	function!(&mut prototype, name::INDEX_OF, String_indexOf, 1, function_prototype, env);
 	function!(&mut prototype, name::LAST_INDEX_OF, String_lastIndexOf, 1, function_prototype, env);
 	function!(&mut prototype, name::SUBSTRING, String_substring, 2, function_prototype, env);
+	function!(&mut prototype, name::TO_LOWER_CASE, String_toLowerCase, 0, function_prototype, env);
+	function!(&mut prototype, name::TO_LOCALE_LOWER_CASE, String_toLocaleLowerCase, 0, function_prototype, env);
+	function!(&mut prototype, name::TO_UPPER_CASE, String_toUpperCase, 0, function_prototype, env);
+	function!(&mut prototype, name::TO_LOCALE_UPPER_CASE, String_toLocaleUpperCase, 0, function_prototype, env);
 }
 
 fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
@@ -424,5 +428,5 @@ fn setup_console<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_proto
 }
 
 fn new_naked_function<'a>(env: &mut JsEnv, name: Option<Name>, args: u32, function: &JsFn, prototype: Local<JsObject>, can_construct: bool) -> Local<JsValue> {
-	JsObject::new_function(env, JsFunction::Native(name, args, function as *const JsFn, can_construct), prototype, false).as_value(env)
+	JsObject::new_function(env, JsFunction::Native(name, args, JsFnRef::new(function), can_construct), prototype, false).as_value(env)
 }

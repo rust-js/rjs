@@ -387,4 +387,10 @@ declare_idents! {
 	( "decodeURI", DECODE_URI, 212 );
 	( "substring", SUBSTRING, 213 );
 	( "decodeURIComponent", DECODE_URI_COMPONENT, 214 );
+	( "encodeURI", ENCODE_URI, 215 );
+	( "encodeURIComponent", ENCODE_URI_COMPONENT, 216 );
+	( "toLowerCase", TO_LOWER_CASE, 217 );
+	( "toLocaleLowerCase", TO_LOCALE_LOWER_CASE, 218 );
+	( "toUpperCase", TO_UPPER_CASE, 219 );
+	( "toLocaleUpperCase", TO_LOCALE_UPPER_CASE, 220 );
 }

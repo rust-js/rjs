@@ -226,3 +226,35 @@ pub fn String_substring(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRes
 	
 	Ok(result.as_value(env))
 }
+
+// 15.5.4.16 String.prototype.toLowerCase ( )
+pub fn String_toLowerCase(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let this = args.this(env);
+	try!(this.check_object_coercible(env));
+	
+	let string = try!(this.to_string(env)).to_string().to_lowercase();
+	let string = JsString::from_str(env, &string);
+	
+	Ok(string.as_value(env))
+}
+
+// 15.5.4.17 String.prototype.toLocaleLowerCase ( )
+pub fn String_toLocaleLowerCase(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	String_toLowerCase(env, mode, args)
+}
+
+// 15.5.4.18 String.prototype.toUpperCase ( )
+pub fn String_toUpperCase(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let this = args.this(env);
+	try!(this.check_object_coercible(env));
+	
+	let string = try!(this.to_string(env)).to_string().to_uppercase();
+	let string = JsString::from_str(env, &string);
+	
+	Ok(string.as_value(env))
+}
+
+// 15.5.4.19 String.prototype.toLocaleUpperCase ( )
+pub fn String_toLocaleUpperCase(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	String_toUpperCase(env, mode, args)
+}

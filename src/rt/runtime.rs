@@ -150,7 +150,7 @@ impl JsEnv {
 			JsFunction::Native(_, _, ref callback, _) => {
 				let frame = args.frame;
 				
-				let result = try!((*callback as &JsFn)(self, mode, args));
+				let result = try!(callback.call(self, mode, args));
 				
 				self.stack.drop_frame(frame);
 				self.stack.push(*result);

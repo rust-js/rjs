@@ -209,7 +209,7 @@ impl JsEnv {
 	}
 	
 	fn new_native_function<'a>(&mut self, name: Option<Name>, args: u32, function: &JsFn, prototype: Local<JsObject>) -> Local<JsValue> {
-		let mut result = JsObject::new_function(self, JsFunction::Native(name, args, function as *const JsFn, true), prototype, false).as_value(self);
+		let mut result = JsObject::new_function(self, JsFunction::Native(name, args, JsFnRef::new(function), true), prototype, false).as_value(self);
 		
 		let mut proto = self.create_object();
 		let value = proto.as_value(self);
@@ -883,9 +883,24 @@ impl JsArgs {
 
 pub type JsFn = Fn(&mut JsEnv, JsFnMode, JsArgs) -> JsResult<Local<JsValue>>;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct JsFnRef([usize; 2]);
+
+impl JsFnRef {
+	fn new(func: &JsFn) -> JsFnRef {
+		JsFnRef(unsafe { transmute(func) })
+	}
+	
+	fn call(self: &JsFnRef, env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+		let func = unsafe { transmute::<_, &JsFn>(self.0) };
+		
+		func(env, mode, args)
+	}
+}
+
 pub enum JsFunction {
 	Ir(FunctionRef),
-	Native(Option<Name>, u32, *const JsFn, bool),
+	Native(Option<Name>, u32, JsFnRef, bool),
 	Bound
 }
 
