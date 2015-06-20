@@ -327,14 +327,8 @@ impl Local<JsValue> {
 	
 	fn get_number_from_string(&self, env: &JsEnv) -> JsResult<f64> {
 		let value = self.unwrap_string(env).to_string();
-		
-		match &*value {
-			"Infinity" => return Ok(f64::INFINITY),
-			"-Infinity" => return Ok(f64::NEG_INFINITY),
-			_ => {}
-		}
-		
 		let mut reader = StringReader::new("", &value);
+		
 		if let Ok(mut lexer) = Lexer::new(&mut reader, env.ir.interner()) {
 			// Skip over the + or - sign if we have one.
 			
@@ -360,12 +354,20 @@ impl Local<JsValue> {
 			let mut result = None;
 			
 			if let Some(token) = try!(lexer.peek(0)) {
-				if let Token::Literal(lit) = token.token {
-					if let Some(value) = lit.to_number() {
-						result = Some(value);
+				match token.token {
+					Token::Literal(lit) => {
+						if let Some(value) = lit.to_number() {
+							result = Some(value);
+							
+							try!(lexer.next());
+						}
+					}
+					Token::Identifier(name::INFINITY) => {
+						result = Some(f64::INFINITY);
 						
 						try!(lexer.next());
 					}
+					_ => {}
 				}
 			}
 			

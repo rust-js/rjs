@@ -322,5 +322,8 @@
   "built-ins/Math/tan/S15.8.2.18_A7.js": "Floating point parsing in Rust is inaccurate and we're not going to build a floating point parser for this project. See #24557.",
   "built-ins/Number/MAX_VALUE/S15.7.3.2_A1.js": "Floating point parsing in Rust is inaccurate and we're not going to build a floating point parser for this project. See #24557.",
   "built-ins/Number/MIN_VALUE/S15.7.3.3_A1.js": "Floating point parsing in Rust is inaccurate and we're not going to build a floating point parser for this project. See #24557.",
+  "built-ins/Number/prototype/toFixed/S15.7.4.5_A1.4_T01.js": "Floating point formatting in Rust is inaccurate and we're not going to build a floating point formatter for this project. See #24557.",
+  "built-ins/Number/S9.3.1_A11.js": "Floating point parsing in Rust is inaccurate and we're not going to build a floating point parser for this project. See #24557.",
+  "built-ins/Number/S9.3_A4.1_T1.js": "Floating point parsing in Rust is inaccurate and we're not going to build a floating point parser for this project. See #24557.",
   "": ""
 }

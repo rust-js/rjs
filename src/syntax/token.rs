@@ -408,4 +408,6 @@ declare_idents! {
 	( "sqrt", SQRT, 233 );
 	( "tan", TAN, 234 );
 	( "round", ROUND, 235 );
+	( "toExponential", TO_EXPONENTIAL, 236 );
+	( "toPrecision", TO_PRECISION, 237 );
 }

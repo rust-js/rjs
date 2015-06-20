@@ -39,24 +39,32 @@ pub fn Number_valueOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResul
 	}
 }
 
+fn get_number(env: &mut JsEnv, value: Local<JsValue>) -> JsResult<Local<JsValue>> {
+	match value.ty() {
+		JsType::Object => {
+			if value.class(env) != Some(name::NUMBER_CLASS) {
+				return Err(JsError::new_type(env, ::errors::TYPE_INVALID))
+			}
+			Ok(value.unwrap_object(env).value(env))
+		}
+		JsType::Number => Ok(value),
+		_ => return Err(JsError::new_type(env, ::errors::TYPE_INVALID))
+	}
+}
+
 // 15.7.4.2 Number.prototype.toString ( [ radix ] )
 // TODO: This is incomplete.
 pub fn Number_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-	let this = args.this(env);
-	
-	let value = match this.ty() {
-		JsType::Object => {
-			if this.class(env) != Some(name::NUMBER_CLASS) {
-				return Err(JsError::new_type(env, ::errors::TYPE_INVALID))
-			}
-			this.unwrap_object(env).value(env)
-		}
-		JsType::Number => this,
-		_ => return Err(JsError::new_type(env, ::errors::TYPE_INVALID))
-	};
-	
+	let value = args.this(env);
+	let value = try!(get_number(env, value));
 	let value = try!(value.to_string(env));
+	
 	Ok(value.as_value(env))
+}
+
+// 15.7.4.3 Number.prototype.toLocaleString()
+pub fn Number_toLocaleString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	Number_toString(env, mode, args)
 }
 
 // 15.7.4.5 Number.prototype.toFixed (fractionDigits)
@@ -107,4 +115,37 @@ pub fn Number_toFixed(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResul
 		
 		Ok(JsString::from_str(env, &result).as_value(env))
 	}
+}
+
+// 15.7.4.6 Number.prototype.toExponential (fractionDigits)
+pub fn Number_toExponential(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let value = args.this(env);
+	let value = try!(get_number(env, value)).unwrap_number();
+	
+	let result = if value.is_nan() {
+		JsString::from_str(env, "NaN")
+	} else if value == 0f64 {
+		JsString::from_str(env, "0")
+	} else if value.is_infinite() {
+		JsString::from_str(env, if value.is_sign_negative() { "-Infinity" } else { "Infinity" })
+	} else {
+		// TODO: This is very wrong. See 9.8.1 ToString Applied to the Number Type
+		// for the full specifications. A C# implementation can be found at
+		// http://jurassic.codeplex.com/SourceControl/latest#Jurassic/Core/NumberFormatter.cs.
+		
+		let string = format!("{:e}", value);
+		
+		JsString::from_str(env, &string)
+	};
+	
+	Ok(result.as_value(env))
+}
+
+// 15.7.4.7 Number.prototype.toPrecision (precision)
+pub fn Number_toPrecision(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	// TODO: This is very wrong. See 9.8.1 ToString Applied to the Number Type
+	// for the full specifications. A C# implementation can be found at
+	// http://jurassic.codeplex.com/SourceControl/latest#Jurassic/Core/NumberFormatter.cs.
+	
+	Number_toString(env, mode, args)
 }
