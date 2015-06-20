@@ -410,6 +410,7 @@ fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototyp
 	property!(global, name::JSON_CLASS, class.as_value(env), true, false, true, env);
 	
 	function!(class, name::PARSE, JSON_parse, 2, function_prototype, env);
+	function!(class, name::STRINGIFY, JSON_stringify, 3, function_prototype, env);
 }
 
 fn setup_console<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
