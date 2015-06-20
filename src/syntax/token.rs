@@ -396,4 +396,16 @@ declare_idents! {
 	( "message", MESSAGE, 221 );
 	( "isExtensible", IS_EXTENSIBLE, 222 );
 	( "stringify", STRINGIFY, 223 );
+	( "acos", ACOS, 224 );
+	( "asin", ASIN, 225 );
+	( "atan", ATAN, 226 );
+	( "atan2", ATAN2, 227 );
+	( "ceil", CEIL, 228 );
+	( "cos", COS, 229 );
+	( "exp", EXP, 230 );
+	( "random", RANDOM, 231 );
+	( "sin", SIN, 232 );
+	( "sqrt", SQRT, 233 );
+	( "tan", TAN, 234 );
+	( "round", ROUND, 235 );
 }

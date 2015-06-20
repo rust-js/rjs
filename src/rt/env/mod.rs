@@ -372,24 +372,45 @@ fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_proto
 fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
 	let mut class = JsObject::new_local(env, JsStoreType::Hash);
 	
-	value!(class, name::PI, env.new_number(f64::consts::PI), false, false, false, env);
+	// 15.8.1.1 E
 	value!(class, name::E, env.new_number(f64::consts::E), false, false, false, env);
+	// 15.8.1.2 LN10
 	value!(class, name::LN10, env.new_number(f64::consts::LN_10), false, false, false, env);
+	// 15.8.1.3 LN2
 	value!(class, name::LN2, env.new_number(f64::consts::LN_2), false, false, false, env);
+	// 15.8.1.4 LOG2E
 	value!(class, name::LOG2E, env.new_number(f64::consts::LOG2_E), false, false, false, env);
+	// 15.8.1.5 LOG10E
 	value!(class, name::LOG10E, env.new_number(f64::consts::LOG10_E), false, false, false, env);
+	// 15.8.1.6 PI
+	value!(class, name::PI, env.new_number(f64::consts::PI), false, false, false, env);
+	// 15.8.1.7 SQRT1_2
 	value!(class, name::SQRT1_2, env.new_number(f64::consts::FRAC_1_SQRT_2), false, false, false, env);
+	// 15.8.1.8 SQRT2
 	value!(class, name::SQRT2, env.new_number(f64::consts::SQRT_2), false, false, false, env);
 	
 	class.set_class(env, Some(name::MATH_CLASS));
 	
 	property!(global, name::MATH_CLASS, class.as_value(env), true, false, true, env);
 	
-	function!(class, name::POW, Math_pow, 2, function_prototype, env);
-	function!(class, name::FLOOR, Math_floor, 1, function_prototype, env);
-	function!(class, name::MIN, Math_min, 2, function_prototype, env);
-	function!(class, name::MAX, Math_max, 2, function_prototype, env);
 	function!(class, name::ABS, Math_abs, 1, function_prototype, env);
+	function!(class, name::ACOS, Math_acos, 1, function_prototype, env);
+	function!(class, name::ASIN, Math_asin, 1, function_prototype, env);
+	function!(class, name::ATAN, Math_atan, 1, function_prototype, env);
+	function!(class, name::ATAN2, Math_atan2, 2, function_prototype, env);
+	function!(class, name::CEIL, Math_ceil, 1, function_prototype, env);
+	function!(class, name::COS, Math_cos, 1, function_prototype, env);
+	function!(class, name::EXP, Math_exp, 1, function_prototype, env);
+	function!(class, name::FLOOR, Math_floor, 1, function_prototype, env);
+	function!(class, name::LOG, Math_log, 1, function_prototype, env);
+	function!(class, name::MAX, Math_max, 2, function_prototype, env);
+	function!(class, name::MIN, Math_min, 2, function_prototype, env);
+	function!(class, name::POW, Math_pow, 2, function_prototype, env);
+	function!(class, name::RANDOM, Math_random, 0, function_prototype, env);
+	function!(class, name::ROUND, Math_round, 1, function_prototype, env);
+	function!(class, name::SIN, Math_sin, 1, function_prototype, env);
+	function!(class, name::SQRT, Math_sqrt, 1, function_prototype, env);
+	function!(class, name::TAN, Math_tan, 1, function_prototype, env);
 }
 
 fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>, function_prototype: Local<JsObject>) {
