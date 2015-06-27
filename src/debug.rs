@@ -4,7 +4,7 @@ use std::sync::Mutex;
 static mut DEBUG_ENABLED : bool = false;
 
 lazy_static! {
-	static ref DEBUG_OUT : Mutex<RefCell<String>> = Mutex::new(RefCell::new(String::new()));
+    static ref DEBUG_OUT : Mutex<RefCell<String>> = Mutex::new(RefCell::new(String::new()));
 }
 
 #[macro_export]
@@ -20,34 +20,34 @@ macro_rules! debug {
 }
 
 pub fn debug_write(string: &str) {
-	if !unsafe { DEBUG_ENABLED } {
-		return;
-	}
-	
-	let guard = DEBUG_OUT.lock();
-	let lock = guard.unwrap();
-	lock.borrow_mut().push_str(string);
+    if !unsafe { DEBUG_ENABLED } {
+        return;
+    }
+    
+    let guard = DEBUG_OUT.lock();
+    let lock = guard.unwrap();
+    lock.borrow_mut().push_str(string);
 }
 
 pub fn debug_enable(enabled: bool) {
-	unsafe { DEBUG_ENABLED = enabled };
+    unsafe { DEBUG_ENABLED = enabled };
 }
 
 pub fn reset() -> String {
-	let guard = DEBUG_OUT.lock();
-	let lock = guard.unwrap();
-	
-	let mut string = lock.borrow_mut();
-	let result = string.clone();
-	*string = String::new();
-	
-	result
+    let guard = DEBUG_OUT.lock();
+    let lock = guard.unwrap();
+    
+    let mut string = lock.borrow_mut();
+    let result = string.clone();
+    *string = String::new();
+    
+    result
 }
 
 pub fn get_debug() -> String {
-	let guard = DEBUG_OUT.lock();
-	let lock = guard.unwrap();
-	
-	let string = lock.borrow();
-	string.clone()
+    let guard = DEBUG_OUT.lock();
+    let lock = guard.unwrap();
+    
+    let string = lock.borrow();
+    string.clone()
 }

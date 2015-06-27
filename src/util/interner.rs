@@ -95,32 +95,32 @@ impl StrInterner {
     }
     
     fn parse_index(&self, val: &str) -> Option<usize> {
-    	// TODO: Improve. We shouldn't have to create a string again. Instead we
-    	// should parse the val to verify that it will be equal to the index.
-    	if let Ok(index) = u32::from_str(val) {
-    		if val == index.to_string() && index < u32::MAX {
-	    		return Some(index as usize);
-    		}
-    	}
-    	
-    	None
+        // TODO: Improve. We shouldn't have to create a string again. Instead we
+        // should parse the val to verify that it will be equal to the index.
+        if let Ok(index) = u32::from_str(val) {
+            if val == index.to_string() && index < u32::MAX {
+                return Some(index as usize);
+            }
+        }
+        
+        None
     }
 
     pub fn intern(&self, val: &str) -> Name {
-    	if let Some(index) = self.parse_index(val) {
-    		Name::from_index(index)
-    	} else {
-	        let mut map = self.map.borrow_mut();
-	        match map.get(val) {
-	            Some(&idx) => return idx,
-	            None => (),
-	        }
-	
-	        let new_idx = Name::from_name(self.len());
-	        let val = RcStr::new(val);
-	        map.insert(val.clone(), new_idx);
-	        self.vect.borrow_mut().push(val);
-	        new_idx
+        if let Some(index) = self.parse_index(val) {
+            Name::from_index(index)
+        } else {
+            let mut map = self.map.borrow_mut();
+            match map.get(val) {
+                Some(&idx) => return idx,
+                None => (),
+            }
+    
+            let new_idx = Name::from_name(self.len());
+            let val = RcStr::new(val);
+            map.insert(val.clone(), new_idx);
+            self.vect.borrow_mut().push(val);
+            new_idx
         }
     }
 
@@ -142,25 +142,25 @@ impl StrInterner {
     /// Create a gensym with the same name as an existing
     /// entry.
     pub fn gensym_copy(&self, idx : Name) -> Name {
-    	if idx.is_index() {
-    		idx
-    	} else {
-	        let new_idx = Name::from_name(self.len());
-	        // leave out of map to avoid colliding
-	        let mut vect = self.vect.borrow_mut();
-	        let existing = (*vect)[idx.name().unwrap()].clone();
-	        vect.push(existing);
-	        new_idx
+        if idx.is_index() {
+            idx
+        } else {
+            let new_idx = Name::from_name(self.len());
+            // leave out of map to avoid colliding
+            let mut vect = self.vect.borrow_mut();
+            let existing = (*vect)[idx.name().unwrap()].clone();
+            vect.push(existing);
+            new_idx
         }
     }
 
     pub fn get(&self, idx: Name) -> RcStr {
-    	if let Some(index) = idx.index() {
-    		RcStr {
-    			string: Rc::new(index.to_string())
-    		}
-    	} else {
-	        (*self.vect.borrow())[idx.name().unwrap()].clone()
+        if let Some(index) = idx.index() {
+            RcStr {
+                string: Rc::new(index.to_string())
+            }
+        } else {
+            (*self.vect.borrow())[idx.name().unwrap()].clone()
         }
     }
 

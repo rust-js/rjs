@@ -6,11 +6,11 @@ use std::io::prelude::*;
 use std::fs::File;
 
 macro_rules! test {
-	($name:ident, $file:expr) => {
-		#[test] #[allow(non_snake_case)] fn $name() {
-			parse(concat!("tests/tc39/test/", $file));
-		}
-	}
+    ($name:ident, $file:expr) => {
+        #[test] #[allow(non_snake_case)] fn $name() {
+            parse(concat!("tests/tc39/test/", $file));
+        }
+    }
 }
 
 test!(language_arguments_object_10_5_1_s, "language/arguments-object/10.5-1-s.js");
@@ -13132,15 +13132,15 @@ test!(harness_testbuiltinobject_prop_not_writable, "harness/testbuiltinobject-pr
 test!(harness_testbuiltinobject_undefined, "harness/testbuiltinobject-undefined.js");
 
 fn parse(file: &str) {
-	let mut js = String::new();
-	File::open(file).ok().unwrap().read_to_string(&mut js).ok();
+    let mut js = String::new();
+    File::open(file).ok().unwrap().read_to_string(&mut js).ok();
 
-	if js.contains("negative: SyntaxError") || js.contains("negative: ReferenceError") || js.contains("es6id") || js.contains("arrow-function") {
-		return
-	}
-	
-	let mut ctx = IrContext::new();
-	ctx.parse_string(&js, false, ParseMode::Normal, false).ok();
-	
-	ctx.print_ir(&mut String::new()).ok();
+    if js.contains("negative: SyntaxError") || js.contains("negative: ReferenceError") || js.contains("es6id") || js.contains("arrow-function") {
+        return
+    }
+    
+    let mut ctx = IrContext::new();
+    ctx.parse_string(&js, false, ParseMode::Normal, false).ok();
+    
+    ctx.print_ir(&mut String::new()).ok();
 }

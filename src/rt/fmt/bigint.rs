@@ -29,123 +29,123 @@ const WORDS : usize = 39;
 
 /// Represents an arbitrarily large signed integer.
 pub struct BigInt {
-	bits: [u32; WORDS],
-	word_count: u32,
-	sign: i32
+    bits: [u32; WORDS],
+    word_count: u32,
+    sign: i32
 }
 
 impl Clone for BigInt {
-	fn clone(&self) -> BigInt {
-		let mut bits = [0; WORDS];
-		for i in 0..self.bits.len() {
-			bits[i] = self.bits[i];
-		}
-		BigInt {
-			bits: bits,
-			word_count: self.word_count,
-			sign: self.sign
-		}
-	}
+    fn clone(&self) -> BigInt {
+        let mut bits = [0; WORDS];
+        for i in 0..self.bits.len() {
+            bits[i] = self.bits[i];
+        }
+        BigInt {
+            bits: bits,
+            word_count: self.word_count,
+            sign: self.sign
+        }
+    }
 }
 
 impl BigInt {
-	/// Initializes a new instance of the BigInt structure using a 32-bit signed integer
+    /// Initializes a new instance of the BigInt structure using a 32-bit signed integer
     /// value.
     #[inline]
-	pub fn from_i32(value: i32) -> BigInt {
-		let mut bits = [0; WORDS];
-		bits[0] = value.abs() as u32;
-		BigInt {
-			bits: bits,
-			word_count: 1,
-			sign: value.sign()
-		}
-	}
-	
+    pub fn from_i32(value: i32) -> BigInt {
+        let mut bits = [0; WORDS];
+        bits[0] = value.abs() as u32;
+        BigInt {
+            bits: bits,
+            word_count: 1,
+            sign: value.sign()
+        }
+    }
+    
     /// Initializes a new instance of the BigInt structure using a 32-bit unsigned integer
     /// value.
     #[inline]
-	pub fn from_u32(value: u32) -> BigInt {
-		let mut bits = [0; WORDS];
-		bits[0] = value;
-		BigInt {
-			bits: bits,
-			word_count: 1,
-			sign: if value == 0 { 0 } else { 1 }
-		}
-	}
-	
+    pub fn from_u32(value: u32) -> BigInt {
+        let mut bits = [0; WORDS];
+        bits[0] = value;
+        BigInt {
+            bits: bits,
+            word_count: 1,
+            sign: if value == 0 { 0 } else { 1 }
+        }
+    }
+    
     /// Initializes a new instance of the BigInt structure using a 64-bit signed integer
     /// value.
     #[inline]
-	pub fn from_i64(value: i64) -> BigInt {
-		let sign = value.sign();
-		let value = value.abs();
-		let mut bits = [0; WORDS];
-		bits[0] = value as u32;
-		bits[1] = (value >> 32) as u32;
-		let word_count = if bits[1] == 0 { 1 } else { 2 };
-		
-		BigInt {
-			bits: bits,
-			word_count: word_count,
-			sign: sign
-		}
-	}
-	
+    pub fn from_i64(value: i64) -> BigInt {
+        let sign = value.sign();
+        let value = value.abs();
+        let mut bits = [0; WORDS];
+        bits[0] = value as u32;
+        bits[1] = (value >> 32) as u32;
+        let word_count = if bits[1] == 0 { 1 } else { 2 };
+        
+        BigInt {
+            bits: bits,
+            word_count: word_count,
+            sign: sign
+        }
+    }
+    
     /// Initializes a new instance of the BigInt structure using a 64-bit unsigned integer
     /// value.
     #[inline]
-	pub fn from_u64(value: u64) -> BigInt {
-		let mut bits = [0; WORDS];
-		bits[0] = value as u32;
-		bits[1] = (value >> 32) as u32;
-		let word_count = if bits[1] == 0 { 1 } else { 2 };
-		
-		BigInt {
-			bits: bits,
-			word_count: word_count,
-			sign: if value == 0 { 0 } else { 1 }
-		}
-	}
-	
-	/// Gets a value that represents the number zero (0).
-	#[inline]
-	pub fn zero() -> BigInt {
-		Self::from_i32(0)
-	}
-	
-	/// Gets a value that represents the number one (1).
-	#[inline]
-	pub fn one() -> BigInt {
-		Self::from_i32(1)
-	}
-	
-	#[inline]
-	pub fn high_word(&self) -> u32 {
-		self.bits[self.word_count as usize - 1]
-	}
-	
-	#[inline]
-	pub fn bit_count(&self) -> u32 {
-		(32 - count_leading_zero_bits(self.high_word())) + (self.word_count - 1) * 32
-	}
-	
-	/// Adds two BigInt values and returns the result.
-	fn add(left: &BigInt, right: &BigInt) -> BigInt {
+    pub fn from_u64(value: u64) -> BigInt {
+        let mut bits = [0; WORDS];
+        bits[0] = value as u32;
+        bits[1] = (value >> 32) as u32;
+        let word_count = if bits[1] == 0 { 1 } else { 2 };
+        
+        BigInt {
+            bits: bits,
+            word_count: word_count,
+            sign: if value == 0 { 0 } else { 1 }
+        }
+    }
+    
+    /// Gets a value that represents the number zero (0).
+    #[inline]
+    pub fn zero() -> BigInt {
+        Self::from_i32(0)
+    }
+    
+    /// Gets a value that represents the number one (1).
+    #[inline]
+    pub fn one() -> BigInt {
+        Self::from_i32(1)
+    }
+    
+    #[inline]
+    pub fn high_word(&self) -> u32 {
+        self.bits[self.word_count as usize - 1]
+    }
+    
+    #[inline]
+    pub fn bit_count(&self) -> u32 {
+        (32 - count_leading_zero_bits(self.high_word())) + (self.word_count - 1) * 32
+    }
+    
+    /// Adds two BigInt values and returns the result.
+    fn add(left: &BigInt, right: &BigInt) -> BigInt {
         // 0 + right = right
         if left.sign == 0 {
-        	return right.clone();
+            return right.clone();
         }
         
         // left + 0 = left
         if right.sign == 0 {
-        	return left.clone();
+            return left.clone();
         }
 
         // If the signs of the two numbers are different, do a subtract instead.
         if left.sign != right.sign {
-        	return Self::subtract(left, &Self::negate(right.clone()));
+            return Self::subtract(left, &Self::negate(right.clone()));
         }
 
         // From here the sign of both numbers is the same.
@@ -156,47 +156,47 @@ impl BigInt {
         let mut i = 0;
         
         while i < min(left.word_count, right.word_count) as usize {
-        	let temp = left.bits[i] as u64 + right.bits[i] as u64 + borrow;
-        	borrow = temp >> 32;
-        	output_bits[i] = temp as u32;
-        	i += 1;
+            let temp = left.bits[i] as u64 + right.bits[i] as u64 + borrow;
+            borrow = temp >> 32;
+            output_bits[i] = temp as u32;
+            i += 1;
         }
         
         if left.word_count > right.word_count {
-        	while i < left.word_count as usize {
-        		let temp = left.bits[i] as u64 + borrow;
-        		borrow = temp >> 32;
-        		output_bits[i] = temp as u32;
-        		i += 1;
-        	}
+            while i < left.word_count as usize {
+                let temp = left.bits[i] as u64 + borrow;
+                borrow = temp >> 32;
+                output_bits[i] = temp as u32;
+                i += 1;
+            }
         } else if left.word_count < right.word_count {
-        	while i < right.word_count as usize {
-        		let temp = right.bits[i] as u64 + borrow;
-        		borrow = temp >> 32;
-        		output_bits[i] = temp as u32;
-        		i += 1;
-        	}
+            while i < right.word_count as usize {
+                let temp = right.bits[i] as u64 + borrow;
+                borrow = temp >> 32;
+                output_bits[i] = temp as u32;
+                i += 1;
+            }
         }
         
         if borrow != 0 {
-        	output_bits[output_word_count as usize] = borrow as u32;
-        	output_word_count += 1;
+            output_bits[output_word_count as usize] = borrow as u32;
+            output_word_count += 1;
         }
         
         BigInt {
-        	bits: output_bits,
-        	word_count: output_word_count,
-        	sign: left.sign
+            bits: output_bits,
+            word_count: output_word_count,
+            sign: left.sign
         }
     }
     
-	/// Returns the product of two BigInt values.
-	pub fn multiply(left: &BigInt, right: &BigInt) -> BigInt {
+    /// Returns the product of two BigInt values.
+    pub fn multiply(left: &BigInt, right: &BigInt) -> BigInt {
         // Check for special cases.
         if left.word_count == 1 {
             // 0 * right = 0
             if left.bits[0] == 0 {
-            	return Self::zero();
+                return Self::zero();
             }
 
             // 1 * right = right
@@ -209,7 +209,7 @@ impl BigInt {
         if right.word_count == 1 {
             // left * 0 = 0
             if right.bits[0] == 0 {
-            	return Self::zero();
+                return Self::zero();
             }
 
             // left * 1 = left
@@ -223,44 +223,44 @@ impl BigInt {
         let mut output_bits = [0; WORDS];
         
         for i in 0..left.word_count as usize {
-        	let mut carry = 0;
-        	for j in 0..right.word_count as usize {
-        		let temp = (left.bits[i] as u64) * (right.bits[j] as u64) + output_bits[i + j] as u64 + carry;
-        		carry = temp >> 32;
-        		output_bits[i + j] = temp as u32;
+            let mut carry = 0;
+            for j in 0..right.word_count as usize {
+                let temp = (left.bits[i] as u64) * (right.bits[j] as u64) + output_bits[i + j] as u64 + carry;
+                carry = temp >> 32;
+                output_bits[i + j] = temp as u32;
             }
-        	if carry != 0 {
-        		output_word_count = max(output_word_count, i as u32 + right.word_count + 1);
-        		output_bits[i + right.word_count as usize] = carry as u32;
+            if carry != 0 {
+                output_word_count = max(output_word_count, i as u32 + right.word_count + 1);
+                output_bits[i + right.word_count as usize] = carry as u32;
             }
         }
         
         while output_word_count > 1 && output_bits[output_word_count as usize - 1] == 0 {
-        	output_word_count -= 1;
+            output_word_count -= 1;
         }
         
         BigInt {
-        	bits: output_bits,
-        	word_count: output_word_count,
-        	sign: left.sign * right.sign
+            bits: output_bits,
+            word_count: output_word_count,
+            sign: left.sign * right.sign
         }
     }
     
     /// Subtracts one BigInt value from another and returns the result.
-	pub fn subtract<'a>(mut left: &'a BigInt, mut right: &'a BigInt) -> BigInt {
+    pub fn subtract<'a>(mut left: &'a BigInt, mut right: &'a BigInt) -> BigInt {
         // 0 - right = -right
         if left.sign == 0 {
-        	return Self::negate(right.clone());
+            return Self::negate(right.clone());
         }
         
         // left - 0 = left
         if right.sign == 0 {
-        	return Self::negate(left.clone());
+            return Self::negate(left.clone());
         }
 
         // If the signs of the two numbers are different, do an add instead.
         if left.sign != right.sign {
-        	return Self::add(left, &Self::negate(right.clone()));
+            return Self::add(left, &Self::negate(right.clone()));
         }
 
         // From here the sign of both numbers is the same.
@@ -271,62 +271,62 @@ impl BigInt {
         // Arrange it so that Abs(a) > Abs(b).
         let mut swap = false;
         if left.word_count < right.word_count {
-        	swap = true;
+            swap = true;
         } else if left.word_count == right.word_count {
-        	for i in (0..left.word_count as usize).rev() {
-        		if left.bits[i] != right.bits[i] {
-        			if left.bits[i] < right.bits[i] {
-        				swap = true;
-        			}
-        			break;
-        		}
-        	}
+            for i in (0..left.word_count as usize).rev() {
+                if left.bits[i] != right.bits[i] {
+                    if left.bits[i] < right.bits[i] {
+                        swap = true;
+                    }
+                    break;
+                }
+            }
         }
         if swap {
-        	let temp = left;
-        	left = right;
-        	right = temp;
-        	output_sign = -output_sign;
+            let temp = left;
+            left = right;
+            right = temp;
+            output_sign = -output_sign;
         }
         
         let mut i = 0;
         let mut borrow = 0;
         
         while i < right.word_count as usize {
-        	let y = (Wrapping(left.bits[i] as u64) - Wrapping(right.bits[i] as u64) - Wrapping(borrow)).0;
-        	borrow = (y >> 32) & 1;
-        	output_bits[i] = y as u32;
-        	i += 1;
+            let y = (Wrapping(left.bits[i] as u64) - Wrapping(right.bits[i] as u64) - Wrapping(borrow)).0;
+            borrow = (y >> 32) & 1;
+            output_bits[i] = y as u32;
+            i += 1;
         }
         
         while i < left.word_count as usize {
-        	let y = left.bits[i] as u64 - borrow;
-        	borrow = (y >> 32) & 1;
-        	output_bits[i] = y as u32;
-        	i += 1;
+            let y = left.bits[i] as u64 - borrow;
+            borrow = (y >> 32) & 1;
+            output_bits[i] = y as u32;
+            i += 1;
         }
         
         while output_word_count > 1 && output_bits[output_word_count as usize - 1] == 0 {
-        	output_word_count -= 1;
+            output_word_count -= 1;
         }
         
         BigInt {
-        	bits: output_bits,
-        	word_count: output_word_count,
-        	sign: output_sign
+            bits: output_bits,
+            word_count: output_word_count,
+            sign: output_sign
         }
     }
     
     /// Shifts a BigInt value a specified number of bits to the left.
-	pub fn left_shift(value: &BigInt, shift: i32) -> BigInt {
+    pub fn left_shift(value: &BigInt, shift: i32) -> BigInt {
         // Shifting by zero bits does nothing.
         if shift == 0 {
-        	return value.clone();
+            return value.clone();
         }
 
         // Shifting left by a negative number of bits is the same as shifting right.
         if shift < 0 {
-        	return Self::right_shift(value, -shift);
+            return Self::right_shift(value, -shift);
         }
         
         let shift = shift as u32;
@@ -338,32 +338,32 @@ impl BigInt {
         
         let mut carry = 0;
         for i in 0..value.word_count as usize {
-        	let word = value.bits[i];
-        	output_bits[i + word_shift as usize] = (word << bit_shift) | carry;
-        	carry = if bit_shift == 0 { 0 } else { word >> (32 - bit_shift) };
+            let word = value.bits[i];
+            output_bits[i + word_shift as usize] = (word << bit_shift) | carry;
+            carry = if bit_shift == 0 { 0 } else { word >> (32 - bit_shift) };
         }
         if carry != 0 {
-        	output_bits[output_word_count as usize] = carry;
-        	output_word_count += 1;
+            output_bits[output_word_count as usize] = carry;
+            output_word_count += 1;
         }
         
         BigInt {
-        	bits: output_bits,
-        	word_count: output_word_count,
-        	sign: value.sign
+            bits: output_bits,
+            word_count: output_word_count,
+            sign: value.sign
         }
     }
     
     /// Shifts a BigInt value a specified number of bits to the right.
-	pub fn right_shift(value: &BigInt, shift: i32) -> BigInt {
+    pub fn right_shift(value: &BigInt, shift: i32) -> BigInt {
         // Shifting by zero bits does nothing.
         if shift == 0 {
-        	return value.clone();
+            return value.clone();
         }
 
         // Shifting right by a negative number of bits is the same as shifting left.
         if shift < 0 {
-        	return Self::left_shift(value, -shift);
+            return Self::left_shift(value, -shift);
         }
         
         let shift = shift as u32;
@@ -371,7 +371,7 @@ impl BigInt {
         let bit_shift = shift % 32;
         
         if word_shift > value.word_count {
-        	return Self::zero();
+            return Self::zero();
         }
         
         let mut output_word_count = value.word_count - word_shift - 1;
@@ -379,50 +379,50 @@ impl BigInt {
         
         let mut carry = 0;
         for i in ((word_shift as usize)..(value.word_count as usize)).rev() {
-        	let word = value.bits[i];
-        	output_bits[i - word_shift as usize] =
-        		(word >> bit_shift) |
-        		if bit_shift == 0 { 0 } else { carry << (32 - bit_shift) };
-        	carry = word & (((1 as u32) << bit_shift) - 1);
+            let word = value.bits[i];
+            output_bits[i - word_shift as usize] =
+                (word >> bit_shift) |
+                if bit_shift == 0 { 0 } else { carry << (32 - bit_shift) };
+            carry = word & (((1 as u32) << bit_shift) - 1);
         }
         if output_bits[output_word_count as usize] != 0 {
-        	output_word_count += 1;
+            output_word_count += 1;
         }
         
         BigInt {
-        	bits: output_bits,
-        	word_count: output_word_count,
-        	sign: value.sign
+            bits: output_bits,
+            word_count: output_word_count,
+            sign: value.sign
         }
     }
     
     /// Multiply by m and add a.
     pub fn multiply_add(b: &BigInt, m: u32, a: u32) -> BigInt {
-    	assert!(m != 0);
-    	
-    	if b.sign == 0 {
-    		return Self::from_u32(a);
-    	}
-    	
-    	let mut output_word_count = b.word_count;
-    	let mut output_bits = [0; WORDS];
-    	
-    	let mut carry = a as u64;
-    	for i in 0..b.word_count as usize {
-    		let temp = b.bits[i] as u64 * m as u64 + carry;
-    		carry = temp >> 32;
-    		output_bits[i] = temp as u32;
-    	}
-    	if carry != 0 {
-    		output_bits[output_word_count as usize] = carry as u32;
-    		output_word_count += 1;
-    	}
-    	
-    	BigInt {
-    		bits: output_bits,
-    		word_count: output_word_count,
-    		sign: 1
-    	}
+        assert!(m != 0);
+        
+        if b.sign == 0 {
+            return Self::from_u32(a);
+        }
+        
+        let mut output_word_count = b.word_count;
+        let mut output_bits = [0; WORDS];
+        
+        let mut carry = a as u64;
+        for i in 0..b.word_count as usize {
+            let temp = b.bits[i] as u64 * m as u64 + carry;
+            carry = temp >> 32;
+            output_bits[i] = temp as u32;
+        }
+        if carry != 0 {
+            output_bits[output_word_count as usize] = carry as u32;
+            output_word_count += 1;
+        }
+        
+        BigInt {
+            bits: output_bits,
+            word_count: output_word_count,
+            sign: 1
+        }
     }
     
     /*
@@ -461,35 +461,35 @@ impl BigInt {
     /// Returns <c>-1</c> if a &lt; b, <c>0</c> if they are the same, or <c>1</c> if a &gt; b.
     #[inline]
     pub fn compare(a: &BigInt, b: &BigInt) -> i32 {
-    	if a.sign != b.sign {
-    		return if a.sign < b.sign { -1 } else { 1 };
-    	}
-    	if a.sign > 0 {
+        if a.sign != b.sign {
+            return if a.sign < b.sign { -1 } else { 1 };
+        }
+        if a.sign > 0 {
             // Comparison of positive numbers.
             if a.word_count < b.word_count {
-            	return -1;
+                return -1;
             }
             if a.word_count > b.word_count {
-            	return 1;
+                return 1;
             }
             
             for i in (0..a.word_count as usize).rev() {
-            	if a.bits[i] != b.bits[i] {
-            		return if a.bits[i] < b.bits[i] { -1 } else { 1 };
-            	}
+                if a.bits[i] != b.bits[i] {
+                    return if a.bits[i] < b.bits[i] { -1 } else { 1 };
+                }
             }
         } else if a.sign < 0 {
             // Comparison of negative numbers.
             if a.word_count < b.word_count {
-            	return 1;
+                return 1;
             }
             if a.word_count > b.word_count {
-            	return -1;
+                return -1;
             }
             for i in (0..a.word_count as usize).rev() {
-            	if a.bits[i] != b.bits[i] {
-            		return if a.bits[i] < b.bits[i] { 1 } else { -1 };
-        		}
+                if a.bits[i] != b.bits[i] {
+                    return if a.bits[i] < b.bits[i] { 1 } else { -1 };
+                }
             }
         }
             
@@ -499,8 +499,8 @@ impl BigInt {
     /// Negates a specified BigInt value.
     #[inline]
     fn negate(mut value: BigInt) -> BigInt {
-    	value.sign = -value.sign;
-    	value
+        value.sign = -value.sign;
+        value
     }
     
     /*
@@ -523,84 +523,84 @@ impl BigInt {
     */
     /// Modifies the given values so they are suitable for passing to Quorem.
     #[inline]
-	pub fn setup_quorum(divident: &mut BigInt, divisor: &mut BigInt, other: &mut BigInt) {
-		let leading_zero_count = count_leading_zero_bits(divisor.bits[divisor.word_count as usize - 1]);
-		
-		if leading_zero_count < 4 || leading_zero_count > 28 {
-			*divident = Self::left_shift(divident, 8);
-			*divisor = Self::left_shift(divisor, 8);
-			*other = Self::left_shift(other, 8);
+    pub fn setup_quorum(divident: &mut BigInt, divisor: &mut BigInt, other: &mut BigInt) {
+        let leading_zero_count = count_leading_zero_bits(divisor.bits[divisor.word_count as usize - 1]);
+        
+        if leading_zero_count < 4 || leading_zero_count > 28 {
+            *divident = Self::left_shift(divident, 8);
+            *divisor = Self::left_shift(divisor, 8);
+            *other = Self::left_shift(other, 8);
         }
     }
     
     /// Calculates the integer result of dividing <paramref name="dividend"/> by
     /// <paramref name="divisor"/> then sets <paramref name="dividend"/> to the remainder.
-	pub fn quorem(divident: &mut BigInt, divisor: &BigInt) -> u32 {
-		let n = divisor.word_count;
-		assert!(divident.word_count <= n);
-		
-		if divident.word_count < n {
-			return 0;
-		}
-		
-		let mut q = divident.bits[divident.word_count as usize - 1] / (divisor.bits[divisor.word_count as usize - 1] + 1 ); // ensure q <= true quotient
-		
-		if q != 0 {
-			let mut borrow = 0;
-			let mut carry = 0;
-			for i in 0..divisor.word_count as usize {
-				let ys = divisor.bits[i] as u64 * q as u64 + carry;
-				carry = ys >> 32;
-				let y = (Wrapping(divident.bits[i] as u64) - Wrapping(ys & 0xFFFFFFFF) - Wrapping(borrow)).0;
-				borrow = (y >> 32) & 1;
-				divident.bits[i] = y as u32;
-            }
-			
-			while divident.word_count > 1 && divident.bits[divident.word_count as usize - 1] == 0 {
-				divident.word_count -= 1;
-			}
+    pub fn quorem(divident: &mut BigInt, divisor: &BigInt) -> u32 {
+        let n = divisor.word_count;
+        assert!(divident.word_count <= n);
+        
+        if divident.word_count < n {
+            return 0;
         }
-		
-		if Self::compare(divident, divisor) >= 0 {
-            q += 1;
-			let mut borrow = 0;
-			let mut carry = 0;
-            
+        
+        let mut q = divident.bits[divident.word_count as usize - 1] / (divisor.bits[divisor.word_count as usize - 1] + 1 ); // ensure q <= true quotient
+        
+        if q != 0 {
+            let mut borrow = 0;
+            let mut carry = 0;
             for i in 0..divisor.word_count as usize {
-            	let ys = divisor.bits[i] as u64 + carry;
-            	carry = ys >> 32;
-            	let y = (Wrapping(divident.bits[i] as u64) - Wrapping(ys & 0xFFFFFFFF) - Wrapping(borrow)).0;
-            	borrow = (y >> 32) & 1;
-            	divident.bits[i] = y as u32;
+                let ys = divisor.bits[i] as u64 * q as u64 + carry;
+                carry = ys >> 32;
+                let y = (Wrapping(divident.bits[i] as u64) - Wrapping(ys & 0xFFFFFFFF) - Wrapping(borrow)).0;
+                borrow = (y >> 32) & 1;
+                divident.bits[i] = y as u32;
             }
             
             while divident.word_count > 1 && divident.bits[divident.word_count as usize - 1] == 0 {
-				divident.word_count -= 1;
-			}
+                divident.word_count -= 1;
+            }
         }
-		
-		if divident.word_count == 1 && divident.bits[0] == 0 {
-			divident.sign = 0;
-		}
-		
-		q
+        
+        if Self::compare(divident, divisor) >= 0 {
+            q += 1;
+            let mut borrow = 0;
+            let mut carry = 0;
+            
+            for i in 0..divisor.word_count as usize {
+                let ys = divisor.bits[i] as u64 + carry;
+                carry = ys >> 32;
+                let y = (Wrapping(divident.bits[i] as u64) - Wrapping(ys & 0xFFFFFFFF) - Wrapping(borrow)).0;
+                borrow = (y >> 32) & 1;
+                divident.bits[i] = y as u32;
+            }
+            
+            while divident.word_count > 1 && divident.bits[divident.word_count as usize - 1] == 0 {
+                divident.word_count -= 1;
+            }
+        }
+        
+        if divident.word_count == 1 && divident.bits[0] == 0 {
+            divident.sign = 0;
+        }
+        
+        q
     }
     
     /// Decrements the current value of the BigInt object.
-	pub fn in_place_decrement(&mut self) {
-		assert!(self.sign >= 0);
-		
-		let low_word = self.bits[0];
-		if low_word > 1 {
+    pub fn in_place_decrement(&mut self) {
+        assert!(self.sign >= 0);
+        
+        let low_word = self.bits[0];
+        if low_word > 1 {
             // Fast case: subtract from lowest word.
             self.bits[0] -= 1;
         } else if self.word_count == 1 {
             // value = 0 or 1 - requires sign change.
             self.bits[0] -= 1;
             if low_word == 1 {
-            	self.sign = 0;
+                self.sign = 0;
             } else if low_word == 0 {
-            	self.sign = -self.sign
+                self.sign = -self.sign
             }
         } else {
             // Slow case: have to underflow.
@@ -610,22 +610,22 @@ impl BigInt {
                 let carry = self.bits[i] == 0;
                 self.bits[i] = (Wrapping(self.bits[i]) - Wrapping(1)).0;
                 if !carry {
-                	break;
+                    break;
                 }
             }
             if self.bits[self.word_count as usize - 1] == 0 {
-            	self.word_count -= 1;
+                self.word_count -= 1;
             }
         }
     }
-	
-	/// Equivalent to BigInt.Pow but with integer arguments.
-	pub fn pow(radix: u32, exponent: u32) -> BigInt {
-		assert!(radix <= 36);
-		
-		if radix == 10 && (exponent as usize) < INTEGERS_POWER_OF_TEN.len() {
+    
+    /// Equivalent to BigInt.Pow but with integer arguments.
+    pub fn pow(radix: u32, exponent: u32) -> BigInt {
+        assert!(radix <= 36);
+        
+        if radix == 10 && (exponent as usize) < INTEGERS_POWER_OF_TEN.len() {
             // Use a table for quick lookup of powers of 10.
-			return Self::from_u64(INTEGERS_POWER_OF_TEN[exponent as usize]);
+            return Self::from_u64(INTEGERS_POWER_OF_TEN[exponent as usize]);
         } else if radix == 2 {
             // Power of two is easy.
             return Self::left_shift(&Self::one(), exponent as i32);
@@ -633,11 +633,11 @@ impl BigInt {
         
         // Special cases.
         match exponent {
-        	0 => return Self::one(),
-        	1 => return Self::from_u32(radix),
-        	2 => return Self::from_u64(radix as u64 * radix as u64),
-        	3 => return Self::from_u64(radix as u64 * radix as u64 * radix as u64),
-        	_ => {}
+            0 => return Self::one(),
+            1 => return Self::from_u32(radix),
+            2 => return Self::from_u64(radix as u64 * radix as u64),
+            3 => return Self::from_u64(radix as u64 * radix as u64 * radix as u64),
+            _ => {}
         }
 
         // Use recursion to calculate the result.
@@ -647,8 +647,8 @@ impl BigInt {
             let temp = Self::pow(radix, exponent / 2);
             Self::multiply_add(&Self::multiply(&temp, &temp), radix, 0)
         } else {
-        	let temp = Self::pow(radix, exponent / 2);
-        	Self::multiply(&temp, &temp)
+            let temp = Self::pow(radix, exponent / 2);
+            Self::multiply(&temp, &temp)
         }
     }
 
@@ -882,61 +882,61 @@ impl BigInt {
 /// Returns the number of leading zero bits in the given 32-bit integer.
 #[inline]
 fn count_leading_zero_bits(mut value: u32) -> u32 {
-	let mut k = 0;
-	
-	if (value & 0xFFFF0000) == 0 {
-		k = 16;
-		value <<= 16;
-	}
-	if (value & 0xFF000000) == 0 {
-		k += 8;
-		value <<= 8;
-	}
-	if (value & 0xF0000000) == 0 {
-		k += 4;
-		value <<= 4;
-	}
-	if (value & 0xC0000000) == 0 {
-		k += 2;
-		value <<= 2;
-	}
-	if (value & 0x80000000) == 0 {
-		k += 1;
-		if (value & 0x40000000) == 0 {
-			k = 32;
-		}
-	}
-	
-	k
+    let mut k = 0;
+    
+    if (value & 0xFFFF0000) == 0 {
+        k = 16;
+        value <<= 16;
+    }
+    if (value & 0xFF000000) == 0 {
+        k += 8;
+        value <<= 8;
+    }
+    if (value & 0xF0000000) == 0 {
+        k += 4;
+        value <<= 4;
+    }
+    if (value & 0xC0000000) == 0 {
+        k += 2;
+        value <<= 2;
+    }
+    if (value & 0x80000000) == 0 {
+        k += 1;
+        if (value & 0x40000000) == 0 {
+            k = 32;
+        }
+    }
+    
+    k
 }
 
 trait ToSign {
-	#[inline]
-	fn sign(&self) -> i32;
+    #[inline]
+    fn sign(&self) -> i32;
 }
 
 impl ToSign for i32 {
-	#[inline]
-	fn sign(&self) -> i32 {
-		if *self < 0 {
-			-1
-		} else if *self == 0 {
-			0
-		} else {
-			1
-		}
-	}
+    #[inline]
+    fn sign(&self) -> i32 {
+        if *self < 0 {
+            -1
+        } else if *self == 0 {
+            0
+        } else {
+            1
+        }
+    }
 }
 
 impl ToSign for i64 {
-	#[inline]
-	fn sign(&self) -> i32 {
-		if *self < 0 {
-			-1
-		} else if *self == 0 {
-			0
-		} else {
-			1
-		}
-	}
+    #[inline]
+    fn sign(&self) -> i32 {
+        if *self < 0 {
+            -1
+        } else if *self == 0 {
+            0
+        } else {
+            1
+        }
+    }
 }

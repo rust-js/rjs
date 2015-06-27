@@ -40,31 +40,31 @@ const HALF_SHIFT : u32 = 10;
  */
 
 pub fn utf32_to_utf16(source: &[u32], strict: bool) -> Vec<u16> {
-	let mut i = 0;
-	let mut target : Vec<u16> = Vec::new();
-	
-	while i < source.len() {
-		let ch = source[i];
-		i += 1;
-		
-		if ch <= UNI_MAX_BMP { // Target is a character <= 0xFFFF
-			// UTF-16 surrogate values are illegal in UTF-32; 0xffff or 0xfffe are both reserved values
-			
-			if ch >= UNI_SUR_HIGH_START && ch <= UNI_SUR_LOW_END {
-				if strict {
-					panic!("source illegal");
-				} else {
-					target.push(UNI_REPLACEMENT_CHAR as u16);
-				}
-			} else {
-				target.push(ch as u16);
-			}
+    let mut i = 0;
+    let mut target : Vec<u16> = Vec::new();
+    
+    while i < source.len() {
+        let ch = source[i];
+        i += 1;
+        
+        if ch <= UNI_MAX_BMP { // Target is a character <= 0xFFFF
+            // UTF-16 surrogate values are illegal in UTF-32; 0xffff or 0xfffe are both reserved values
+            
+            if ch >= UNI_SUR_HIGH_START && ch <= UNI_SUR_LOW_END {
+                if strict {
+                    panic!("source illegal");
+                } else {
+                    target.push(UNI_REPLACEMENT_CHAR as u16);
+                }
+            } else {
+                target.push(ch as u16);
+            }
         } else if ch > UNI_MAX_LEGAL_UTF32 {
-        	if strict {
-        		panic!("source illegal");
-        	} else {
-        		target.push(UNI_REPLACEMENT_CHAR as u16);
-        	}
+            if strict {
+                panic!("source illegal");
+            } else {
+                target.push(UNI_REPLACEMENT_CHAR as u16);
+            }
         } else {
             // target is a character in range 0xFFFF - 0x10FFFF.
             let ch = ch - HALF_BASE;
@@ -72,6 +72,6 @@ pub fn utf32_to_utf16(source: &[u32], strict: bool) -> Vec<u16> {
             target.push(((ch & HALF_MASK) + UNI_SUR_LOW_START) as u16);
         }
     }
-	
-	target
+    
+    target
 }

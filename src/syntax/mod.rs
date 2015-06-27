@@ -12,85 +12,85 @@ pub mod ast;
 
 #[derive(Copy, Clone)]
 pub struct Span {
-	pub start_line: i32,
-	pub start_col: i32,
-	pub end_line: i32,
-	pub end_col: i32,
-	pub file: Name
+    pub start_line: i32,
+    pub start_col: i32,
+    pub end_line: i32,
+    pub end_col: i32,
+    pub file: Name
 }
 
 impl Span {
-	pub fn new(start_line: i32, start_col: i32, end_line: i32, end_col: i32, file: Name) -> Span {
-		Span {
-			start_line: start_line,
-			start_col: start_col,
-			end_line: end_line,
-			end_col: end_col,
-			file: file
-		}
-	}
-	
-	pub fn from_range(start: Span, end: Span) -> Span {
-		Span {
-			start_line: start.start_line,
-			start_col: start.start_col,
-			end_line: end.end_line,
-			end_col: end.end_col,
-			file: start.file
-		}
-	}
+    pub fn new(start_line: i32, start_col: i32, end_line: i32, end_col: i32, file: Name) -> Span {
+        Span {
+            start_line: start_line,
+            start_col: start_col,
+            end_line: end_line,
+            end_col: end_col,
+            file: file
+        }
+    }
+    
+    pub fn from_range(start: Span, end: Span) -> Span {
+        Span {
+            start_line: start.start_line,
+            start_col: start.start_col,
+            end_line: end.end_line,
+            end_col: end.end_col,
+            file: start.file
+        }
+    }
 }
 
 #[derive(Eq, Ord, PartialEq, PartialOrd, Hash, Clone, Copy, Debug)]
 pub struct Name(i64);
 
 impl Name {
-	pub fn from_name(name: usize) -> Name {
-		assert!(name < i32::MAX as usize);
-		
-		Name(-(name as i64 + 1))
-	}
-	
-	pub fn from_index(index: usize) -> Name {
-		assert!(index < u32::MAX as usize);
-		
-		Name(index as i64)
-	}
-	
-	pub fn as_str<'a>(&'a self, interner: &StrInterner) -> &'a str {
-		unsafe {
-			// FIXME #12938: can't use copy_lifetime since &str isn't a &T
-			::std::mem::transmute::<&str,&str>(&InternedString::new_from_rc_str(interner.get(*self)))
-		}
-	}
-	
-	pub fn is_index(&self) -> bool {
-		self.0 >= 0
-	}
-	
-	pub fn index(&self) -> Option<usize> {
-		if self.is_index() {
-			Some(self.0 as usize)
-		} else {
-			None
-		}
-	}
-	
-	pub fn is_name(&self) -> bool {
-		!self.is_index()
-	}
-	
-	pub fn name(&self) -> Option<usize> {
-		if self.is_name() {
-			Some((-self.0 - 1) as usize)
-		} else {
-			None
-		}
-	}
-	
-	pub fn value(&self) -> i64 {
-		self.0
-	}
+    pub fn from_name(name: usize) -> Name {
+        assert!(name < i32::MAX as usize);
+        
+        Name(-(name as i64 + 1))
+    }
+    
+    pub fn from_index(index: usize) -> Name {
+        assert!(index < u32::MAX as usize);
+        
+        Name(index as i64)
+    }
+    
+    pub fn as_str<'a>(&'a self, interner: &StrInterner) -> &'a str {
+        unsafe {
+            // FIXME #12938: can't use copy_lifetime since &str isn't a &T
+            ::std::mem::transmute::<&str,&str>(&InternedString::new_from_rc_str(interner.get(*self)))
+        }
+    }
+    
+    pub fn is_index(&self) -> bool {
+        self.0 >= 0
+    }
+    
+    pub fn index(&self) -> Option<usize> {
+        if self.is_index() {
+            Some(self.0 as usize)
+        } else {
+            None
+        }
+    }
+    
+    pub fn is_name(&self) -> bool {
+        !self.is_index()
+    }
+    
+    pub fn name(&self) -> Option<usize> {
+        if self.is_name() {
+            Some((-self.0 - 1) as usize)
+        } else {
+            None
+        }
+    }
+    
+    pub fn value(&self) -> i64 {
+        self.0
+    }
 }
 
 #[derive(Clone, PartialEq, Hash, PartialOrd, Eq, Ord)]
