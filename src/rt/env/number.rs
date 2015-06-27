@@ -10,7 +10,7 @@ pub fn Number_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsRe
     let arg = if args.argc > 0 {
         try!(args.arg(env, 0).to_number(env))
     } else {
-        0f64
+        0.0
     };
     
     let arg = env.new_number(arg);
@@ -86,7 +86,7 @@ pub fn Number_toLocaleString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> J
 pub fn Number_toFixed(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let digits = args.arg(env, 0);
     let digits = if digits.is_undefined() {
-        0f64
+        0.0
     } else {
         try!(args.arg(env, 0).to_integer(env))
     };

@@ -212,7 +212,7 @@ impl Runner {
             Err(error) => {
                 print!("{}", debug::reset());
                 
-                let progress = (self.seen as f64 / 13360f64) * 100f64;
+                let progress = (self.seen as f64 / 13360.0) * 100.0;
                 let prefix = format!("[{:.1}%] ", progress);
                 
                 if let Some(string) = error.downcast_ref::<String>() {

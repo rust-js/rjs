@@ -11,7 +11,7 @@ const CHUNK_SIZE : usize = 1 << CHUNK_SHIFT;
 const INITIAL_VALUE_SIZE : usize = 20;
 const INITIAL_CHUNK_COUNT : usize = 10;
 const MAX_ARRAY_SIZE : usize = 1024;
-const MAX_ARRAY_SIZE_FILL_FACTOR : f64 = 0.5f64;
+const MAX_ARRAY_SIZE_FILL_FACTOR : f64 = 0.5;
 
 pub struct SparseArray {
     items: Array<Entry>,

@@ -134,10 +134,10 @@ pub fn Math_pow(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Loca
     let result = if y.is_infinite() {
         let x = x.abs();
         
-        if x > 1_f64 {
-            if y.is_sign_positive() { f64::INFINITY } else { 0_f64 }
-        } else if x < 1_f64 {
-            if y.is_sign_positive() { 0_f64 } else { f64::INFINITY }
+        if x > 1.0 {
+            if y.is_sign_positive() { f64::INFINITY } else { 0.0 }
+        } else if x < 1.0 {
+            if y.is_sign_positive() { 0.0 } else { f64::INFINITY }
         } else {
             f64::NAN
         }
@@ -173,8 +173,8 @@ pub fn Math_round(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Lo
             }
         };
         
-        if result == 0_f64 && arg.is_sign_negative() {
-            -0_f64
+        if result == 0.0 && arg.is_sign_negative() {
+            -0.0
         } else {
             result
         }

@@ -300,7 +300,7 @@ impl Local<JsValue> {
             JsType::Boolean => self.unwrap_bool(),
             JsType::Number => {
                 let value = self.unwrap_number();
-                !(value == 0f64 || value.is_nan())
+                !(value == 0.0 || value.is_nan())
             }
             JsType::String => self.get_ptr::<JsString>().chars().len() > 0,
             JsType::Object => true,
@@ -312,8 +312,8 @@ impl Local<JsValue> {
     pub fn to_number(&self, env: &mut JsEnv) -> JsResult<f64> {
         let result = match self.ty() {
             JsType::Undefined => f64::NAN,
-            JsType::Null => 0f64,
-            JsType::Boolean => if self.unwrap_bool() { 1f64 } else { 0f64 },
+            JsType::Null => 0.0,
+            JsType::Boolean => if self.unwrap_bool() { 1.0 } else { 0.0 },
             JsType::Number => self.unwrap_number(),
             JsType::String => try!(self.get_number_from_string(env)),
             JsType::Object => {
@@ -345,7 +345,7 @@ impl Local<JsValue> {
                 None => {
                     // The empty string results in 0.
                     
-                    return Ok(0f64);
+                    return Ok(0.0);
                 }
                 _ => false
             };
@@ -391,8 +391,8 @@ impl Local<JsValue> {
     pub fn to_integer(&self, env: &mut JsEnv) -> JsResult<f64> {
         let number = try!(self.to_number(env));
         let result = if number.is_nan() {
-            0f64
-        } else if number == 0f64 || number.is_infinite() {
+            0.0
+        } else if number == 0.0 || number.is_infinite() {
             number
         } else {
             number.trunc()
@@ -405,7 +405,7 @@ impl Local<JsValue> {
     // TODO: This does not adhere to the full specs.
     pub fn to_int32(&self, env: &mut JsEnv) -> JsResult<i32> {
         let number = try!(self.to_number(env));
-        let result = if number.is_nan() || number == 0f64 || number.is_infinite() {
+        let result = if number.is_nan() || number == 0.0 || number.is_infinite() {
             0
         } else {
             number as i64 as i32
@@ -502,7 +502,7 @@ impl Local<JsValue> {
     // TODO: This does not adhere to the full specs.
     pub fn to_uint32_exact(&self, env: &mut JsEnv) -> JsResult<Option<u32>> {
         let number = try!(self.to_number(env));
-        let result = if number.is_nan() || number == 0f64 || number.is_infinite() {
+        let result = if number.is_nan() || number == 0.0 || number.is_infinite() {
             0
         } else {
             number as u32
@@ -519,7 +519,7 @@ impl Local<JsValue> {
     // TODO: This does not adhere to the full specs.
     pub fn to_uint16(&self, env: &mut JsEnv) -> JsResult<u16> {
         let number = try!(self.to_number(env));
-        let result = if number.is_nan() || number == 0f64 || number.is_infinite() {
+        let result = if number.is_nan() || number == 0.0 || number.is_infinite() {
             0
         } else {
             number as u16

@@ -205,7 +205,7 @@ impl JsEnv {
     pub fn intern_value(&mut self, value: Local<JsValue>) -> JsResult<Name> {
         if value.ty() == JsType::Number {
             let index = value.unwrap_number();
-            if index >= 0f64 && index <= i32::MAX as f64 && index as i32 as f64 == index {
+            if index >= 0.0 && index <= i32::MAX as f64 && index as i32 as f64 == index {
                 return Ok(Name::from_index(index as usize));
             }
         }

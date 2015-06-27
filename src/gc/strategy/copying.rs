@@ -71,7 +71,7 @@ pub struct Copying {
 impl Copying {
     pub fn new(opts: GcOpts) -> Copying {
         let memory = Memory::alloc(opts.initial_heap).unwrap();
-        let high_mark = (opts.initial_heap * (opts.init_gc * 100_f64) as usize) / 100;
+        let high_mark = (opts.initial_heap * (opts.init_gc * 100.0) as usize) / 100;
         
         Copying {
             opts: opts,
@@ -81,7 +81,7 @@ impl Copying {
                 high_mark: high_mark
             },
             to: Memory::empty(),
-            last_used: 0f64,
+            last_used: 0.0,
             last_failed: 0
         }
     }
@@ -112,12 +112,12 @@ impl Copying {
                 self.opts.slow_growth_factor
             };
             
-            target_size = (target_size * (growth_factor * 100_f64) as usize) / 100;
+            target_size = (target_size * (growth_factor * 100.0) as usize) / 100;
             tracegc!("last used {} over 50% target size {} growth factor {}", self.last_used, target_size, growth_factor);
         }
 
         // The minimum is set to the last used size.
-        target_size = max(target_size, (target_size * (self.last_used * 100_f64) as usize) / 100);
+        target_size = max(target_size, (target_size * (self.last_used * 100.0) as usize) / 100);
         tracegc!("last used {} target size {}", self.last_used, target_size);
         
         // We don't shrink beyond the initial heap size.
@@ -193,7 +193,7 @@ impl Copying {
         
         self.from.offset = forwarder.target as usize - self.to.ptr() as usize;
         swap(&mut self.from.memory, &mut self.to);
-        self.from.high_mark = (self.from.memory.size() * (self.opts.init_gc * 100_f64) as usize) / 100;
+        self.from.high_mark = (self.from.memory.size() * (self.opts.init_gc * 100.0) as usize) / 100;
         
         // Calculate the current fill rate.
         
@@ -288,15 +288,15 @@ fn nice_size(size: usize) -> String {
     if size < 1024 {
         format!("{} B", size)
     } else {
-        let mut size = size as f64 / 1024_f64;
-        if size < 1024_f64 {
+        let mut size = size as f64 / 1024.0;
+        if size < 1024.0 {
             format!("{:.1} KB", size)
         } else {
-            size /= 1024_f64;
-            if size < 1024_f64 {
+            size /= 1024.0;
+            if size < 1024.0 {
                 format!("{:.1} MB", size)
             } else {
-                size /= 1024_f64;
+                size /= 1024.0;
                 format!("{:.1} GB", size)
             }
         }

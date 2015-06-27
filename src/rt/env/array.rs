@@ -226,7 +226,7 @@ pub fn Array_pop(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Loc
     let len = try!(len_val.to_uint32(env));
     
     if len == 0 {
-        let length = env.new_number(0f64);
+        let length = env.new_number(0.0);
         try!(array.put(env, name::LENGTH, length, true));
         
         Ok(env.new_undefined())
@@ -309,7 +309,7 @@ pub fn Array_shift(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<L
     let len = try!(len_val.to_uint32(env)) as usize;
     
     let result = if len == 0 {
-        let length = env.new_number(0f64);
+        let length = env.new_number(0.0);
         try!(array.put(env, name::LENGTH, length, true));
         
         env.new_undefined()
@@ -346,9 +346,9 @@ pub fn Array_slice(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<L
     let len = try!(len_val.to_uint32(env)) as usize;
     
     let relative_start = try!(args.arg(env, 0).to_integer(env));
-    let mut k = if relative_start < 0f64 {
+    let mut k = if relative_start < 0.0 {
         let k = len as f64 + relative_start;
-        if k < 0f64 { 0 } else { k as usize }
+        if k < 0.0 { 0 } else { k as usize }
     } else {
         if relative_start < len as f64 { relative_start as usize } else { len }
     };
@@ -360,9 +360,9 @@ pub fn Array_slice(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<L
         try!(end.to_integer(env))
     };
     
-    let final_ = if relative_end < 0f64 {
+    let final_ = if relative_end < 0.0 {
         let final_ = len as f64 + relative_end;
-        if final_ > 0f64 { final_ as usize } else { 0 }
+        if final_ > 0.0 { final_ as usize } else { 0 }
     } else {
         if relative_end < len as f64 { relative_end as usize } else { len }
     };
@@ -407,7 +407,7 @@ pub fn Array_sort(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Lo
     
     let mut error = None;
     let this = env.new_undefined();
-    let zero = env.new_number(0f64);
+    let zero = env.new_number(0.0);
     
     values.sort_by(|x, y| {
         // Fast escape if we're in error mode.
@@ -486,15 +486,15 @@ pub fn Array_splice(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
     let len = try!(len_val.to_uint32(env)) as usize;
     
     let relative_start = try!(args.arg(env, 0).to_integer(env));
-    let actual_start = if relative_start < 0f64 {
+    let actual_start = if relative_start < 0.0 {
         let actual_start = len as f64 + relative_start;
-        if actual_start < 0f64 { 0 } else { actual_start as usize }
+        if actual_start < 0.0 { 0 } else { actual_start as usize }
     } else {
         if relative_start < len as f64 { relative_start as usize } else { len }
     };
     
     let delete_count = try!(args.arg(env, 1).to_integer(env));
-    let delete_count = if delete_count < 0f64 { 0f64 } else { delete_count };
+    let delete_count = if delete_count < 0.0 { 0.0 } else { delete_count };
     let actual_delete_count = if delete_count < (len - actual_start) as f64 {
         delete_count as usize
     } else {
@@ -612,17 +612,17 @@ pub fn Array_indexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
         let n = if args.argc > 1 {
             try!(args.arg(env, 1).to_integer(env))
         } else {
-            0f64
+            0.0
         };
         
         if n >= len as f64 {
             -1
         } else {
-            let k = if n >= 0f64 {
+            let k = if n >= 0.0 {
                 n as usize
             } else {
                 let k = len as f64 - n.abs();
-                if k < 0f64 { 0 } else { k as usize }
+                if k < 0.0 { 0 } else { k as usize }
             };
             
             for i in k..len {
@@ -657,12 +657,12 @@ pub fn Array_lastIndexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
             (len - 1) as f64
         };
         
-        let mut k = if n >= 0f64 {
+        let mut k = if n >= 0.0 {
             if n > (len - 1) as f64 { len - 1 } else { n as usize }
         } else {
             let n = n.abs();
             if n > len as f64 {
-                return Ok(env.new_number(-1f64));
+                return Ok(env.new_number(-1.0));
             } else {
                 len - n as usize
             }

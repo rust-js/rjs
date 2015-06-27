@@ -19,7 +19,7 @@ impl LitNumber {
                     
                     if sign {
                         if value == 0 {
-                            return Some(LitNumber::Float(-0_f64));
+                            return Some(LitNumber::Float(-0.0));
                         }
                         value = -value;
                     }
@@ -34,7 +34,7 @@ impl LitNumber {
             }
             value.push_str(&*interner.get(name));
             if value == "-0" {
-                return Some(LitNumber::Float(-0_f64));
+                return Some(LitNumber::Float(-0.0));
             }
             
             match i64::from_str_radix(&value, radix) {

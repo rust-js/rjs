@@ -442,7 +442,7 @@ mod tests {
     use super::test::Bencher;
     use std::f64;
     
-    const MIN_VALUE : f64 = 5e-324_f64;
+    const MIN_VALUE : f64 = 5e-324;
     const MAX_VALUE : f64 = f64::MAX;
     
     #[test]

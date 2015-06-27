@@ -79,9 +79,9 @@ impl GcOpts {
     pub fn default() -> GcOpts {
         GcOpts {
             initial_heap: 16 * 1024 * 1024, // 16M
-            init_gc: 0.95_f64,
-            slow_growth_factor: 1.5f64,
-            fast_growth_factor: 3f64
+            init_gc: 0.95,
+            slow_growth_factor: 1.5,
+            fast_growth_factor: 3.0
         }
     }
 }
@@ -194,13 +194,13 @@ pub struct GcHeap {
 
 impl GcHeap {
     pub fn new(walker: Box<GcWalker>, opts: GcOpts) -> GcHeap {
-        if opts.fast_growth_factor <= 1f64 {
+        if opts.fast_growth_factor <= 1.0 {
             panic!("fast_growth_factor must be more than 1");
         }
-        if opts.slow_growth_factor <= 1f64 {
+        if opts.slow_growth_factor <= 1.0 {
             panic!("slow_growth_factor must be more than 1");
         }
-        if opts.init_gc > 1_f64 {
+        if opts.init_gc > 1.0 {
             panic!("init_gc must be less than or equal to 1");
         }
         

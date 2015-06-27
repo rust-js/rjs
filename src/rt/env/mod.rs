@@ -205,7 +205,7 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
     
     let mut prototype = JsObject::new_local(env, JsStoreType::Array);
     
-    let length = env.new_number(0f64);
+    let length = env.new_number(0.0);
     prototype.define_own_property(
         env,
         name::LENGTH,
@@ -346,7 +346,7 @@ fn setup_number<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
     let mut class = env.new_native_function(Some(name::NUMBER_CLASS), 1, &Number_constructor);
     
     value!(class, name::MAX_VALUE, env.new_number(f64::MAX), false, false, false, env);
-    value!(class, name::MIN_VALUE, env.new_number(5e-324_f64), false, false, false, env);
+    value!(class, name::MIN_VALUE, env.new_number(5e-324), false, false, false, env);
     value!(class, name::NAN, env.new_number(f64::NAN), false, false, false, env);
     value!(class, name::NEGATIVE_INFINITY, env.new_number(f64::NEG_INFINITY), false, false, false, env);
     value!(class, name::POSITIVE_INFINITY, env.new_number(f64::INFINITY), false, false, false, env);

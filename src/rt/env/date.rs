@@ -27,13 +27,13 @@ impl TimeZoneInfo {
 
 // 15.9.1.1 Time Values and Time Range
 
-const MS_PER_DAY : f64 = 86_400_000_f64;
-const HOURS_PER_DAY : f64 = 24_f64;
-const MINUTES_PER_HOUR : f64 = 60_f64;
-const SECONDS_PER_MINUTE : f64 = 60_f64;
-const MS_PER_SECOND : f64 = 1000_f64;
-const MS_PER_MINUTE : f64 = 60_000_f64;
-const MS_PER_HOUR : f64 = 3_600_000_f64;
+const MS_PER_DAY : f64 = 86_400_000.0;
+const HOURS_PER_DAY : f64 = 24.0;
+const MINUTES_PER_HOUR : f64 = 60.0;
+const SECONDS_PER_MINUTE : f64 = 60.0;
+const MS_PER_SECOND : f64 = 1000.0;
+const MS_PER_MINUTE : f64 = 60_000.0;
+const MS_PER_HOUR : f64 = 3_600_000.0;
 
 // 15.9.1.2 Day Number and Time within Day
 fn get_day(time: f64) -> f64 {
@@ -52,23 +52,23 @@ fn get_time_within_day(time: f64) -> f64 {
 // = 365 if (y modulo 100) = 0 and (y modulo 400) ≠ 0  
 // = 366 if (y modulo 400) = 0
 fn get_days_in_year(year: f64) -> f64 {
-    if year % 4_f64 != 0_f64 {
-        365_f64
-    } else if year % 100_f64 != 0_f64 {
-        366_f64
-    } else if year % 400_f64 != 0_f64 {
-        365_f64
+    if year % 4.0 != 0.0 {
+        365.0
+    } else if year % 100.0 != 0.0 {
+        366.0
+    } else if year % 400.0 != 0.0 {
+        365.0
     } else {
-        366_f64
+        366.0
     }
 }
 // 
 // DayFromYear(y) = 365 × (y−1970) + floor((y−1969)/4) − floor((y−1901)/100) + floor((y−1601)/400)
 fn get_day_from_year(year: f64) -> f64 {
-    365_f64 * (year - 1970_f64) +
-        ((year - 1969_f64) / 4_f64).floor() -
-        ((year - 1901_f64) / 100_f64).floor() +
-        ((year - 1601_f64) / 400_f64).floor()
+    365.0 * (year - 1970.0) +
+        ((year - 1969.0) / 4.0).floor() -
+        ((year - 1901.0) / 100.0).floor() +
+        ((year - 1601.0) / 400.0).floor()
 }
 
 // YearFromTime(t) = the largest integer y (closest to positive infinity) such that TimeFromYear(y) ≤ t
@@ -85,10 +85,10 @@ fn get_year_from_time(time: f64) -> f64 {
 // InLeapYear(t) = 0 if DaysInYear(YearFromTime(t)) = 365  
 // = 1 if DaysInYear(YearFromTime(t)) = 366
 fn get_in_leap_year(time: f64) -> f64 {
-    if get_days_in_year(get_year_from_time(time)) == 365_f64 {
-        0_f64
+    if get_days_in_year(get_year_from_time(time)) == 365.0 {
+        0.0
     } else {
-        1_f64
+        1.0
     }
 }
 
@@ -110,30 +110,30 @@ fn get_month_from_time(time: f64) -> f64 {
     let day_within_year = get_day_within_year(time);
     let in_leap_year = get_in_leap_year(time);
     
-    if day_within_year < 31_f64 {
-        0_f64
-    } else if day_within_year < 59_f64 + in_leap_year {
-        1_f64
-    } else if day_within_year < 90_f64 + in_leap_year {
-        2_f64
-    } else if day_within_year < 120_f64 + in_leap_year {
-        3_f64
-    } else if day_within_year < 151_f64 + in_leap_year {
-        4_f64
-    } else if day_within_year < 181_f64 + in_leap_year {
-        5_f64
-    } else if day_within_year < 212_f64 + in_leap_year {
-        6_f64
-    } else if day_within_year < 243_f64 + in_leap_year {
-        7_f64
-    } else if day_within_year < 273_f64 + in_leap_year {
-        8_f64
-    } else if day_within_year < 304_f64 + in_leap_year {
-        9_f64
-    } else if day_within_year < 334_f64 + in_leap_year {
-        10_f64
+    if day_within_year < 31.0 {
+        0.0
+    } else if day_within_year < 59.0 + in_leap_year {
+        1.0
+    } else if day_within_year < 90.0 + in_leap_year {
+        2.0
+    } else if day_within_year < 120.0 + in_leap_year {
+        3.0
+    } else if day_within_year < 151.0 + in_leap_year {
+        4.0
+    } else if day_within_year < 181.0 + in_leap_year {
+        5.0
+    } else if day_within_year < 212.0 + in_leap_year {
+        6.0
+    } else if day_within_year < 243.0 + in_leap_year {
+        7.0
+    } else if day_within_year < 273.0 + in_leap_year {
+        8.0
+    } else if day_within_year < 304.0 + in_leap_year {
+        9.0
+    } else if day_within_year < 334.0 + in_leap_year {
+        10.0
     } else {
-        11_f64
+        11.0
     }
 }
 
@@ -161,18 +161,18 @@ fn get_date_from_time(time: f64) -> f64 {
     let in_leap_year = get_in_leap_year(time);
     
     match get_month_from_time(time) {
-        0_f64 => day_within_year + 1_f64,
-        1_f64 => day_within_year - 30_f64,
-        2_f64 => day_within_year - 58_f64 - in_leap_year,
-        3_f64 => day_within_year - 89_f64 - in_leap_year,
-        4_f64 => day_within_year - 119_f64 - in_leap_year,
-        5_f64 => day_within_year - 150_f64 - in_leap_year,
-        6_f64 => day_within_year - 180_f64 - in_leap_year,
-        7_f64 => day_within_year - 211_f64 - in_leap_year,
-        8_f64 => day_within_year - 242_f64 - in_leap_year,
-        9_f64 => day_within_year - 272_f64 - in_leap_year,
-        10_f64 => day_within_year - 303_f64 - in_leap_year,
-        11_f64 => day_within_year - 333_f64 - in_leap_year,
+        0.0 => day_within_year + 1.0,
+        1.0 => day_within_year - 30.0,
+        2.0 => day_within_year - 58.0 - in_leap_year,
+        3.0 => day_within_year - 89.0 - in_leap_year,
+        4.0 => day_within_year - 119.0 - in_leap_year,
+        5.0 => day_within_year - 150.0 - in_leap_year,
+        6.0 => day_within_year - 180.0 - in_leap_year,
+        7.0 => day_within_year - 211.0 - in_leap_year,
+        8.0 => day_within_year - 242.0 - in_leap_year,
+        9.0 => day_within_year - 272.0 - in_leap_year,
+        10.0 => day_within_year - 303.0 - in_leap_year,
+        11.0 => day_within_year - 333.0 - in_leap_year,
         _ => panic!()
     }
 }
@@ -181,7 +181,7 @@ fn get_date_from_time(time: f64) -> f64 {
 
 // WeekDay(t) = (Day(t) + 4) modulo 7
 fn get_week_day(time: f64) -> f64 {
-    (get_day(time) + 4_f64) % 7_f64
+    (get_day(time) + 4.0) % 7.0
 }
 
 // 15.9.1.7 Local Time Zone Adjustment
@@ -198,7 +198,7 @@ fn get_local_tza() -> f64 {
 fn get_daylight_saving_ta(_time: f64) -> f64 {
     match TimeZoneInfo::new().dst {
         true => MS_PER_HOUR,
-        false => 0_f64
+        false => 0.0
     }
 }
 
@@ -220,7 +220,7 @@ fn get_utc(time: f64) -> f64 {
 
 fn positive_mod(value: f64, divisor: f64) -> f64 {
     let result = value % divisor;
-    if result < 0_f64 {
+    if result < 0.0 {
         result + divisor
     } else {
         result
@@ -275,7 +275,7 @@ fn make_day(year: f64, month: f64, date: f64) -> f64 {
             _ => f64::NAN
         };
         
-        get_day(time) + date - 1_f64
+        get_day(time) + date - 1.0
     }
 }
 
@@ -449,16 +449,16 @@ pub fn Date_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResu
 fn time_to_chrono(time: f64) -> Option<DateTime<UTC>> {
     let ms = get_ms_from_time(time);
     
-    if let Some(time) = NaiveDateTime::from_timestamp_opt((time / 1_000_f64) as i64, 0) {
-        DateTime::<UTC>::from_utc(time, UTC).with_nanosecond((ms * 1_000_000_f64) as u32)
+    if let Some(time) = NaiveDateTime::from_timestamp_opt((time / 1_000.0) as i64, 0) {
+        DateTime::<UTC>::from_utc(time, UTC).with_nanosecond((ms * 1_000_000.0) as u32)
     } else {
         None
     }
 }
 
 fn time_from_chrono(date_time: DateTime<UTC>) -> f64 {
-    let timestamp = date_time.naive_utc().timestamp() as f64 * 1_000_f64;
-    timestamp + (date_time.nanosecond() as f64 / 1_000_000_f64).trunc()
+    let timestamp = date_time.naive_utc().timestamp() as f64 * 1_000.0;
+    timestamp + (date_time.nanosecond() as f64 / 1_000_000.0).trunc()
 }
 
 fn get_utc_now() -> f64 {
@@ -468,16 +468,16 @@ fn get_utc_now() -> f64 {
 fn make_date_from_args(env: &mut JsEnv, args: &JsArgs) -> JsResult<f64> {
     let year = try!(args.arg(env, 0).to_number(env));
     let month = try!(args.arg(env, 1).to_number(env));
-    let date = try!(args.map_or(env, 2, Ok(1_f64), |env, p| p.to_number(env)));
-    let hours = try!(args.map_or(env, 3, Ok(0_f64), |env, p| p.to_number(env)));
-    let minutes = try!(args.map_or(env, 4, Ok(0_f64), |env, p| p.to_number(env)));
-    let seconds = try!(args.map_or(env, 5, Ok(0_f64), |env, p| p.to_number(env)));
-    let ms = try!(args.map_or(env, 6, Ok(0_f64), |env, p| p.to_number(env)));
+    let date = try!(args.map_or(env, 2, Ok(1.0), |env, p| p.to_number(env)));
+    let hours = try!(args.map_or(env, 3, Ok(0.0), |env, p| p.to_number(env)));
+    let minutes = try!(args.map_or(env, 4, Ok(0.0), |env, p| p.to_number(env)));
+    let seconds = try!(args.map_or(env, 5, Ok(0.0), |env, p| p.to_number(env)));
+    let ms = try!(args.map_or(env, 6, Ok(0.0), |env, p| p.to_number(env)));
     
     let year = if !year.is_nan() {
         let int_year = year.trunc();
-        if year >= 0_f64 && year <= 99_f64 {
-            1900_f64 + int_year
+        if year >= 0.0 && year <= 99.0 {
+            1900.0 + int_year
         } else {
             year
         }
@@ -1061,7 +1061,7 @@ pub fn Date_getYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
     let time = if time.is_nan() {
         f64::NAN
     } else {
-        get_year_from_time(get_local_time(time)) - 1900_f64
+        get_year_from_time(get_local_time(time)) - 1900.0
     };
     
     Ok(env.new_number(time))
@@ -1077,7 +1077,7 @@ pub fn Date_setYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
         f64::NAN
     } else {
         let year = year.trunc();
-        let year = if year >= 0_f64 && year <= 99_f64 { year + 1900_f64 } else { year };
+        let year = if year >= 0.0 && year <= 99.0 { year + 1900.0 } else { year };
         
         make_date(
             make_day(year, get_month_from_time(time), get_date_from_time(time)),

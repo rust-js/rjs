@@ -18,12 +18,12 @@ trait SignedZero {
 impl SignedZero for f64 {
     #[inline(always)]
     fn is_positive_zero(&self) -> bool {
-        *self == 0f64 && self.is_sign_positive()
+        *self == 0.0 && self.is_sign_positive()
     }
     
     #[inline(always)]
     fn is_negative_zero(&self) -> bool {
-        *self == 0f64 && self.is_sign_negative()
+        *self == 0.0 && self.is_sign_negative()
     }
 }
 
@@ -513,7 +513,7 @@ impl JsEnv {
         // We don't propagate the JsError because this define_own_property
         // will not fail.
         
-        let length = self.new_number(0f64);
+        let length = self.new_number(0.0);
         obj.define_own_property(
             self,
             name::LENGTH,
@@ -613,8 +613,8 @@ impl JsEnv {
     // 11.5.2 Applying the / Operator
     pub fn divide(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
         self.multiplicative(lhs, rhs, |lhs, rhs| {
-            if rhs == 0f64 {
-                if lhs == 0f64 || lhs.is_nan() {
+            if rhs == 0.0 {
+                if lhs == 0.0 || lhs.is_nan() {
                     f64::NAN
                 } else if lhs.is_sign_positive() == rhs.is_sign_positive() {
                     f64::INFINITY

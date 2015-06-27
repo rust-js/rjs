@@ -358,11 +358,11 @@ mod tests {
         let ctx = create_context();
         let mut hash = Hash::new(&ctx.heap, ctx.type_id, 7);
         
-        hash.add(A, JsValue::new_number(1f64));
+        hash.add(A, JsValue::new_number(1.0));
         
         assert_eq!(1, hash.count);
         assert!(hash.get_value(A).is_some());
-        assert_eq!(JsValue::new_number(1f64), hash.get_value(A).unwrap());
+        assert_eq!(JsValue::new_number(1.0), hash.get_value(A).unwrap());
     }
     
     #[test]
@@ -370,14 +370,14 @@ mod tests {
         let ctx = create_context();
         let mut hash = Hash::new(&ctx.heap, ctx.type_id, 7);
         
-        hash.add(A, JsValue::new_number(1f64));
-        hash.add(A1, JsValue::new_number(2f64));
+        hash.add(A, JsValue::new_number(1.0));
+        hash.add(A1, JsValue::new_number(2.0));
         
         assert_eq!(2, hash.count);
         assert!(hash.get_value(A).is_some());
-        assert_eq!(JsValue::new_number(1f64), hash.get_value(A).unwrap());
+        assert_eq!(JsValue::new_number(1.0), hash.get_value(A).unwrap());
         assert!(hash.get_value(A1).is_some());
-        assert_eq!(JsValue::new_number(2f64), hash.get_value(A1).unwrap());
+        assert_eq!(JsValue::new_number(2.0), hash.get_value(A1).unwrap());
     }
     
     #[test]
@@ -405,14 +405,14 @@ mod tests {
         let ctx = create_context();
         let mut hash = Hash::new(&ctx.heap, ctx.type_id, 7);
         
-        hash.add(A, JsValue::new_number(1f64));
-        hash.add(A1, JsValue::new_number(2f64));
+        hash.add(A, JsValue::new_number(1.0));
+        hash.add(A1, JsValue::new_number(2.0));
         
         assert_eq!(2, hash.count);
         assert!(hash.get_value(A).is_some());
-        assert_eq!(JsValue::new_number(1f64), hash.get_value(A).unwrap());
+        assert_eq!(JsValue::new_number(1.0), hash.get_value(A).unwrap());
         assert!(hash.get_value(A1).is_some());
-        assert_eq!(JsValue::new_number(2f64), hash.get_value(A1).unwrap());
+        assert_eq!(JsValue::new_number(2.0), hash.get_value(A1).unwrap());
         
         let removed = hash.remove(A);
         assert!(removed);
@@ -423,7 +423,7 @@ mod tests {
         assert_eq!(1, hash.count);
         assert!(!hash.get_value(A).is_some());
         assert!(hash.get_value(A1).is_some());
-        assert_eq!(JsValue::new_number(2f64), hash.get_value(A1).unwrap());
+        assert_eq!(JsValue::new_number(2.0), hash.get_value(A1).unwrap());
     }
     
     #[test]
@@ -431,17 +431,17 @@ mod tests {
         let ctx = create_context();
         let mut hash = Hash::new(&ctx.heap, ctx.type_id, 7);
         
-        hash.add(A, JsValue::new_number(1f64));
-        hash.add(A1, JsValue::new_number(2f64));
-        hash.add(A2, JsValue::new_number(3f64));
+        hash.add(A, JsValue::new_number(1.0));
+        hash.add(A1, JsValue::new_number(2.0));
+        hash.add(A2, JsValue::new_number(3.0));
         
         assert_eq!(3, hash.count);
         assert!(hash.get_value(A).is_some());
-        assert_eq!(JsValue::new_number(1f64), hash.get_value(A).unwrap());
+        assert_eq!(JsValue::new_number(1.0), hash.get_value(A).unwrap());
         assert!(hash.get_value(A1).is_some());
-        assert_eq!(JsValue::new_number(2f64), hash.get_value(A1).unwrap());
+        assert_eq!(JsValue::new_number(2.0), hash.get_value(A1).unwrap());
         assert!(hash.get_value(A2).is_some());
-        assert_eq!(JsValue::new_number(3f64), hash.get_value(A2).unwrap());
+        assert_eq!(JsValue::new_number(3.0), hash.get_value(A2).unwrap());
         
         let removed = hash.remove(A1);
         assert!(removed);
@@ -451,10 +451,10 @@ mod tests {
         
         assert_eq!(2, hash.count);
         assert!(hash.get_value(A).is_some());
-        assert_eq!(JsValue::new_number(1f64), hash.get_value(A).unwrap());
+        assert_eq!(JsValue::new_number(1.0), hash.get_value(A).unwrap());
         assert!(!hash.get_value(A1).is_some());
         assert!(hash.get_value(A2).is_some());
-        assert_eq!(JsValue::new_number(3f64), hash.get_value(A2).unwrap());
+        assert_eq!(JsValue::new_number(3.0), hash.get_value(A2).unwrap());
     }
     
     #[test]
