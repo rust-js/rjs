@@ -7,8 +7,8 @@ use syntax::token::Lit;
 use syntax::ast::visitor::AstVisitor;
 use self::builder::Ir;
 use util::interner::StrInterner;
-use syntax::token::name;
-use syntax::lexer::Lexer;
+use syntax::token::{LitNumber, name};
+use syntax::lexer::{Lexer, LexerMode};
 use syntax::parser::{Parser, ParseMode};
 use syntax::reader::StringReader;
 use ::{JsResult, JsError};
@@ -16,6 +16,7 @@ use std::rc::Rc;
 use std::fmt::Write;
 use std::io::Read;
 use rt::JsPreferredType;
+use std::i32;
 
 #[derive(Copy, Clone)]
 struct NamedLabel {
@@ -92,7 +93,7 @@ impl IrContext {
 		let offset = self.ast.functions.len();
 		
 		let program_ref = {
-			let mut lexer = try!(Lexer::new(reader, &self.interner));
+			let mut lexer = try!(Lexer::new(reader, &self.interner, LexerMode::Normal));
 			
 			if strict && mode != ParseMode::Eval {
 				lexer.set_strict(true);
@@ -1307,9 +1308,19 @@ impl<'a> IrGenerator<'a> {
 				Lit::Null => self.ir.emit(Ir::LoadNull),
 				Lit::Boolean(value) => self.ir.emit(if value { Ir::LoadTrue } else { Ir::LoadFalse }),
 				Lit::String(value, _) => self.ir.emit(Ir::LoadString(value)),
-				Lit::Integer(value) => self.ir.emit(Ir::LoadI32(value)),
-				Lit::Long(value) => self.ir.emit(Ir::LoadI64(value)),
-				Lit::Double(value) => self.ir.emit(Ir::LoadF64(value)),
+				Lit::Number(..) => {
+					match LitNumber::from_lit(&self.ctx.interner, lit, false).unwrap() {
+						LitNumber::Long(value) => {
+							if value >= i32::MIN as i64 && value <= i32::MAX as i64 {
+								self.ir.emit(Ir::LoadI32(value as i32))
+							} else {
+								self.ir.emit(Ir::LoadI64(value))
+							}
+						}
+						LitNumber::Float(value) => self.ir.emit(Ir::LoadF64(value))
+					}
+					
+				}
 				Lit::Regex(body, flags) => self.ir.emit(Ir::LoadRegex(body, flags))
 			}
 		}

@@ -1,5 +1,61 @@
+extern crate strtod;
+
 use syntax::Span;
 use syntax::Name;
+use util::interner::StrInterner;
+use self::strtod::strtod;
+
+pub enum LitNumber {
+	Float(f64),
+	Long(i64)
+}
+
+impl LitNumber {
+	pub fn from_lit(interner: &StrInterner, lit: &Lit, sign: bool) -> Option<LitNumber> {
+		if let Lit::Number(name, radix) = *lit {
+			if radix == 10 {
+				if let Some(value) = name.index() {
+					let mut value = value as i64;
+					
+					if sign {
+						if value == 0 {
+							return Some(LitNumber::Float(-0_f64));
+						}
+						value = -value;
+					}
+					
+					return Some(LitNumber::Long(value));
+				}
+			}
+			
+			let mut value = String::new();
+			if sign {
+				value.push('-');
+			}
+			value.push_str(&*interner.get(name));
+			if value == "-0" {
+				return Some(LitNumber::Float(-0_f64));
+			}
+			
+			match i64::from_str_radix(&value, radix) {
+				Ok(value) => Some(LitNumber::Long(value)),
+				_ => {
+					if radix == 10 {
+						if let Some(value) = strtod(&value) {
+							Some(LitNumber::Float(value))
+						} else {
+							None
+						}
+					} else {
+						None
+					}
+				}
+			}
+		} else {
+			None
+		}
+	}
+}
 
 #[derive(Copy, Clone)]
 pub struct TokenAndSpan {
@@ -130,21 +186,8 @@ pub enum Lit {
 	Null,
 	Boolean(bool),
 	String(Name, bool),
-	Integer(i32),
-	Long(i64),
-	Double(f64),
+	Number(Name, u32),
 	Regex(Name, Name)
-}
-
-impl Lit {
-	pub fn to_number(&self) -> Option<f64> {
-		match *self {
-			Lit::Null | Lit::Boolean(..) | Lit::String(..) | Lit::Regex(..) => None,
-			Lit::Integer(value) => Some(value as f64),
-			Lit::Long(value) => Some(value as f64),
-			Lit::Double(value) => Some(value)
-		}
-	}
 }
 
 macro_rules! declare_idents {(
@@ -410,4 +453,6 @@ declare_idents! {
 	( "round", ROUND, 235 );
 	( "toExponential", TO_EXPONENTIAL, 236 );
 	( "toPrecision", TO_PRECISION, 237 );
+	( "-0", MINUS_ZERO, 238 );
+	( "EPSILON", EPSILON, 239 );
 }

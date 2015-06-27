@@ -37,6 +37,7 @@ mod scope;
 mod walker;
 mod allocators;
 pub mod result;
+pub mod fmt;
 
 const GC_ARRAY_STORE : u32 = 1;
 const GC_ENTRY : u32 = 2;
@@ -213,8 +214,8 @@ impl JsEnv {
 		Ok(self.intern(&index.to_string()))
 	}
 	
-	fn new_native_function<'a>(&mut self, name: Option<Name>, args: u32, function: &JsFn, prototype: Local<JsObject>) -> Local<JsValue> {
-		let mut result = JsObject::new_function(self, JsFunction::Native(name, args, JsFnRef::new(function), true), prototype, false).as_value(self);
+	fn new_native_function<'a>(&mut self, name: Option<Name>, args: u32, function: &JsFn) -> Local<JsValue> {
+		let mut result = JsObject::new_function(self, JsFunction::Native(name, args, JsFnRef::new(function), true), false).as_value(self);
 		
 		let mut proto = self.create_object();
 		let value = proto.as_value(self);

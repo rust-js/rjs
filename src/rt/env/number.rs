@@ -1,5 +1,6 @@
 use ::{JsResult, JsError};
 use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsType, JsString};
+use rt::fmt::*;
 use gc::*;
 use syntax::token::name;
 
@@ -56,10 +57,22 @@ fn get_number(env: &mut JsEnv, value: Local<JsValue>) -> JsResult<Local<JsValue>
 // TODO: This is incomplete.
 pub fn Number_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
 	let value = args.this(env);
-	let value = try!(get_number(env, value));
-	let value = try!(value.to_string(env));
+	let value = try!(get_number(env, value)).unwrap_number();
 	
-	Ok(value.as_value(env))
+	let radix = args.arg(env, 0);
+	let radix = if radix.is_undefined() {
+		10
+	} else {
+		let radix = try!(radix.to_integer(env)) as i32;
+		if radix < 2 || radix > 36 {
+			return Err(JsError::new_range(env));
+		}
+		radix
+	};
+	
+	let result = format_number(value, radix as u32, NumberFormatStyle::Regular, 0);
+	
+	Ok(JsString::from_str(env, &result).as_value(env))
 }
 
 // 15.7.4.3 Number.prototype.toLocaleString()
@@ -84,35 +97,7 @@ pub fn Number_toFixed(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResul
 		Err(JsError::new_range(env))
 	} else {
 		let value = try!(args.this(env).to_number(env));
-		let result = if value.is_nan() {
-			"NaN".to_string()
-		} else {
-			let pow = 10f64.powi(digits);
-			let value = (value * pow).round();
-			let value = value / pow;
-			
-			let mut result = value.to_string();
-			
-			if digits > 0 {
-				let mut len = result.len();
-				let offset = match result.find('.') {
-					Some(offset) => offset + 1,
-					None => {
-						result.push('.');
-						len += 1;
-						len
-					}
-				};
-				
-				let current_digits = len - offset;
-				for _ in current_digits..digits as usize {
-					result.push('0');
-				}
-			}
-			
-			result
-		};
-		
+		let result = format_number(value, 10, NumberFormatStyle::Fixed, digits);
 		Ok(JsString::from_str(env, &result).as_value(env))
 	}
 }
@@ -122,30 +107,37 @@ pub fn Number_toExponential(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> J
 	let value = args.this(env);
 	let value = try!(get_number(env, value)).unwrap_number();
 	
-	let result = if value.is_nan() {
-		JsString::from_str(env, "NaN")
-	} else if value == 0f64 {
-		JsString::from_str(env, "0")
-	} else if value.is_infinite() {
-		JsString::from_str(env, if value.is_sign_negative() { "-Infinity" } else { "Infinity" })
+	let fraction_digits = args.arg(env, 0);
+	let result = if fraction_digits.is_undefined() {
+		format_number(value, 10, NumberFormatStyle::Regular, -1)
 	} else {
-		// TODO: This is very wrong. See 9.8.1 ToString Applied to the Number Type
-		// for the full specifications. A C# implementation can be found at
-		// http://jurassic.codeplex.com/SourceControl/latest#Jurassic/Core/NumberFormatter.cs.
+		let fraction_digits = try!(fraction_digits.to_integer(env)) as i32;
+		if fraction_digits < 0 || fraction_digits > 20 {
+			return Err(JsError::new_range(env));
+		}
 		
-		let string = format!("{:e}", value);
-		
-		JsString::from_str(env, &string)
+		format_number(value, 10, NumberFormatStyle::Exponential, fraction_digits)
 	};
 	
-	Ok(result.as_value(env))
+	Ok(JsString::from_str(env, &result).as_value(env))
 }
 
 // 15.7.4.7 Number.prototype.toPrecision (precision)
-pub fn Number_toPrecision(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-	// TODO: This is very wrong. See 9.8.1 ToString Applied to the Number Type
-	// for the full specifications. A C# implementation can be found at
-	// http://jurassic.codeplex.com/SourceControl/latest#Jurassic/Core/NumberFormatter.cs.
+pub fn Number_toPrecision(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+	let value = args.this(env);
+	let value = try!(get_number(env, value)).unwrap_number();
 	
-	Number_toString(env, mode, args)
+	let precision = args.arg(env, 0);
+	let result = if precision.is_undefined() {
+		format_number(value, 10, NumberFormatStyle::Regular, -1)
+	} else {
+		let precision = try!(precision.to_integer(env)) as i32;
+		if precision < 0 || precision > 21 {
+			return Err(JsError::new_range(env));
+		}
+		
+		format_number(value, 10, NumberFormatStyle::Precision, precision)
+	};
+	
+	Ok(JsString::from_str(env, &result).as_value(env))
 }

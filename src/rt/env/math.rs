@@ -131,7 +131,19 @@ pub fn Math_pow(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Loca
 	let x = try!(args.arg(env, 0).to_number(env));
 	let y = try!(args.arg(env, 1).to_number(env));
 	
-	let result = x.powf(y);
+	let result = if y.is_infinite() {
+		let x = x.abs();
+		
+		if x > 1_f64 {
+			if y.is_sign_positive() { f64::INFINITY } else { 0_f64 }
+		} else if x < 1_f64 {
+			if y.is_sign_positive() { 0_f64 } else { f64::INFINITY }
+		} else {
+			f64::NAN
+		}
+	} else {
+		x.powf(y)
+	};
 	
 	Ok(env.new_number(result))
 }
@@ -146,7 +158,20 @@ pub fn Math_round(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Lo
 	let arg = try!(args.arg(env, 0).to_number(env));
 	
 	let result = if arg.is_finite() {
-		let result = (arg + 0.5_f64).floor();
+		let fract = arg.fract();
+		let result = if arg > 0.0 {
+			if fract >= 0.5 {
+				arg.ceil()
+			} else {
+				arg.floor()
+			}
+		} else {
+			if fract >= -0.5 {
+				arg.ceil()
+			} else {
+				arg.floor()
+			}
+		};
 		
 		if result == 0_f64 && arg.is_sign_negative() {
 			-0_f64

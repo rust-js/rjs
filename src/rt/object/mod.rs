@@ -1,7 +1,7 @@
 use syntax::Name;
 use syntax::ast::FunctionRef;
 use syntax::token::name;
-use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString, JsArgs, JsFnMode};
+use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString, JsArgs, JsFnMode, JsHandle};
 use rt::{GC_OBJECT, GC_ENTRY};
 use rt::validate_walker_field;
 use rt::value::validate_walker_for_embedded_value;
@@ -56,7 +56,12 @@ impl JsObject {
 		result
 	}
 	
-	pub fn new_function(env: &mut JsEnv, function: JsFunction, prototype: Local<JsObject>, strict: bool) -> Local<JsObject> {
+	pub fn new_function(env: &mut JsEnv, function: JsFunction, strict: bool) -> Local<JsObject> {
+		let prototype = env.handle(JsHandle::Function);
+		Self::new_function_with_prototype(env, function, prototype, strict)
+	}
+	
+	pub fn new_function_with_prototype(env: &mut JsEnv, function: JsFunction, prototype: Local<JsObject>, strict: bool) -> Local<JsObject> {
 		let mut result = Self::new_local(env, JsStoreType::Hash);
 		
 		let (name, args, strict) = match function {
@@ -90,7 +95,7 @@ impl JsObject {
 		result.define_own_property(env, name::NAME, JsDescriptor::new_value(name, false, false, true), false).ok();
 		
 		if strict {
-			let thrower = env.new_native_function(None, 0, &throw_type_error, prototype);
+			let thrower = env.new_native_function(None, 0, &throw_type_error);
 			
 			result.define_own_property(env, name::CALLER, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false).ok();
 			result.define_own_property(env, name::ARGUMENTS, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false).ok();
@@ -494,7 +499,7 @@ impl JsItem for Local<JsObject> {
 	
 	// 15.3.5.3 [[HasInstance]] (V)
 	// 15.3.4.5.3 [[HasInstance]] (V)
-	fn has_instance(&self, env: &mut JsEnv, object: Local<JsValue>) -> JsResult<bool> {
+	fn has_instance(&self, env: &mut JsEnv, mut object: Local<JsValue>) -> JsResult<bool> {
 		if self.function.is_none() {
 			Err(JsError::new_type(env, ::errors::TYPE_CANNOT_HAS_INSTANCE))
 		} else if object.ty() != JsType::Object {
@@ -508,8 +513,6 @@ impl JsItem for Local<JsObject> {
 			} else {
 				try!(self.get(env, name::PROTOTYPE))
 			};
-			
-			let mut object = object;
 			
 			if prototype.ty() != JsType::Object {
 				Err(JsError::new_type(env, ::errors::TYPE_CANNOT_HAS_INSTANCE))

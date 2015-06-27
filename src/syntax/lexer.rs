@@ -4,8 +4,15 @@ use syntax::token::{Token, TokenAndSpan, Lit};
 use syntax::token::Token::*;
 use ::{JsResult, JsError};
 use util::interner::StrInterner;
-use std::{char, i32};
+use std::char;
 use std::collections::VecDeque;
+use ::util::matchers::{DecimalMatcher, Decimal};
+
+#[derive(PartialEq)]
+pub enum LexerMode {
+	Normal,
+	Runtime
+}
 
 pub struct Lexer<'a> {
 	reader: &'a mut Reader,
@@ -14,11 +21,12 @@ pub struct Lexer<'a> {
 	look_ahead: VecDeque<(TokenAndSpan, usize)>,
 	file: Name,
 	last_span: Option<Span>,
-	allow_regexp: bool
+	allow_regexp: bool,
+	mode: LexerMode
 }
 
 impl<'a> Lexer<'a> {
-	pub fn new(reader: &'a mut Reader, interner: &'a StrInterner) -> JsResult<Lexer<'a>> {
+	pub fn new(reader: &'a mut Reader, interner: &'a StrInterner, mode: LexerMode) -> JsResult<Lexer<'a>> {
 		let file = interner.intern(&reader.file().to_string());
 		
 		Ok(Lexer {
@@ -28,7 +36,8 @@ impl<'a> Lexer<'a> {
 			look_ahead: VecDeque::new(),
 			file: file,
 			last_span: None,
-			allow_regexp: false
+			allow_regexp: false,
+			mode: mode
 		})
 	}
 	
@@ -337,12 +346,12 @@ impl<'a> Lexer<'a> {
 			':' => Colon,
 			'.' => {
 				if is_digit(self.reader.peek()) {
-					try!(self.parse_decimal_tail(".".to_string()))
+					try!(self.parse_number('.'))
 				} else {
 					Dot
 				}
 			},
-			c @ '0' ... '9' => try!(self.parse_number(c, true)),
+			c @ '0' ... '9' => try!(self.parse_number(c)),
 			'"' => try!(self.parse_string('"')),
 			'\'' => try!(self.parse_string('\'')),
 			c @ _ if is_line_terminator(c) => Newline,
@@ -432,175 +441,35 @@ impl<'a> Lexer<'a> {
 		Err(JsError::Parse("Unmatched block comment".to_string()))
 	}
 	
-	fn consume_while<F: Fn(char) -> bool>(&mut self, predicate: F, positive: bool) -> String {
-		let mut s = String::new();
-		if !positive {
-			s.push('-');
-		}
-		
-		while !self.reader.is_eof() && predicate(self.reader.peek()) {
-			s.push(self.reader.next());
-		}
-		
-		s
-	}
-	
 	fn skip_while<F: Fn(char) -> bool>(&mut self, predicate: F) {
 		while !self.reader.is_eof() && predicate(self.reader.peek()) {
 			self.reader.next();
 		}
 	}
 	
-	fn parse_str_number(&self, value: &str, radix: u32) -> Option<Token> {
-		match i64::from_str_radix(value, radix) {
-			Ok(value) => {
-				if value >= i32::MIN as i64 && value <= i32::MAX as i64 {
-					Some(Literal(Lit::Integer(value as i32)))
+	fn parse_number(&mut self, c: char) -> JsResult<Token> {
+		let mut matcher = DecimalMatcher::new(self.mode == LexerMode::Normal);
+		
+		matcher.allowed(c);
+		
+		while !self.reader.is_eof() && matcher.allowed(self.reader.peek()) {
+			self.reader.next();
+		}
+		
+		match matcher.complete() {
+			Decimal::Integer(value) | Decimal::Decimal(value)
+				=> Ok(Literal(Lit::Number(self.interner.intern(&value), 10))),
+			Decimal::Octal(value) => {
+				if self.strict {
+					self.fatal("octal numbers are not allowed in strict mode")
 				} else {
-					Some(Literal(Lit::Long(value)))
-				}
-			},
-			_ => None
-		}
-	}
-	
-	fn parse_hex(&mut self, positive: bool) -> JsResult<Token> {
-		let s = self.consume_while(is_hex, positive);
-		if s.len() == 0 {
-			self.fatal("Expected a hex digit")
-		} else if let Some(token) = self.parse_str_number(&s, 16) {
-			Ok(token)
-		} else {
-			self.fatal(&format!("Cannot parse hex {:?}", s))
-		}
-	}
-	
-	fn parse_oct(&mut self, positive: bool) -> JsResult<Token> {
-		let s = self.consume_while(is_oct, positive);
-		if s.len() == 0 {
-			self.fatal("Expected a oct digit")
-		} else if let Some(token) = self.parse_str_number(&s, 8) {
-			Ok(token)
-		} else {
-			self.fatal(&format!("Cannot parse octal {:?}", s))
-		}
-	}
-	
-	fn parse_number(&mut self, c: char, positive: bool) -> JsResult<Token> {
-		// Scan for a decimal point or exponent letter. If so, don't parse this
-		// number as having a leading zero.
-		
-		let mut is_decimal = false;
-		let pos = self.reader.offset();
-		
-		while !self.reader.is_eof() {
-			match self.reader.next() {
-				'.' | 'e' | 'E' => {
-					is_decimal = true;
-					break;
-				}
-				'0'...'9' => {},
-				_ => break
-			}
-		}
-		
-		self.reader.seek(pos);
-		
-		if !is_decimal && c == '0' {
-			if self.reader.is_eof() {
-				if positive {
-					Ok(Literal(Lit::Integer(0)))
-				} else {
-					Ok(Literal(Lit::Double(-0f64)))
-				}
-			} else if self.reader.consume('x') || self.reader.consume('X') {
-				self.parse_hex(positive)
-			} else if !self.strict && is_oct(self.reader.peek()) {
-				self.parse_oct(positive)
-			} else {
-				if positive {
-					Ok(Literal(Lit::Integer(0)))
-				} else {
-					Ok(Literal(Lit::Double(-0f64)))
+					Ok(Literal(Lit::Number(self.interner.intern(&value), 8)))
 				}
 			}
-		} else {
-			let mut prefix = String::new();
-			if !positive {
-				prefix.push('-');
-			}
-			prefix.push(c);
-			self.parse_decimal(prefix.to_string())
-		}
-	}
-	
-	fn parse_decimal(&mut self, prefix: String) -> JsResult<Token> {
-		// This method parses a decimal without already having seen a dot. The decimal
-		// prefix is parsed here and the rest is handled  by parse_decimal_tail.
-		
-		let mut s = prefix;
-		
-		while !self.reader.is_eof() {
-			let c = self.reader.peek();
-			if c == '.' || is_digit(c) {
-				s.push(self.reader.next());
-				
-				if c == '.' {
-					break;
-				}
-			} else {
-				break;
-			}
-		}
-		
-		self.parse_decimal_tail(s)
-	}
-	
-	fn parse_decimal_tail(&mut self, prefix: String) -> JsResult<Token> {
-		// This method parses decimal tails. The prefix contains what has already been
-		// parsed and may contain a dot. This method will not parse dots.
-		
-		let mut s = prefix;
-		
-		while !self.reader.is_eof() && is_digit(self.reader.peek()) {
-			s.push(self.reader.next());
-		}
-		
-		if !self.reader.is_eof() {
-			let c = self.reader.peek();
-			if c == 'e' || c == 'E' {
-				let mut index: usize = 1;
-				
-				if !self.reader.is_eof() {
-					let c1 = self.reader.peek_at(index);
-					if c1 == '+' || c1 == '-' {
-						index += 1;
-					}
-				}
-				
-				if !self.reader.is_eof() {
-					let c2 = self.reader.peek_at(index);
-					if is_digit(c2) {
-						while index > 0 {
-							s.push(self.reader.next());
-							index -= 1;
-						}
-						
-						while !self.reader.is_eof() && is_digit(self.reader.peek()) {
-							s.push(self.reader.next());
-						}
-					}
-				}
-			}
-		}
-		
-		if let Some(token) = self.parse_str_number(&s, 10) {
-			Ok(token)
-		} else {
-			match s.parse() {
-				Ok(value) => Ok(Literal(Lit::Double(value))),
-				_ => self.fatal(&format!("Cannot parse number {:?}", s))
-			}
+			Decimal::Hex(value)
+				=> Ok(Literal(Lit::Number(self.interner.intern(&value[2..]), 16))),
+			Decimal::Error(value)
+				=> self.fatal(&format!("cannot parse number {}", value))
 		}
 	}
 	
@@ -879,20 +748,6 @@ impl<'a> Lexer<'a> {
 	}
 }
 	
-fn is_hex(c: char) -> bool {
-	match c {
-		'0' ... '9' | 'a' ... 'f' | 'A' ... 'F' => true,
-		_ => false
-	}
-}
-
-fn is_oct(c : char) -> bool {
-	match c {
-		'0' ... '7' => true,
-		_ => false
-	}
-}
-
 fn is_digit(c: char) -> bool {
 	match c {
 		'0' ... '9' => true,

@@ -1176,28 +1176,18 @@ impl<'a> Parser<'a> {
 		
 		if op == Op::Negative {
 			match expr {
-				Expr::Literal(Lit::Integer(value)) => {
-					if value == 0 {
-						return Ok(Expr::Literal(Lit::Double(-0f64)));
+				Expr::Literal(Lit::Number(name, radix)) => {
+					if name == Name::from_index(0) {
+						return Ok(Expr::Literal(Lit::Number(name::MINUS_ZERO, radix)));
 					}
-					if value > 0 {
-						return Ok(Expr::Literal(Lit::Integer(-value)));
-					}
-				}
-				Expr::Literal(Lit::Long(value)) => {
-					if value == 0 {
-						return Ok(Expr::Literal(Lit::Double(-0f64)));
-					}
-					if value > 0 {
-						return Ok(Expr::Literal(Lit::Long(-value)));
-					}
-				}
-				Expr::Literal(Lit::Double(value)) => {
-					if value == 0f64 && !value.is_sign_negative() {
-						return Ok(Expr::Literal(Lit::Double(-0f64)));
-					}
-					if value > 0f64 {
-						return Ok(Expr::Literal(Lit::Double(-value)));
+					
+					let value = self.interner.get(name);
+					if value.len() == 0 || !value.starts_with("-") {
+						let mut new_value = String::new();
+						new_value.push('-');
+						new_value.push_str(&*value);
+						let name = self.interner.intern(&new_value);
+						return Ok(Expr::Literal(Lit::Number(name, radix)));
 					}
 				}
 				_ => {}
@@ -1397,7 +1387,7 @@ impl<'a> Parser<'a> {
 			
 			match lit {
 				Lit::Null | Lit::Boolean(..) | Lit::Regex(..) => return self.fatal("Expected property key literal"),
-				Lit::String(..) | Lit::Integer(..) | Lit::Long(..) | Lit::Double(..) => {}
+				Lit::String(..) | Lit::Number(..) => {}
 			}
 			
 			try!(self.consume(Token::Colon));

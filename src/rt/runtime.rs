@@ -377,8 +377,7 @@ impl JsEnv {
 	}
 	
 	pub fn new_function(&mut self, function_ref: FunctionRef, scope: Option<Local<JsScope>>, strict: bool) -> JsResult<Local<JsValue>> {
-		let function_prototype = self.handle(JsHandle::Function);
-		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), function_prototype, strict).as_value(self);
+		let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), strict).as_value(self);
 		
 		let function = self.ir.get_function(function_ref);
 		if function.take_scope {
@@ -583,8 +582,7 @@ impl JsEnv {
 			let function = args.function(self);
 			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_value(function, true, false, true), false));
 		} else {
-			let prototype = self.handle(JsHandle::Function);
-			let thrower = self.new_native_function(None, 0, &throw_type_error, prototype);
+			let thrower = self.new_native_function(None, 0, &throw_type_error);
 			
 			try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false));
 			try!(result.define_own_property(self, name::CALLER, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false));

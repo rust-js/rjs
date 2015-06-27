@@ -1,8 +1,8 @@
 #![allow(unused_variables)]
 
 use ::{JsResult, JsError};
-use rt::{JsEnv, JsString, JsFnMode, JsArgs, JsValue, JsItem, JsFunction, JsType, JsHandle};
-use rt::{JsScope, JsDescriptor, JsObject};
+use rt::{JsEnv, JsString, JsFnMode, JsArgs, JsValue, JsItem, JsFunction, JsType};
+use rt::{JsScope, JsDescriptor, JsObject, JsHandle};
 use syntax::ast::FunctionRef;
 use syntax::parser::ParseMode;
 use gc::*;
@@ -86,7 +86,14 @@ pub fn Function_apply(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResul
 		} else {
 			match call_args.class(env) {
 				Some(name::ARRAY_CLASS) | Some(name::ARGUMENTS_CLASS) => {},
-				_ => return Err(JsError::new_type(env, ::errors::TYPE_INVALID_ARGUMENTS_ARRAY))
+				_ => {
+					// "Array" is a valid parameter to the apply method.
+					let prototype = try!(call_args.get(env, name::PROTOTYPE));
+					let array_prototype = env.handle(JsHandle::Array);
+					if prototype.ty() != JsType::Object || prototype.unwrap_object(env).as_ptr() != array_prototype.as_ptr() {
+						return Err(JsError::new_type(env, ::errors::TYPE_INVALID_ARGUMENTS_ARRAY))
+					}
+				}
 			}
 			
 			let len = try!(call_args.get(env, name::LENGTH));
@@ -190,8 +197,7 @@ pub fn Function_bind(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
 			}
 		}
 		
-		let function_prototype = env.handle(JsHandle::Function);
-		let mut result = JsObject::new_function(env, JsFunction::Bound, function_prototype, true);
+		let mut result = JsObject::new_function(env, JsFunction::Bound, true);
 		
 		let length = if this_arg.class(env) == Some(name::FUNCTION_CLASS) {
 			let length = try!(this_arg.get(env, name::LENGTH)).unwrap_number() as usize;

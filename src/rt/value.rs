@@ -3,11 +3,12 @@ extern crate libc;
 use rt::{JsEnv, JsString, JsType, JsObject, JsItem, JsDescriptor, JsScope, JsPreferredType};
 use rt::{JsNull, JsUndefined, JsNumber, JsBoolean, JsIterator, JsHandle, GC_VALUE};
 use rt::{validate_walker_field, validate_walker_field_at};
+use rt::fmt::{format_number, NumberFormatStyle};
 use ::{JsResult, JsError};
 use syntax::Name;
-use syntax::lexer::Lexer;
+use syntax::lexer::{Lexer, LexerMode};
 use syntax::reader::StringReader;
-use syntax::token::Token;
+use syntax::token::{Token, LitNumber};
 use syntax::token::name;
 use gc::{Local, Ptr, AsPtr, ptr_t, GcWalker, GcAllocator};
 use std::fmt;
@@ -329,24 +330,24 @@ impl Local<JsValue> {
 		let value = self.unwrap_string(env).to_string();
 		let mut reader = StringReader::new("", &value);
 		
-		if let Ok(mut lexer) = Lexer::new(&mut reader, env.ir.interner()) {
+		if let Ok(mut lexer) = Lexer::new(&mut reader, env.ir.interner(), LexerMode::Runtime) {
 			// Skip over the + or - sign if we have one.
 			
 			let sign = match try!(lexer.peek(0)).map(|token| token.token) {
 				Some(Token::Plus) => {
 					try!(lexer.bump());
-					1f64
+					false
 				}
 				Some(Token::Minus) => {
 					try!(lexer.bump());
-					-1f64
+					true
 				}
 				None => {
 					// The empty string results in 0.
 					
 					return Ok(0f64);
 				}
-				_ => 1f64
+				_ => false
 			};
 			
 			// Verify that the next token is a number literal.
@@ -356,14 +357,17 @@ impl Local<JsValue> {
 			if let Some(token) = try!(lexer.peek(0)) {
 				match token.token {
 					Token::Literal(lit) => {
-						if let Some(value) = lit.to_number() {
-							result = Some(value);
+						if let Some(value) = LitNumber::from_lit(env.ir.interner(), &lit, sign) {
+							match value {
+								LitNumber::Float(value) => result = Some(value),
+								LitNumber::Long(value) => result = Some(value as f64)
+							}
 							
 							try!(lexer.next());
 						}
 					}
 					Token::Identifier(name::INFINITY) => {
-						result = Some(f64::INFINITY);
+						result = Some(if sign { -f64::INFINITY } else { f64::INFINITY });
 						
 						try!(lexer.next());
 					}
@@ -375,7 +379,7 @@ impl Local<JsValue> {
 			
 			if let Some(result) = result {
 				if try!(lexer.peek(0)).is_none() {
-					return Ok(result * sign);
+					return Ok(result);
 				}
 			}
 		}
@@ -532,19 +536,8 @@ impl Local<JsValue> {
 			JsType::Boolean => JsString::from_str(env, if self.unwrap_bool() { "true" } else { "false" }),
 			JsType::Number => {
 				let number = self.unwrap_number();
-				
-				if number.is_nan() {
-					JsString::from_str(env, "NaN")
-				} else if number == 0f64 {
-					JsString::from_str(env, "0")
-				} else if number.is_infinite() {
-					JsString::from_str(env, if number.is_sign_negative() { "-Infinity" } else { "Infinity" })
-				} else {
-					// TODO: This is very wrong. See 9.8.1 ToString Applied to the Number Type
-					// for the full specifications. A C# implementation can be found at
-					// http://jurassic.codeplex.com/SourceControl/latest#Jurassic/Core/NumberFormatter.cs.
-					JsString::from_str(env, &number.to_string())
-				}
+				let result = format_number(number, 10, NumberFormatStyle::Regular, 0);
+				JsString::from_str(env, &result)
 			}
 			JsType::String => self.unwrap_string(env),
 			JsType::Object => {
