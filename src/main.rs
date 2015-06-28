@@ -403,7 +403,10 @@ impl TestHeader {
                                 }
                             }
                         } else {
-                            panic!();
+                            // Ignore lines we cannot parse. There are a few tests
+                            // that wrap long text lines over two lines, which is
+                            // invalid YAML.
+                            continue;
                         }
                     } else {
                         if header.is_some() {
