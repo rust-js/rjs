@@ -327,6 +327,8 @@ impl Local<JsValue> {
     }
     
     fn get_number_from_string(&self, env: &JsEnv) -> JsResult<f64> {
+        // TODO: Use DecimalMatcher.
+        
         let value = self.unwrap_string(env).to_string();
         let mut reader = StringReader::new("", &value);
         

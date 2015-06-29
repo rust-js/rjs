@@ -2,7 +2,7 @@ const INITIAL_OBJECT : usize = 20;
 
 use rt::{JsEnv, JsDescriptor, GC_HASH_STORE, GC_ENTRY};
 use rt::validate_walker_field;
-use rt::object::{Store, Entry, JsStoreKey};
+use rt::object::{Store, StoreKey, Entry};
 use syntax::Name;
 use gc::{Local, Array, GcWalker, ptr_t};
 use std::mem::{transmute, zeroed};
@@ -241,15 +241,16 @@ impl Store for Local<HashStore> {
         }
     }
     
-    fn get_key(&self, _: &JsEnv, offset: usize) -> JsStoreKey {
+    fn get_key(&self, _: &JsEnv, offset: usize) -> StoreKey {
         if offset >= self.entries.len() {
-            JsStoreKey::End
+            StoreKey::End(self.entries.len())
         } else {
             let entry = self.entries[offset];
+            
             if entry.is_valid() {
-                JsStoreKey::Key(entry.name, entry.is_enumerable())
+                StoreKey::Key(entry.name, entry.is_enumerable())
             } else {
-                JsStoreKey::Missing
+                StoreKey::Missing
             }
         }
     }

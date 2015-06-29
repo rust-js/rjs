@@ -247,6 +247,13 @@ fn run_safe(file: String) {
         }
     );
     
+    let only_strict = header.headers.get("flags").map(|header|
+        match *header {
+            Header::String(ref flag) => flag == "onlyStrict",
+            Header::List(ref list) => list.iter().any(|flag| flag == "onlyStrict")
+        }
+    ).unwrap_or(false);
+    
     let mut is_es6 = header.headers.get("es6id").is_some();
     
     if let Some(header) = header.headers.get("features") {
@@ -287,10 +294,11 @@ fn run_safe(file: String) {
             env.run(&("tests/tc39/harness/".to_string() + include)).ok().unwrap();
         }
         
-        if env.run(&file).is_ok() {
+        if env.run_strict(&file, only_strict).is_ok() {
             return;
         }
     }
+    
     // There was an error. Enable debugging and retry.
     
     rjs::debug::debug_enable(true);
@@ -304,7 +312,7 @@ fn run_safe(file: String) {
     
 //    debug::reset();
     
-    match env.run(&file) {
+    match env.run_strict(&file, only_strict) {
         Ok(_) => {
             if let Some(negative) = negative {
                 panic!("expected exception {} from negative test", negative);

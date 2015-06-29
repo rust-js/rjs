@@ -115,7 +115,7 @@ fn setup_global(env: &mut JsEnv) {
     
     function!(global, name::ESCAPE, Global_escape, 1, env);
     function!(global, name::UNESCAPE, Global_unescape, 1, env);
-    function!(global, name::PARSE_INT, Global_parseInt, 1, env);
+    function!(global, name::PARSE_INT, Global_parseInt, 2, env);
     function!(global, name::PARSE_FLOAT, Global_parseFloat, 1, env);
     function!(global, name::IS_NAN, Global_isNaN, 1, env);
     function!(global, name::IS_FINITE, Global_isFinite, 1, env);
@@ -170,9 +170,6 @@ fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut
     function!(prototype, name::HAS_OWN_PROPERTY, Object_hasOwnProperty, 1, env);
     function!(prototype, name::IS_PROTOTYPE_OF, Object_isPrototypeOf, 1, env);
     function!(prototype, name::PROPERTY_IS_ENUMERABLE, Object_propertyIsEnumerable, 1, env);
-    function!(prototype, name::GET_PROTOTYPE_OF, Object_getPrototypeOf, 1, env);
-    function!(prototype, name::DEFINE_PROPERTY, Object_defineProperty, 1, env);
-    function!(prototype, name::PREVENT_EXTENSIONS, Object_preventExtensions, 1, env);
     
     let class = JsObject::new_function(env, JsFunction::Native(Some(name::OBJECT_CLASS), 1, JsFnRef::new(&Object_constructor), true), false);
     let mut class = class.as_value(env);
@@ -182,11 +179,19 @@ fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut
     property!(class, name::PROTOTYPE, prototype.as_value(env), false, false, false, env);
     property!(prototype, name::CONSTRUCTOR, class, true, false, true, env);
     
-    function!(class, name::CREATE, Object_create, 1, env);
+    function!(class, name::CREATE, Object_create, 2, env);
     function!(class, name::GET_OWN_PROPERTY_DESCRIPTOR, Object_getOwnPropertyDescriptor, 2, env);
     function!(class, name::GET_OWN_PROPERTY_NAMES, Object_getOwnPropertyNames, 1, env);
     function!(class, name::FREEZE, Object_freeze, 1, env);
     function!(class, name::IS_EXTENSIBLE, Object_isExtensible, 1, env);
+    function!(class, name::GET_PROTOTYPE_OF, Object_getPrototypeOf, 1, env);
+    function!(class, name::DEFINE_PROPERTY, Object_defineProperty, 3, env);
+    function!(class, name::DEFINE_PROPERTIES, Object_defineProperties, 2, env);
+    function!(class, name::PREVENT_EXTENSIONS, Object_preventExtensions, 1, env);
+    function!(class, name::SEAL, Object_seal, 1, env);
+    function!(class, name::IS_SEALED, Object_isSealed, 1, env);
+    function!(class, name::IS_FROZEN, Object_isFrozen, 1, env);
+    function!(class, name::KEYS, Object_keys, 1, env);
 }
 
 fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
@@ -380,7 +385,7 @@ fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 }
 
 fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
-    let mut class = JsObject::new_local(env, JsStoreType::Hash);
+    let mut class = env.create_object();
     
     // 15.8.1.1 E
     value!(class, name::E, env.new_number(f64::consts::E), false, false, false, env);
@@ -434,7 +439,7 @@ fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 }
 
 fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
-    let mut class = JsObject::new_local(env, JsStoreType::Hash);
+    let mut class = env.create_object();
     
     class.set_class(env, Some(name::JSON_CLASS));
     
@@ -445,7 +450,7 @@ fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 }
 
 fn setup_console<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
-    let mut class = JsObject::new_local(env, JsStoreType::Hash);
+    let mut class = env.create_object();
     
     class.set_class(env, Some(name::CONSOLE_CLASS));
     
@@ -455,10 +460,10 @@ fn setup_console<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 }
 
 fn setup_error<'a>(env: &mut JsEnv, global: Local<JsValue>) {
-    fn register_error(env: &mut JsEnv, mut global: Local<JsValue>, error_prototype: Option<Local<JsValue>>, name: Name, handle: JsHandle) -> Local<JsValue> {
+    fn register_error(env: &mut JsEnv, mut global: Local<JsValue>, error_class: Option<Local<JsValue>>, error_prototype: Option<Local<JsValue>>, name: Name, handle: JsHandle) -> (Local<JsValue>, Local<JsValue>) {
         let class = env.new_native_function(Some(name), 1, &Error_constructor);
         
-        let class_obj = class.unwrap_object(env);
+        let mut class_obj = class.unwrap_object(env);
         env.add_handle(handle, class_obj);
         
         property!(global, name, class, true, false, true, env);
@@ -468,6 +473,9 @@ fn setup_error<'a>(env: &mut JsEnv, global: Local<JsValue>) {
         if error_prototype.is_some() {
             prototype_obj.set_prototype(env, error_prototype);
         }
+        if error_class.is_some() {
+            class_obj.set_prototype(env, error_class);
+        }
         
         let value = JsString::from_str(env, "").as_value(env);
         value!(&mut prototype_obj, name::MESSAGE, value, true, false, true, env);
@@ -475,17 +483,17 @@ fn setup_error<'a>(env: &mut JsEnv, global: Local<JsValue>) {
         value!(&mut prototype_obj, name::NAME, value, true, false, true, env);
         function!(&mut prototype_obj, name::TO_STRING, Error_toString, 0, env);
         
-        prototype
+        (class, prototype)
     }
     
-    let error_prototype = register_error(env, global, None, name::ERROR_CLASS, JsHandle::Error);
-    register_error(env, global, Some(error_prototype), name::EVAL_ERROR_CLASS, JsHandle::EvalError);
-    register_error(env, global, Some(error_prototype), name::RANGE_ERROR_CLASS, JsHandle::RangeError);
-    register_error(env, global, Some(error_prototype), name::REFERENCE_ERROR_CLASS, JsHandle::ReferenceError);
-    register_error(env, global, Some(error_prototype), name::SYNTAX_ERROR_CLASS, JsHandle::SyntaxError);
-    register_error(env, global, Some(error_prototype), name::TYPE_ERROR_CLASS, JsHandle::TypeError);
-    register_error(env, global, Some(error_prototype), name::URI_ERROR_CLASS, JsHandle::URIError);
-    register_error(env, global, Some(error_prototype), name::NATIVE_ERROR_CLASS, JsHandle::NativeError);
+    let (error_class, error_prototype) = register_error(env, global, None, None, name::ERROR_CLASS, JsHandle::Error);
+    register_error(env, global, Some(error_class), Some(error_prototype), name::EVAL_ERROR_CLASS, JsHandle::EvalError);
+    register_error(env, global, Some(error_class), Some(error_prototype), name::RANGE_ERROR_CLASS, JsHandle::RangeError);
+    register_error(env, global, Some(error_class), Some(error_prototype), name::REFERENCE_ERROR_CLASS, JsHandle::ReferenceError);
+    register_error(env, global, Some(error_class), Some(error_prototype), name::SYNTAX_ERROR_CLASS, JsHandle::SyntaxError);
+    register_error(env, global, Some(error_class), Some(error_prototype), name::TYPE_ERROR_CLASS, JsHandle::TypeError);
+    register_error(env, global, Some(error_class), Some(error_prototype), name::URI_ERROR_CLASS, JsHandle::URIError);
+    register_error(env, global, Some(error_class), Some(error_prototype), name::NATIVE_ERROR_CLASS, JsHandle::NativeError);
 }
 
 fn new_naked_function<'a>(env: &mut JsEnv, name: Option<Name>, args: u32, function: &JsFn, can_construct: bool) -> Local<JsValue> {

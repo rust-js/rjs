@@ -124,7 +124,7 @@ impl<'a> Lexer<'a> {
     }
     
     fn parse_decimal(&mut self, c: char) -> JsResult<Token> {
-        let mut matcher = DecimalMatcher::new(true);
+        let mut matcher = DecimalMatcher::new(true, true);
         
         matcher.allowed(c);
         
@@ -135,7 +135,7 @@ impl<'a> Lexer<'a> {
         let result = match matcher.complete() {
             Decimal::Integer(value) => i64::from_str_radix(&value, 10).unwrap() as f64,
             Decimal::Decimal(value) => strtod(&value).unwrap(),
-            Decimal::Hex(value) | Decimal::Octal(value) | Decimal::Error(value)
+            Decimal::Hex(value) | Decimal::Octal(value) | Decimal::Error(value) | Decimal::IncompleteDecimal(value)
                 => return self.fatal(&format!("cannot parse number {:?}", value))
         };
         

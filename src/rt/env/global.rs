@@ -4,7 +4,9 @@ use ::{JsResult, JsError};
 use rt::{JsEnv, JsArgs, JsValue, JsType, JsFnMode, JsString, JsHandle, JsItem};
 use gc::*;
 use syntax::parser::ParseMode;
+use ::util::matchers::DecimalMatcher;
 use std::{char, f64};
+use ::syntax::lexer::{is_line_terminator, is_whitespace};
 
 pub fn Global_escape(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     unimplemented!();
@@ -16,14 +18,17 @@ pub fn Global_unescape(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResu
 
 // 15.1.2.2 parseInt (string , radix)
 pub fn Global_parseInt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+    // TODO: Use DecimalMatcher.
+    
     let string = try!(args.arg(env, 0).to_string(env));
-    let mut radix = try!(args.arg(env, 1).to_int32(env)) as i64;
+    let radix = try!(args.arg(env, 1).to_int32(env)) as i64;
     
     let mut offset = 0;
     let chars = string.to_string().chars().collect::<Vec<_>>();
     
     while offset < chars.len() {
-        if !chars[offset].is_whitespace() {
+        let c = chars[offset];
+        if !is_whitespace(c) && !is_line_terminator(c) {
             break;
         }
         
@@ -48,26 +53,27 @@ pub fn Global_parseInt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResu
         1
     };
     
-    if radix != 0 {
+    let (mut radix, strip_prefix) = if radix != 0 {
         if radix < 2 || radix > 36 {
             return Ok(env.new_number(f64::NAN));
         }
+        (radix, radix == 16)
     } else {
-        radix = 10;
-    }
+        (10, true)
+    };
     
-    if radix == 16 && offset < chars.len() - 1 {
+    if strip_prefix && offset + 1 < chars.len() {
         if chars[offset] == '0' && (chars[offset + 1] == 'x' || chars[offset + 1] == 'X') {
             offset += 2;
+            radix = 16;
         } 
     }
     
     let start = offset;
-    let mut result = 0i64;
+    let mut result = 0.0;
     
     while offset < chars.len() {
         let c = chars[offset];
-        offset += 1;
         
         let digit = if c >= '0' && c <= '9' {
             c as i64 - '0' as i64
@@ -83,19 +89,24 @@ pub fn Global_parseInt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResu
             break;
         }
         
-        result *= radix;
-        result += digit;
+        offset += 1;
+        result *= radix as f64;
+        result += digit as f64;
     }
     
     if offset == start {
         Ok(env.new_number(f64::NAN))
     } else {
-        Ok(env.new_number((result * sign) as f64))
+        Ok(env.new_number(result * sign as f64))
     }
 }
 
 pub fn Global_parseFloat(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-    unimplemented!();
+    let input = try!(args.arg(env, 0).to_string(env)).to_string();
+    
+    let result = DecimalMatcher::from_str(&input, false, false).as_f64().unwrap_or(f64::NAN);
+    
+    Ok(env.new_number(result))
 }
 
 // 15.1.2.4 isNaN (number)

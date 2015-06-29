@@ -1,6 +1,6 @@
 use rt::{JsEnv, JsDescriptor, GC_ARRAY_STORE};
 use rt::validate_walker_field;
-use rt::object::{Store, Entry, JsStoreKey};
+use rt::object::{Store, StoreKey, Entry};
 use rt::object::hash_store::HashStore;
 use syntax::Name;
 use gc::{Local, GcWalker, GcAllocator, AsPtr, Ptr, ptr_t};
@@ -83,14 +83,17 @@ impl Store for Local<ArrayStore> {
         }
     }
     
-    fn get_key(&self, env: &JsEnv, offset: usize) -> JsStoreKey {
+    fn get_key(&self, env: &JsEnv, offset: usize) -> StoreKey {
         let array = self.array(env);
         let count = array.capacity();
         
         if offset < count {
             self.array(env).get_key(offset)
         } else {
-            self.props(env).get_key(env, offset - count)
+            match self.props(env).get_key(env, offset - count) {
+                StoreKey::End(end) => StoreKey::End(end + count),
+                result @ _ => result
+            }
         }
     }
     

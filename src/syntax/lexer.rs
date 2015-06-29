@@ -448,7 +448,7 @@ impl<'a> Lexer<'a> {
     }
     
     fn parse_number(&mut self, c: char) -> JsResult<Token> {
-        let mut matcher = DecimalMatcher::new(self.mode == LexerMode::Normal);
+        let mut matcher = DecimalMatcher::new(true, self.mode == LexerMode::Normal);
         
         matcher.allowed(c);
         
@@ -468,7 +468,7 @@ impl<'a> Lexer<'a> {
             }
             Decimal::Hex(value)
                 => Ok(Literal(Lit::Number(self.interner.intern(&value[2..]), 16))),
-            Decimal::Error(value)
+            Decimal::Error(value) | Decimal::IncompleteDecimal(value)
                 => self.fatal(&format!("cannot parse number {}", value))
         }
     }
@@ -755,14 +755,14 @@ fn is_digit(c: char) -> bool {
     }
 }
 
-fn is_line_terminator(c: char) -> bool {
+pub fn is_line_terminator(c: char) -> bool {
     match c {
         '\r' | '\n' | '\u{2028}' | '\u{2029}' => true,
         _ => false
     }
 }
 
-fn is_whitespace(c: char) -> bool {
+pub fn is_whitespace(c: char) -> bool {
     match c {
         '\t' | '\u{000B}' | '\u{000C}' => true,
         // Unicode Zs category.

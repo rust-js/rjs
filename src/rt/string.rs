@@ -3,6 +3,7 @@ use rt::{JsEnv, JsValue, JsItem, JsDescriptor, JsHandle, GC_STRING, GC_U16};
 use rt::utf;
 use syntax::Name;
 use syntax::token::name;
+use std::char;
 
 // Modifications to this struct must be synchronized with the GC walker.
 pub struct JsString {
@@ -96,7 +97,29 @@ impl JsString {
     }
     
     pub fn to_string(&self) -> String {
-        String::from_utf16(&*self.chars).ok().unwrap()
+        if let Ok(result) = String::from_utf16(&*self.chars) {
+            result
+        } else {
+            // TODO: We can do better than this. This kind of works but
+            // it gives an invalid result on code points that consist
+            // out of multiple u16's, but are still valid code points.
+            // We should implement this in utf.rs.
+            
+            let mut result = String::new();
+            let chars = self.chars;
+            
+            for i in 0..chars.len() {
+                let c = chars[i];
+                
+                if let Some(c) = char::from_u32(c as u32) {
+                    result.push(c)
+                } else {
+                    result.push('�');
+                }
+            }
+            
+            result
+        }
     }
 }
 
@@ -113,10 +136,12 @@ impl JsItem for Local<JsString> {
         Some(env.handle(JsHandle::String).as_value(env))
     }
     
+    // 15.5.5.2 [[GetOwnProperty]] ( P )
+    // 15.5.5.1 length
     fn get_own_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
         if property == name::LENGTH {
             let value = env.new_number(self.chars.len() as f64);
-            return Some(JsDescriptor::new_simple_value(value));
+            return Some(JsDescriptor::new_value(value, false, false, false));
         }
         
         if let Some(index) = property.index() {
@@ -125,7 +150,7 @@ impl JsItem for Local<JsString> {
                 let char = chars[index];
                 let mut string = JsString::new_local(env, 1);
                 string.chars[0] = char;
-                return Some(JsDescriptor::new_simple_value(string.as_value(env)));
+                return Some(JsDescriptor::new_value(string.as_value(env), false, true, false));
             }
         }
         

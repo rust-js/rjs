@@ -314,18 +314,12 @@ pub trait JsItem {
     
     // 8.12.5 [[Put]] ( P, V, Throw )
     fn put(&mut self, env: &mut JsEnv, property: Name, value: Local<JsValue>, throw: bool) -> JsResult<()> {
-        // BUG #18: This is wrong but I can't figure out how to solve this. The specs state that
-        // [[CanPut]] will reject the mutation of the property is not writable. However, if
-        // Array.prototype has a not writable 0, the write still succeeds.
-        
-        if self.class(env) != Some(name::ARRAY_CLASS) || !property.is_index() {
-            if !self.can_put(env, property) {
-                return if throw {
-                    Err(JsError::new_type(env, ::errors::TYPE_CANNOT_PUT))
-                } else {
-                    Ok(())
-                };
-            }
+        if !self.can_put(env, property) {
+            return if throw {
+                Err(JsError::new_type(env, ::errors::TYPE_CANNOT_PUT))
+            } else {
+                Ok(())
+            };
         }
         
         if let Some(own_desc) = self.get_own_property(env, property) {
@@ -714,8 +708,8 @@ impl JsDescriptor {
             } else {
                 None
             };
-            if (getter.is_some() || setter.is_some()) && writable.is_some() {
-                return Err(JsError::new_type(env, ::errors::TYPE_WRITABLE_INVALID_ON_ACCESSOR));
+            if (getter.is_some() || setter.is_some()) && (value.is_some() || writable.is_some()) {
+                return Err(JsError::new_type(env, ::errors::TYPE_WRITABLE_VALUE_INVALID_ON_ACCESSOR));
             }
             
             Ok(JsDescriptor {

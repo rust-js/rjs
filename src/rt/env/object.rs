@@ -31,18 +31,28 @@ pub fn Object_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsRe
     }
 }
 
+// 15.2.3.5 Object.create ( O [, Properties] )
 pub fn Object_create(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-    assert!(args.argc <= 1);
-    
-    let mut result = JsObject::new_local(env, JsStoreType::Hash);
-    
-    if args.argc < 1 {
-        return Err(JsError::new_type(env, ::errors::TYPE_INVALID));
+    let object = args.arg(env, 0);
+    match object.ty() {
+        ty @ JsType::Object | ty @ JsType::Null => {
+            let mut result = JsObject::new_local(env, JsStoreType::Hash);
+            
+            if ty == JsType::Null {
+                result.set_prototype(env, None);
+            } else {
+                result.set_prototype(env, Some(args.arg(env, 0)));
+            }
+            
+            let properties = args.arg(env, 1);
+            if properties.ty() != JsType::Undefined {
+                try!(define_properties(env, result, properties));
+            }
+            
+            Ok(result.as_value(env))
+        }
+        _ => Err(JsError::new_type(env, ::errors::TYPE_INVALID))
     }
-
-    result.set_prototype(env, Some(args.arg(env, 0)));
-    
-    Ok(result.as_value(env))
 }
 
 // 15.2.4.2 Object.prototype.toString ( )
@@ -54,19 +64,9 @@ pub fn Object_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResu
     } else if this_arg.is_null() {
         JsString::from_str(env, "[object Null]")
     } else {
-        let mut result = String::new();
-        
-        result.push_str("[object ");
-        
         let object = try!(this_arg.to_object(env));
-        if let Some(class) = object.class(env) {
-            result.push_str(&*env.ir.interner().get(class));
-        } else {
-            // TODO: Class should not be optional
-            result.push_str("Unknown");
-        }
-        
-        result.push_str("]");
+        let ty = object.class(env).unwrap_or(name::OBJECT_CLASS);
+        let result = format!("[object {}]", env.ir.interner().get(ty));
         
         JsString::from_str(env, &result)
     };
@@ -150,12 +150,13 @@ pub fn Object_propertyIsEnumerable(env: &mut JsEnv, _mode: JsFnMode, args: JsArg
 pub fn Object_getPrototypeOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let arg = args.arg(env, 0);
     
-    if arg.ty() != JsType::Object {
-        Err(JsError::new_type(env, ::errors::TYPE_INVALID))
-    } else if let Some(prototype) = arg.prototype(env) {
+    // [ES6] Argument is coerced to an object.
+    let arg = try!(arg.to_object(env)).unwrap_object(env);
+    
+    if let Some(prototype) = arg.prototype(env) {
         Ok(prototype)
     } else {
-        Ok(env.new_undefined())
+        Ok(env.new_null())
     }
 }
 
@@ -179,24 +180,68 @@ pub fn Object_defineProperty(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> 
     }
 }
 
-// http://ecma-international.org/ecma-262/5.1/#sec-15.2.3.3
-pub fn Object_getOwnPropertyDescriptor(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+// 15.2.3.7 Object.defineProperties ( O, Properties )
+pub fn Object_defineProperties(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let object = args.arg(env, 0);
-    
     if object.ty() != JsType::Object {
         Err(JsError::new_type(env, ::errors::TYPE_INVALID))
     } else {
-        let arg = args.arg(env, 1);
-        let property = try!(arg.to_string(env)).to_string();
-        let property = env.intern(&property);
+        let object_obj = object.unwrap_object(env);
+        let properties = args.arg(env, 1);
+        try!(define_properties(env, object_obj, properties));
         
-        let property = object.get_own_property(env, property);
-        
-        if let Some(property) = property {
-            property.from_property_descriptor(env)
-        } else {
-            Ok(env.new_undefined())
+        Ok(object)
+    }
+}
+
+// 15.2.3.7 Object.defineProperties ( O, Properties )
+fn define_properties(env: &mut JsEnv, mut object: Local<JsObject>, properties: Local<JsValue>) -> JsResult<()> {
+    let properties = try!(properties.to_object(env)).unwrap_object(env);
+    
+    let mut descriptors = Vec::new();
+    
+    for offset in 0.. {
+        match properties.get_key(env, offset) {
+            JsStoreKey::Key(name, enumerable) => {
+                if enumerable {
+                    let value = try!(properties.get(env, name));
+                    descriptors.push((name, try!(JsDescriptor::to_property_descriptor(env, value))));
+                }
+            }
+            JsStoreKey::Missing => {}
+            JsStoreKey::End => break
         }
+    }
+    
+    for (name, descriptor) in descriptors {
+        try!(object.define_own_property(
+            env,
+            name,
+            descriptor,
+            true
+        ));
+    }
+    
+    Ok(())
+}
+
+// 15.2.3.3 Object.getOwnPropertyDescriptor ( O, P )
+pub fn Object_getOwnPropertyDescriptor(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+    let object = args.arg(env, 0);
+    
+    // [ES6] Argument is coerced to an object.
+    let object = try!(object.to_object(env)).unwrap_object(env);
+    
+    let arg = args.arg(env, 1);
+    let property = try!(arg.to_string(env)).to_string();
+    let property = env.intern(&property);
+    
+    let property = object.get_own_property(env, property);
+    
+    if let Some(property) = property {
+        property.from_property_descriptor(env)
+    } else {
+        Ok(env.new_undefined())
     }
 }
 
@@ -204,58 +249,52 @@ pub fn Object_getOwnPropertyDescriptor(env: &mut JsEnv, _mode: JsFnMode, args: J
 pub fn Object_preventExtensions(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let object = args.arg(env, 0);
     
-    if object.ty() != JsType::Object {
-        Err(JsError::new_type(env, ::errors::TYPE_INVALID))
-    } else {
+    // [ES6] Instead of throwing a type error preventExtensions is a no-op for non-objects.
+    if object.ty() == JsType::Object {
         object.unwrap_object(env).set_extensible(false);
-        
-        Ok(object)
     }
+    
+    Ok(object)
 }
 
 // 15.2.3.4 Object.getOwnPropertyNames ( O )
 pub fn Object_getOwnPropertyNames(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let object = args.arg(env, 0);
     
-    if object.ty() != JsType::Object {
-        Err(JsError::new_type(env, ::errors::TYPE_INVALID))
-    } else {
-        let object = object.unwrap_object(env);
-        let mut result = env.create_array();
-        let mut offset = 0usize;
-        
-        for i in 0.. {
-            match object.get_key(env, i) {
-                JsStoreKey::Key(name, enumerable) => {
-                    if enumerable {
-                        let name = env.ir.interner().get(name);
-                        let name = JsString::from_str(env, &*name).as_value(env);
-                        try!(result.define_own_property(
-                            env,
-                            Name::from_index(offset),
-                            JsDescriptor::new_simple_value(name),
-                            false
-                        ));
-                        
-                        offset += 1;
-                    }
-                }
-                JsStoreKey::End => break,
-                JsStoreKey::Missing => {}
+    // [ES6] Argument is coerced to an object.
+    let object = try!(object.to_object(env)).unwrap_object(env);
+
+    let mut result = env.create_array();
+    let mut offset = 0;
+    
+    for i in 0.. {
+        match object.get_key(env, i) {
+            JsStoreKey::Key(name, _) => {
+                let name = env.ir.interner().get(name);
+                let name = JsString::from_str(env, &*name).as_value(env);
+                try!(result.define_own_property(
+                    env,
+                    Name::from_index(offset),
+                    JsDescriptor::new_simple_value(name),
+                    false
+                ));
+                
+                offset += 1;
             }
+            JsStoreKey::End => break,
+            JsStoreKey::Missing => {}
         }
-        
-        Ok(result.as_value(env))
     }
+    
+    Ok(result.as_value(env))
 }
 
 // 15.2.3.9 Object.freeze ( O )
 pub fn Object_freeze(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let object = args.arg(env, 0);
     
-    if object.ty() != JsType::Object {
-        Err(JsError::new_type(env, ::errors::TYPE_INVALID))
-    } else {
+    // [ES6] Freezing non-object arguments is a no-op.
+    if object.ty() == JsType::Object {
         let mut target = object.unwrap_object(env);
         
         for offset in 0.. {
@@ -276,18 +315,147 @@ pub fn Object_freeze(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
         }
         
         target.set_extensible(false);
-        
-        Ok(object)
     }
+    
+    Ok(object)
 }
 
 // 15.2.3.13 Object.isExtensible ( O )
 pub fn Object_isExtensible(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let arg = args.arg(env, 0);
-    if arg.ty() != JsType::Object {
-        Err(JsError::new_type(env, ::errors::TYPE_INVALID))
+
+    let result = if arg.ty() != JsType::Object {
+        // [ES6] Primitive values return false.
+        false
     } else {
-        let result = arg.unwrap_object(env).extensible();
-        Ok(env.new_bool(result))
+        arg.unwrap_object(env).extensible()
+    };
+    
+    Ok(env.new_bool(result))
+}
+
+// 15.2.3.8 Object.seal ( O )
+pub fn Object_seal(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+    let object = args.arg(env, 0);
+    
+    // [ES6] Instead of throwing a type error seal is a no-op for non-objects.
+    if object.ty() == JsType::Object {
+        let mut object_obj = object.unwrap_object(env);
+        
+        for offset in 0.. {
+            match object_obj.get_key(env, offset) {
+                JsStoreKey::Key(name, _) => {
+                    let mut desc = object_obj.get_own_property(env, name).unwrap();
+                    if desc.is_configurable() {
+                        desc.configurable = Some(false);
+                        try!(object_obj.define_own_property(env, name, desc, true));
+                    }
+                }
+                JsStoreKey::Missing => {}
+                JsStoreKey::End => break
+            }
+        }
+        
+        object_obj.set_extensible(false);
     }
+    
+    Ok(object)
+}
+
+// 15.2.3.11 Object.isSealed ( O )
+pub fn Object_isSealed(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+    let object = args.arg(env, 0);
+    
+    let result = if object.ty() != JsType::Object {
+        // [ES6] Primitive values return true.
+        true
+    } else {
+        let object_obj = object.unwrap_object(env);
+        
+        for offset in 0.. {
+            match object_obj.get_key(env, offset) {
+                JsStoreKey::Key(name, _) => {
+                    let desc = object_obj.get_own_property(env, name).unwrap();
+                    if desc.is_configurable() {
+                        return Ok(env.new_bool(false));
+                    }
+                }
+                JsStoreKey::Missing => {}
+                JsStoreKey::End => break
+            }
+        }
+        
+        !object_obj.extensible()
+    };
+    
+    Ok(env.new_bool(result))
+}
+
+// 15.2.3.12 Object.isFrozen ( O )
+pub fn Object_isFrozen(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+    let object = args.arg(env, 0);
+    
+    let result = if object.ty() != JsType::Object {
+        // [ES6] Primitive values return true.
+        true
+    } else {
+        let object_obj = object.unwrap_object(env);
+        
+        for offset in 0.. {
+            match object_obj.get_key(env, offset) {
+                JsStoreKey::Key(name, _) => {
+                    let desc = object_obj.get_own_property(env, name).unwrap();
+                    if desc.is_data() {
+                        if desc.is_writable() {
+                            return Ok(env.new_bool(false));
+                        }
+                    }
+                    if desc.is_configurable() {
+                        return Ok(env.new_bool(false));
+                    }
+                }
+                JsStoreKey::Missing => {}
+                JsStoreKey::End => break
+            }
+        }
+        
+        !object_obj.extensible()
+    };
+    
+    Ok(env.new_bool(result))
+}
+
+// 15.2.3.14 Object.keys ( O )
+pub fn Object_keys(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+    let object = args.arg(env, 0);
+
+    // [ES6] Argument is coerced to an object.
+    let object = try!(object.to_object(env)).unwrap_object(env);
+    
+    let mut array = env.create_array();
+    let mut index = 0;
+    
+    for offset in 0.. {
+        match object.get_key(env, offset) {
+            JsStoreKey::Key(name, enumerable) => {
+                if enumerable {
+                    let value = &*env.ir.interner().get(name);
+                    let value = JsString::from_str(env, value).as_value(env);
+                    
+                    try!(array.define_own_property(
+                        env,
+                        Name::from_index(index),
+                        JsDescriptor::new_simple_value(value),
+                        false
+                    ));
+                    
+                    index += 1;
+                }
+            }
+            JsStoreKey::Missing => {}
+            JsStoreKey::End => break
+        }
+    }
+    
+    Ok(array.as_value(env))
 }

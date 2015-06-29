@@ -135,7 +135,27 @@ impl Local<JsObject> {
     }
     
     pub fn get_key(&self, env: &JsEnv, offset: usize) -> JsStoreKey {
-        self.store.get_key(env, offset)
+        match self.store.get_key(env, offset) {
+            StoreKey::Key(name, enumerable) => JsStoreKey::Key(name, enumerable),
+            StoreKey::Missing => JsStoreKey::Missing,
+            StoreKey::End(len) => {
+                if self.value.ty() == JsType::String {
+                    let offset = offset - len;
+                    let string = self.value(env).unwrap_string(env);
+                    let chars = string.chars();
+                    
+                    if offset < chars.len() {
+                        JsStoreKey::Key(Name::from_index(offset), true)
+                    } else if offset == chars.len() {
+                        JsStoreKey::Key(name::LENGTH, false)
+                    } else {
+                        JsStoreKey::End
+                    }
+                } else {
+                    JsStoreKey::End
+                }
+            }
+        }
     }
 
     // 8.12.9 [[DefineOwnProperty]] (P, Desc, Throw)
@@ -181,7 +201,7 @@ impl Local<JsObject> {
                     Ok(true)
                 }
             }
-            Some(current) => {
+            Some(mut current) => {
                 if descriptor.is_empty() {
                     return Ok(true);
                 }
@@ -201,13 +221,11 @@ impl Local<JsObject> {
                             return reject(env, throw);
                         }
                         
-                        self.store.replace(env, property, &JsDescriptor {
+                        current = JsDescriptor {
                             enumerable: current.enumerable,
                             configurable: current.configurable,
-                            ..descriptor
-                        });
-                        
-                        return Ok(true);
+                            ..JsDescriptor::default()
+                        };
                     } else if current.is_data() {
                         if !current.is_configurable() {
                             if !current.is_writable() {
@@ -305,8 +323,8 @@ impl Local<JsObject> {
                             
                             for i in (0..end).rev() {
                                 let index = match self.store.get_key(env, i) {
-                                    JsStoreKey::Missing => continue,
-                                    JsStoreKey::Key(index, _) => index.index().unwrap(),
+                                    StoreKey::Missing => continue,
+                                    StoreKey::Key(index, _) => index.index().unwrap(),
                                     _ => panic!()
                                 };
                                 
@@ -409,16 +427,15 @@ impl JsItem for Local<JsObject> {
     }
 
     // 8.12.1 [[GetOwnProperty]] (P)
+    // 15.5.5.2 [[GetOwnProperty]] ( P )
     fn get_own_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
-        if property.index().is_some() {
-            if self.value.ty() == JsType::String {
-                if let Some(result) = self.value(env).get_own_property(env, property) {
-                    return Some(result);
-                } 
-            }
-        }
+        let desc = self.store.get_value(env, property);
         
-        self.store.get_value(env, property)
+        if !desc.is_some() && self.value.ty() == JsType::String {
+            self.value(env).get_own_property(env, property)
+        } else {
+            desc
+        }
     }
     
     // 8.12.7 [[Delete]] (P, Throw)
@@ -577,9 +594,15 @@ trait Store {
     
     fn replace(&mut self, env: &JsEnv, name: Name, value: &JsDescriptor) -> bool;
     
-    fn get_key(&self, env: &JsEnv, offset: usize) -> JsStoreKey;
+    fn get_key(&self, env: &JsEnv, offset: usize) -> StoreKey;
     
     fn capacity(&self, env: &JsEnv) -> usize;
+}
+
+pub enum StoreKey {
+    Key(Name, bool),
+    Missing,
+    End(usize)
 }
 
 pub enum JsStoreKey {
@@ -650,7 +673,7 @@ impl Store for StorePtr {
         delegate!(self, env, replace(env, name, value))
     }
     
-    fn get_key(&self, env: &JsEnv, offset: usize) -> JsStoreKey {
+    fn get_key(&self, env: &JsEnv, offset: usize) -> StoreKey {
         delegate!(self, env, get_key(env, offset))
     }
     

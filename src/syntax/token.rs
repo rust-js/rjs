@@ -455,4 +455,9 @@ declare_idents! {
     ( "toPrecision", TO_PRECISION, 237 );
     ( "-0", MINUS_ZERO, 238 );
     ( "EPSILON", EPSILON, 239 );
+    ( "defineProperties", DEFINE_PROPERTIES, 240 );
+    ( "seal", SEAL, 241 );
+    ( "isSealed", IS_SEALED, 242 );
+    ( "isFrozen", IS_FROZEN, 243 );
+    ( "keys", KEYS, 244 );
 }

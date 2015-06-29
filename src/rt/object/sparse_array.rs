@@ -1,6 +1,6 @@
 use gc::{Array, Local, ptr_t, GcWalker};
 use rt::JsEnv;
-use rt::object::{JsStoreKey, Entry};
+use rt::object::{StoreKey, Entry};
 use std::cmp::{min, max};
 use rt::{GC_ENTRY, GC_ARRAY_CHUNK, GC_SPARSE_ARRAY, validate_walker_field};
 use syntax::Name;
@@ -260,27 +260,29 @@ impl Local<SparseArray> {
         ChunkIndex::new(lo, false)
     }
     
-    pub fn get_key(&self, offset: usize) -> JsStoreKey {
+    pub fn get_key(&self, offset: usize) -> StoreKey {
         let items = self.items;
+        
         if !items.is_null() {
             let entry = items[offset];
+            
             if entry.is_valid() {
-                JsStoreKey::Key(Name::from_index(offset), entry.is_enumerable())
+                StoreKey::Key(Name::from_index(offset), entry.is_enumerable())
             } else {
-                JsStoreKey::Missing
+                StoreKey::Missing
             }
         } else {
             let chunk = &self.chunks[offset >> CHUNK_SHIFT];
             let items = chunk.items;
             if items.is_null() {
-                JsStoreKey::Missing
+                StoreKey::Missing
             } else {
                 let offset = offset & (CHUNK_SIZE - 1);
                 let entry = items[offset];
                 if entry.is_valid() {
-                    JsStoreKey::Key(Name::from_index(chunk.offset + offset), entry.is_enumerable())
+                    StoreKey::Key(Name::from_index(chunk.offset + offset), entry.is_enumerable())
                 } else {
-                    JsStoreKey::Missing
+                    StoreKey::Missing
                 }
             }
         }
