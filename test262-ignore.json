@@ -1,332 +1,1015 @@
 {
-  "built-ins/Array/prototype/every/15.4.4.16-3-12.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/every/15.4.4.16-3-14.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/every/15.4.4.16-3-25.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/every/15.4.4.16-3-29.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/every/15.4.4.16-3-7.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/every/15.4.4.16-3-8.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/every/15.4.4.16-7-c-ii-2.js": "This takes a very long time. It does however pass",
-  "built-ins/Array/prototype/filter/15.4.4.20-3-12.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/filter/15.4.4.20-3-25.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/filter/15.4.4.20-3-7.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/filter/15.4.4.20-9-c-ii-1.js": "This takes a very long time. It does however pass",
-  "built-ins/Array/prototype/forEach/15.4.4.18-3-12.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/forEach/15.4.4.18-3-25.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/forEach/15.4.4.18-3-7.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/forEach/15.4.4.18-7-c-ii-1.js": "This takes a very long time. It does however pass",
-  "built-ins/Array/prototype/indexOf/15.4.4.14-10-1.js": "This takes a very long time. It does however pass",
-  "built-ins/Array/prototype/indexOf/15.4.4.14-3-12.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/indexOf/15.4.4.14-3-14.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/indexOf/15.4.4.14-3-25.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/indexOf/15.4.4.14-3-28.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/indexOf/15.4.4.14-3-29.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/indexOf/15.4.4.14-3-7.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/indexOf/15.4.4.14-3-8.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/join/S15.4.4.5_A4_T3.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/lastIndexOf/15.4.4.15-1-12.js": "RegExp has not yet been implemented.",
-  "built-ins/Array/prototype/lastIndexOf/15.4.4.15-3-12.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/lastIndexOf/15.4.4.15-3-15.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/lastIndexOf/15.4.4.15-3-25.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/lastIndexOf/15.4.4.15-3-28.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/lastIndexOf/15.4.4.15-3-7.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/lastIndexOf/15.4.4.15-9-1.js": "This takes a very long time. It does however pass",
-  "built-ins/Array/prototype/map/15.4.4.19-3-12.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/map/15.4.4.19-3-14.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/map/15.4.4.19-3-25.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/map/15.4.4.19-3-28.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/map/15.4.4.19-3-29.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/map/15.4.4.19-3-7.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/map/15.4.4.19-3-8.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/map/15.4.4.19-8-c-ii-1.js": "This takes a very long time. It does however pass",
-  "built-ins/Array/prototype/pop/S15.4.4.6_A2_T2.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/pop/S15.4.4.6_A3_T1.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/pop/S15.4.4.6_A3_T2.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/pop/S15.4.4.6_A3_T3.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/push/S15.4.4.7_A2_T2.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/push/S15.4.4.7_A4_T1.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/push/S15.4.4.7_A4_T3.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/reduce/15.4.4.21-3-12.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/reduce/15.4.4.21-3-25.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/reduce/15.4.4.21-3-7.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/reduceRight/15.4.4.22-3-12.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/reduceRight/15.4.4.22-3-25.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/reduceRight/15.4.4.22-3-7.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/reverse/S15.4.4.8_A3_T3.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/shift/S15.4.4.9_A3_T3.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/slice/S15.4.4.10_A3_T1.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/slice/S15.4.4.10_A3_T2.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/slice/S15.4.4.10_A3_T3.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/some/15.4.4.17-3-12.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/some/15.4.4.17-3-14.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/some/15.4.4.17-3-25.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/some/15.4.4.17-3-28.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/some/15.4.4.17-3-29.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/some/15.4.4.17-3-7.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/some/15.4.4.17-3-8.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/some/15.4.4.17-7-c-ii-2.js": "This takes a very long time. It does however pass",
-  "built-ins/Array/prototype/sort/S15.4.4.11_A4_T3.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/splice/S15.4.4.12_A3_T1.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/splice/S15.4.4.12_A3_T3.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Array/prototype/unshift/S15.4.4.13_A3_T2.js": "This is a spec violation depending on the wrong result of the ToUint32 cast. Chrome fails this test.",
-  "built-ins/Boolean/S9.2_A6_T1.js": "Date has not yet been implemented.",
-  "built-ins/Date/15.9.1.15-1.js": "Chrome and Firefox don't do this. This test depends on invalid ISO parsing.",
-  "built-ins/Date/prototype/toISOString/15.9.5.43-0-11.js": "The values used in this test are out of range of what Chrono can handle.",
-  "built-ins/Date/prototype/toISOString/15.9.5.43-0-12.js": "The values used in this test are out of range of what Chrono can handle.",
-  "built-ins/Date/S15.9.3.1_A5_T1.js": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
-  "built-ins/Date/S15.9.3.1_A5_T2.js": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
-  "built-ins/Date/S15.9.3.1_A5_T3.js": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
-  "built-ins/Date/S15.9.3.1_A5_T4.js": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
-  "built-ins/Date/S15.9.3.1_A5_T5.js": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
-  "built-ins/Date/S15.9.3.1_A5_T6.js": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
-  "built-ins/decodeURI/S15.1.3.1_A1.10_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURI/S15.1.3.1_A1.11_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURI/S15.1.3.1_A1.11_T2.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURI/S15.1.3.1_A1.12_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURI/S15.1.3.1_A1.12_T2.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURI/S15.1.3.1_A1.12_T3.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURI/S15.1.3.1_A1.2_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURI/S15.1.3.1_A1.2_T2.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURI/S15.1.3.1_A2.1_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURI/S15.1.3.1_A2.4_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURI/S15.1.3.1_A2.5_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURIComponent/S15.1.3.2_A1.10_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURIComponent/S15.1.3.2_A1.11_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURIComponent/S15.1.3.2_A1.11_T2.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURIComponent/S15.1.3.2_A1.12_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURIComponent/S15.1.3.2_A1.12_T2.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURIComponent/S15.1.3.2_A1.12_T3.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURIComponent/S15.1.3.2_A1.2_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURIComponent/S15.1.3.2_A1.2_T2.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURIComponent/S15.1.3.2_A2.1_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURIComponent/S15.1.3.2_A2.4_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/encodeURI/S15.1.3.3_A1.3_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/encodeURI/S15.1.3.3_A2.3_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/encodeURI/S15.1.3.3_A2.4_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/encodeURI/S15.1.3.3_A2.4_T2.js": "This takes a very long time. It does however pass",
-  "built-ins/encodeURI/S15.1.3.3_A2.5_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/encodeURIComponent/S15.1.3.4_A1.3_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/encodeURIComponent/S15.1.3.4_A2.3_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/encodeURIComponent/S15.1.3.4_A2.4_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/encodeURIComponent/S15.1.3.4_A2.4_T2.js": "This takes a very long time. It does however pass",
-  "built-ins/encodeURIComponent/S15.1.3.4_A2.5_T1.js": "This takes a very long time. It does however pass",
-  "built-ins/Function/prototype/apply/S15.3.4.3_A16.js": "RegExp has not yet been implemented.",
-  "built-ins/Function/prototype/bind/S15.3.4.5_A16.js": "RegExp has not yet been implemented.",
-  "built-ins/Function/prototype/call/S15.3.4.4_A16.js": "RegExp has not yet been implemented.",
-  "built-ins/Function/prototype/toString/S15.3.4.2_A15.js": "RegExp has not yet been implemented.",
-  "language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-1.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-2.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-3.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-4.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-5.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "language/arguments-object/mapped/mapped-arguments-nonwritable-nonconfigurable-1.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "language/arguments-object/mapped/mapped-arguments-nonwritable-nonconfigurable-2.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "language/arguments-object/mapped/mapped-arguments-nonwritable-nonconfigurable-3.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "language/arguments-object/mapped/mapped-arguments-nonwritable-nonconfigurable-4.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "built-ins/Object/defineProperty/15.2.3.6-4-289-1.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "built-ins/Object/defineProperty/15.2.3.6-4-290-1.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "built-ins/Object/defineProperty/15.2.3.6-4-291-1.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "built-ins/Object/defineProperty/15.2.3.6-4-293-3.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "built-ins/Object/defineProperty/15.2.3.6-4-297-1.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "built-ins/Object/defineProperty/15.2.3.6-4-298-1.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "built-ins/Object/defineProperty/15.2.3.6-4-299-1.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "built-ins/Object/defineProperty/15.2.3.6-4-301-1.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "built-ins/Object/defineProperty/15.2.3.6-4-302-1.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "language/comments/S7.4_A5.js": "Disabled because this requires a functional garbage collector.",
-  "language/comments/S7.4_A6.js": "Disabled because this requires a functional garbage collector.",
-  "language/directive-prologue/10.1.1-2gs.js": "This is a strict test that throws an exception. The test states that the exception should be thrown, but a SyntaxError is thrown; same as Chrome and Firefox. This should be OK.",
-  "language/directive-prologue/10.1.1-5gs.js": "This is a strict test that throws an exception. The test states that the exception should be thrown, but a SyntaxError is thrown; same as Chrome and Firefox. This should be OK.",
-  "language/directive-prologue/10.1.1-8gs.js": "This is a strict test that throws an exception. The test states that the exception should be thrown, but a SyntaxError is thrown; same as Chrome and Firefox. This should be OK.",
-  "language/directive-prologue/14.1-5gs.js": "This is a strict test that throws an exception. The test states that the exception should be thrown, but a SyntaxError is thrown; same as Chrome and Firefox. This should be OK.",
-  "language/eval-code/10.4.2.1-1gs.js": "This is a strict test that throws an exception. The test states that the exception should be thrown, but a SyntaxError is thrown; same as Chrome and Firefox. This should be OK.",
-  "language/expressions/addition/S11.6.1_A2.2_T2.js": "Date has not yet been implemented.",
-  "language/expressions/assignment/S11.13.1_A5_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/assignment/S11.13.1_A5_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/assignment/S11.13.1_A5_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/assignment/S11.13.1_A5_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.1_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.1_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.1_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.1_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.1_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.10_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.10_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.10_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.10_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.10_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.11_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.11_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.11_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.11_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.11_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.2_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.2_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.2_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.2_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.2_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.3_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.3_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.3_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.3_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.3_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.4_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.4_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.4_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.4_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.4_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.5_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.5_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.5_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.5_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.5_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.6_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.6_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.6_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.6_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.6_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.7_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.7_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.7_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.7_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.7_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.8_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.8_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.8_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.8_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.8_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.9_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.9_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.9_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.9_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/compound-assignment/S11.13.2_A5.9_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/delete/11.4.1-4.a-5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/division/S11.5.2_A4_T10.js": "This tests for comparison against very small numbers, which fail. This needs to be reviewed.",
-  "language/expressions/logical-not/S9.2_A6_T2.js": "Date has not yet been implemented.",
-  "language/expressions/postfix-decrement/S11.3.2_A5_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/postfix-decrement/S11.3.2_A5_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/postfix-decrement/S11.3.2_A5_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/postfix-decrement/S11.3.2_A5_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/postfix-decrement/S11.3.2_A5_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/postfix-increment/S11.3.1_A5_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/postfix-increment/S11.3.1_A5_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/postfix-increment/S11.3.1_A5_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/postfix-increment/S11.3.1_A5_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/postfix-increment/S11.3.1_A5_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/prefix-decrement/S11.4.5_A5_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/prefix-decrement/S11.4.5_A5_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/prefix-decrement/S11.4.5_A5_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/prefix-decrement/S11.4.5_A5_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/prefix-decrement/S11.4.5_A5_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/prefix-increment/S11.4.4_A5_T1.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/prefix-increment/S11.4.4_A5_T2.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/prefix-increment/S11.4.4_A5_T3.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/prefix-increment/S11.4.4_A5_T4.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/prefix-increment/S11.4.4_A5_T5.js": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
-  "language/expressions/property-accessors/S11.2.1_A4_T5.js": "String has not yet been implemented.",
-  "language/expressions/property-accessors/S11.2.1_A4_T8.js": "Math has not yet been implemented.",
-  "language/expressions/property-accessors/S11.2.1_A4_T9.js": "Date has not yet been implemented.",
-  "language/function-code/10.4.3-1-100gs.js": "String has not yet been implemented.",
-  "language/function-code/10.4.3-1-100-s.js": "String has not yet been implemented.",
-  "language/function-code/10.4.3-1-101gs.js": "String has not yet been implemented.",
-  "language/function-code/10.4.3-1-101-s.js": "String has not yet been implemented.",
-  "language/function-code/10.4.3-1-102gs.js": "String has not yet been implemented.",
-  "language/function-code/10.4.3-1-102-s.js": "String has not yet been implemented.",
-  "language/literals/null/S7.8.1_A1_T2.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/7.8.5-1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/7.8.5-1gs.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/7.8.5-2gs.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.1_T1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.1_T2.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.2_T1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.2_T2.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.2_T3.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.2_T4.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.3_T1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.3_T2.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.3_T3.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.3_T4.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.3_T5.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.3_T6.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.4_T1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.4_T2.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.5_T1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.5_T2.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.5_T3.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.5_T4.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.5_T5.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A1.5_T6.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.1_T1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.1_T2.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.2_T1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.2_T2.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.3_T1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.3_T2.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.3_T3.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.3_T4.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.3_T5.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.3_T6.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.4_T1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.4_T2.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.5_T1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.5_T2.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.5_T3.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.5_T4.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.5_T5.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A2.5_T6.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A3.1_T1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A3.1_T2.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A3.1_T3.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A3.1_T4.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A3.1_T5.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A3.1_T6.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A3.1_T7.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A3.1_T8.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A3.1_T9.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A4.1.js": "RegExp has not yet been implemented.",
-  "language/literals/regexp/S7.8.5_A4.2.js": "RegExp has not yet been implemented.",
-  "language/statements/do-while/S12.6.1_A8.js": "String has not yet been implemented.",
-  "language/statements/function/13.2-30-s.js": "This seems to be a spec violation. The spec specifically states that the caller and arguments value should be defined as type thrower on the bound function. Chrome and Firefox do the same.",
-  "language/statements/function/S13.2.1_A5_T2.js": "Math has not yet been implemented.",
-  "language/statements/function/S13_A13_T1.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "language/statements/function/S13_A13_T2.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "language/statements/function/S13_A13_T3.js": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
-  "language/statements/function/S13_A18.js": "Math has not yet been implemented.",
-  "language/statements/return/S12.9_A4.js": "Math has not yet been implemented.",
-  "language/statements/while/S12.6.2_A8.js": "String has not yet been implemented.",
-  "built-ins/Math/pow/S15.8.2.13_A24.js": "This test contains hard coded results of Math.pow. However, there are very small differences between our results and the tests' results. Chrome also doesn't pass these tests.",
-  "built-ins/Date/S15.9.2.1_A2.js": "This test sometimes fails because it compares milliseconds of a date which can differ between statements.",
-  "built-ins/Object/create/15.2.3.5-4-40.js": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
-  "built-ins/Object/defineProperties/15.2.3.7-6-a-93-1.js": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
-  "built-ins/Object/defineProperties/15.2.3.7-6-a-93-3.js": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
-  "built-ins/Object/defineProperty/15.2.3.6-4-621.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-65.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-68.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-69.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-70.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-71.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-72.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-73.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-75.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-76.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-77.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-78.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-79.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-80.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-81.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-82.js": "String has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-165.js": "RegExp has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-166.js": "RegExp has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-167.js": "RegExp has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-212.js": "RegExp has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-213.js": "RegExp has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-214.js": "RegExp has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-215.js": "RegExp has not yet been implemented.",
-  "built-ins/Object/getOwnPropertyNames/15.2.3.4-4-44.js": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
-  "built-ins/Object/getOwnPropertyNames/15.2.3.4-4-b-2.js": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
-  "built-ins/Object/keys/15.2.3.14-2-8.js": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
-  "built-ins/Object/keys/15.2.3.14-3-1.js": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
-  "built-ins/Object/keys/15.2.3.14-4-1.js": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
-  "built-ins/parseFloat/S15.1.2.3_A6.js": "This test is very slow because it iterates over a lot of permutations. It does however pass.",
-  "built-ins/parseInt/S15.1.2.2_A8.js": "This test is very slow because it iterates over a lot of permutations. It does however pass.",
-  "": ""
+    "built-ins/Array/prototype/every/15.4.4.16-3-12.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/every/15.4.4.16-3-14.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/every/15.4.4.16-3-25.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/every/15.4.4.16-3-29.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/every/15.4.4.16-3-7.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/every/15.4.4.16-3-8.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/every/15.4.4.16-7-c-ii-2.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/Array/prototype/filter/15.4.4.20-3-12.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/filter/15.4.4.20-3-25.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/filter/15.4.4.20-3-7.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/filter/15.4.4.20-9-c-ii-1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/Array/prototype/forEach/15.4.4.18-3-12.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/forEach/15.4.4.18-3-25.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/forEach/15.4.4.18-3-7.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/forEach/15.4.4.18-7-c-ii-1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/Array/prototype/indexOf/15.4.4.14-10-1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/Array/prototype/indexOf/15.4.4.14-3-12.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/indexOf/15.4.4.14-3-14.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/indexOf/15.4.4.14-3-25.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/indexOf/15.4.4.14-3-28.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/indexOf/15.4.4.14-3-29.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/indexOf/15.4.4.14-3-7.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/indexOf/15.4.4.14-3-8.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/join/S15.4.4.5_A4_T3.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/lastIndexOf/15.4.4.15-3-12.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/lastIndexOf/15.4.4.15-3-15.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/lastIndexOf/15.4.4.15-3-25.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/lastIndexOf/15.4.4.15-3-28.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/lastIndexOf/15.4.4.15-3-7.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/lastIndexOf/15.4.4.15-9-1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/Array/prototype/map/15.4.4.19-3-12.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/map/15.4.4.19-3-14.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/map/15.4.4.19-3-25.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/map/15.4.4.19-3-28.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/map/15.4.4.19-3-29.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/map/15.4.4.19-3-7.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/map/15.4.4.19-3-8.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/map/15.4.4.19-8-c-ii-1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/Array/prototype/pop/S15.4.4.6_A2_T2.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/pop/S15.4.4.6_A3_T1.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/pop/S15.4.4.6_A3_T2.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/pop/S15.4.4.6_A3_T3.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/push/S15.4.4.7_A2_T2.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/push/S15.4.4.7_A4_T1.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/push/S15.4.4.7_A4_T3.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/reduce/15.4.4.21-3-12.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/reduce/15.4.4.21-3-25.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/reduce/15.4.4.21-3-7.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/reduceRight/15.4.4.22-3-12.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/reduceRight/15.4.4.22-3-25.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/reduceRight/15.4.4.22-3-7.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/reverse/S15.4.4.8_A3_T3.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/shift/S15.4.4.9_A3_T3.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/slice/S15.4.4.10_A3_T1.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/slice/S15.4.4.10_A3_T2.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/slice/S15.4.4.10_A3_T3.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/some/15.4.4.17-3-12.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/some/15.4.4.17-3-14.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/some/15.4.4.17-3-25.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/some/15.4.4.17-3-28.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/some/15.4.4.17-3-29.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/some/15.4.4.17-3-7.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/some/15.4.4.17-3-8.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/some/15.4.4.17-7-c-ii-2.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/Array/prototype/sort/S15.4.4.11_A4_T3.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/splice/S15.4.4.12_A3_T1.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/splice/S15.4.4.12_A3_T3.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Array/prototype/unshift/S15.4.4.13_A3_T2.js": {
+        "reason": "This is a spec violation depending on the wrong result of the ToUint32 cast.",
+        "issue": "https://github.com/rust-js/rjs/issues/48"
+    },
+    "built-ins/Date/15.9.1.15-1.js": {
+        "reason": "Chrome and Firefox don't do this. This test depends on invalid ISO parsing.",
+        "issue": "https://github.com/rust-js/rjs/issues/49"
+    },
+    "built-ins/Date/prototype/toISOString/15.9.5.43-0-11.js": {
+        "reason": "The values used in this test are out of range of what Chrono can handle.",
+        "issue": "https://github.com/rust-js/rjs/issues/40"
+    },
+    "built-ins/Date/prototype/toISOString/15.9.5.43-0-12.js": {
+        "reason": "The values used in this test are out of range of what Chrono can handle.",
+        "issue": "https://github.com/rust-js/rjs/issues/40"
+    },
+    "built-ins/Date/S15.9.2.1_A2.js": {
+        "reason": "This test sometimes fails because it compares milliseconds of a date which can differ between statements.",
+        "issue": "https://github.com/rust-js/rjs/issues/40"
+    },
+    "built-ins/Date/S15.9.3.1_A5_T1.js": {
+        "reason": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
+        "issue": "https://github.com/rust-js/rjs/issues/40"
+    },
+    "built-ins/Date/S15.9.3.1_A5_T2.js": {
+        "reason": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
+        "issue": "https://github.com/rust-js/rjs/issues/40"
+    },
+    "built-ins/Date/S15.9.3.1_A5_T3.js": {
+        "reason": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
+        "issue": "https://github.com/rust-js/rjs/issues/40"
+    },
+    "built-ins/Date/S15.9.3.1_A5_T4.js": {
+        "reason": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
+        "issue": "https://github.com/rust-js/rjs/issues/40"
+    },
+    "built-ins/Date/S15.9.3.1_A5_T5.js": {
+        "reason": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
+        "issue": "https://github.com/rust-js/rjs/issues/40"
+    },
+    "built-ins/Date/S15.9.3.1_A5_T6.js": {
+        "reason": "These tests give results different from Chrome. Our implementation gives the same results as Chrome.",
+        "issue": "https://github.com/rust-js/rjs/issues/40"
+    },
+    "built-ins/decodeURI/S15.1.3.1_A1.10_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURI/S15.1.3.1_A1.11_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURI/S15.1.3.1_A1.11_T2.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURI/S15.1.3.1_A1.12_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURI/S15.1.3.1_A1.12_T2.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURI/S15.1.3.1_A1.12_T3.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURI/S15.1.3.1_A1.2_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURI/S15.1.3.1_A1.2_T2.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURI/S15.1.3.1_A2.1_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURI/S15.1.3.1_A2.4_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURI/S15.1.3.1_A2.5_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURIComponent/S15.1.3.2_A1.10_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURIComponent/S15.1.3.2_A1.11_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURIComponent/S15.1.3.2_A1.11_T2.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURIComponent/S15.1.3.2_A1.12_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURIComponent/S15.1.3.2_A1.12_T2.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURIComponent/S15.1.3.2_A1.12_T3.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURIComponent/S15.1.3.2_A1.2_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURIComponent/S15.1.3.2_A1.2_T2.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURIComponent/S15.1.3.2_A2.1_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURIComponent/S15.1.3.2_A2.4_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/encodeURI/S15.1.3.3_A1.3_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/encodeURI/S15.1.3.3_A2.3_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/encodeURI/S15.1.3.3_A2.4_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/encodeURI/S15.1.3.3_A2.4_T2.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/encodeURI/S15.1.3.3_A2.5_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/encodeURIComponent/S15.1.3.4_A1.3_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/encodeURIComponent/S15.1.3.4_A2.3_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/encodeURIComponent/S15.1.3.4_A2.4_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/encodeURIComponent/S15.1.3.4_A2.4_T2.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/encodeURIComponent/S15.1.3.4_A2.5_T1.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/Math/pow/S15.8.2.13_A24.js": {
+        "reason": "This test contains hard coded results of Math.pow. However, there are very small differences between our results and the tests' results. Chrome also doesn't pass these tests.",
+        "issue": "https://github.com/rust-js/rjs/issues/50"
+    },
+    "built-ins/Object/create/15.2.3.5-4-40.js": {
+        "reason": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
+        "issue": "https://github.com/rust-js/rjs/issues/51"
+    },
+    "built-ins/Object/defineProperties/15.2.3.7-6-a-93-1.js": {
+        "reason": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
+        "issue": "https://github.com/rust-js/rjs/issues/51"
+    },
+    "built-ins/Object/defineProperties/15.2.3.7-6-a-93-3.js": {
+        "reason": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
+        "issue": "https://github.com/rust-js/rjs/issues/51"
+    },
+    "built-ins/Object/defineProperty/15.2.3.6-4-289-1.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "built-ins/Object/defineProperty/15.2.3.6-4-290-1.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "built-ins/Object/defineProperty/15.2.3.6-4-291-1.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "built-ins/Object/defineProperty/15.2.3.6-4-293-3.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "built-ins/Object/defineProperty/15.2.3.6-4-297-1.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "built-ins/Object/defineProperty/15.2.3.6-4-298-1.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "built-ins/Object/defineProperty/15.2.3.6-4-299-1.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "built-ins/Object/defineProperty/15.2.3.6-4-301-1.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "built-ins/Object/defineProperty/15.2.3.6-4-302-1.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "built-ins/Object/getOwnPropertyNames/15.2.3.4-4-44.js": {
+        "reason": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
+        "issue": "https://github.com/rust-js/rjs/issues/51"
+    },
+    "built-ins/Object/getOwnPropertyNames/15.2.3.4-4-b-2.js": {
+        "reason": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
+        "issue": "https://github.com/rust-js/rjs/issues/51"
+    },
+    "built-ins/Object/keys/15.2.3.14-2-8.js": {
+        "reason": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
+        "issue": "https://github.com/rust-js/rjs/issues/51"
+    },
+    "built-ins/Object/keys/15.2.3.14-3-1.js": {
+        "reason": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
+        "issue": "https://github.com/rust-js/rjs/issues/51"
+    },
+    "built-ins/Object/keys/15.2.3.14-4-1.js": {
+        "reason": "This test depends on a specific ordering of object keys, which is not required by the spec. The spec just states that it needs to be stable, which it is.",
+        "issue": "https://github.com/rust-js/rjs/issues/51"
+    },
+    "built-ins/parseFloat/S15.1.2.3_A6.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "built-ins/parseInt/S15.1.2.2_A8.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-1.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-2.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-3.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-4.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-5.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "language/arguments-object/mapped/mapped-arguments-nonwritable-nonconfigurable-1.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "language/arguments-object/mapped/mapped-arguments-nonwritable-nonconfigurable-2.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "language/arguments-object/mapped/mapped-arguments-nonwritable-nonconfigurable-3.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "language/arguments-object/mapped/mapped-arguments-nonwritable-nonconfigurable-4.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "language/comments/S7.4_A5.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "language/comments/S7.4_A6.js": {
+        "description": "This takes a very long time because of the current garbage collector. It does however pass",
+        "issue": "https://github.com/rust-js/rjs/issues/4"
+    },
+    "language/directive-prologue/10.1.1-2gs.js": {
+        "reason": "This is a strict test that throws an exception. The test states that the exception should be thrown, but a SyntaxError is thrown; same as Chrome and Firefox. This should be OK.",
+        "issue": "https://github.com/rust-js/rjs/issues/53"
+    },
+    "language/directive-prologue/10.1.1-5gs.js": {
+        "reason": "This is a strict test that throws an exception. The test states that the exception should be thrown, but a SyntaxError is thrown; same as Chrome and Firefox. This should be OK.",
+        "issue": "https://github.com/rust-js/rjs/issues/53"
+    },
+    "language/directive-prologue/10.1.1-8gs.js": {
+        "reason": "This is a strict test that throws an exception. The test states that the exception should be thrown, but a SyntaxError is thrown; same as Chrome and Firefox. This should be OK.",
+        "issue": "https://github.com/rust-js/rjs/issues/53"
+    },
+    "language/directive-prologue/14.1-5gs.js": {
+        "reason": "This is a strict test that throws an exception. The test states that the exception should be thrown, but a SyntaxError is thrown; same as Chrome and Firefox. This should be OK.",
+        "issue": "https://github.com/rust-js/rjs/issues/53"
+    },
+    "language/eval-code/10.4.2.1-1gs.js": {
+        "reason": "This is a strict test that throws an exception. The test states that the exception should be thrown, but a SyntaxError is thrown; same as Chrome and Firefox. This should be OK.",
+        "issue": "https://github.com/rust-js/rjs/issues/53"
+    },
+    "language/expressions/assignment/S11.13.1_A5_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/assignment/S11.13.1_A5_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/assignment/S11.13.1_A5_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/assignment/S11.13.1_A5_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.1_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.1_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.1_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.1_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.1_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.10_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.10_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.10_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.10_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.10_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.11_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.11_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.11_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.11_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.11_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.2_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.2_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.2_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.2_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.2_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.3_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.3_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.3_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.3_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.3_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.4_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.4_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.4_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.4_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.4_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.5_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.5_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.5_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.5_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.5_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.6_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.6_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.6_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.6_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.6_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.7_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.7_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.7_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.7_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.7_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.8_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.8_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.8_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.8_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.8_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.9_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.9_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.9_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.9_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/compound-assignment/S11.13.2_A5.9_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/delete/11.4.1-4.a-5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/postfix-decrement/S11.3.2_A5_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/postfix-decrement/S11.3.2_A5_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/postfix-decrement/S11.3.2_A5_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/postfix-decrement/S11.3.2_A5_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/postfix-decrement/S11.3.2_A5_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/postfix-increment/S11.3.1_A5_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/postfix-increment/S11.3.1_A5_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/postfix-increment/S11.3.1_A5_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/postfix-increment/S11.3.1_A5_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/postfix-increment/S11.3.1_A5_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/prefix-decrement/S11.4.5_A5_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/prefix-decrement/S11.4.5_A5_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/prefix-decrement/S11.4.5_A5_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/prefix-decrement/S11.4.5_A5_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/prefix-decrement/S11.4.5_A5_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/prefix-increment/S11.4.4_A5_T1.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/prefix-increment/S11.4.4_A5_T2.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/prefix-increment/S11.4.4_A5_T3.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/prefix-increment/S11.4.4_A5_T4.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/expressions/prefix-increment/S11.4.4_A5_T5.js": {
+        "reason": "This is a rather extreme situation that neither Chrome nor Firefox cover.",
+        "issue": "https://github.com/rust-js/rjs/issues/54"
+    },
+    "language/statements/function/13.2-30-s.js": {
+        "reason": "This seems to be a spec violation. The spec specifically states that the caller and arguments value should be defined as type thrower on the bound function. Chrome and Firefox do the same.",
+        "issue": "https://github.com/rust-js/rjs/issues/55"
+    },
+    "language/statements/function/S13_A13_T1.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "language/statements/function/S13_A13_T2.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+    "language/statements/function/S13_A13_T3.js": {
+        "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
+        "issue": "https://github.com/rust-js/rjs/issues/52"
+    },
+
+    "built-ins/Array/prototype/lastIndexOf/15.4.4.15-1-12.js": "RegExp has not yet been implemented.",
+    "built-ins/Function/prototype/apply/S15.3.4.3_A16.js": "RegExp has not yet been implemented.",
+    "built-ins/Function/prototype/bind/S15.3.4.5_A16.js": "RegExp has not yet been implemented.",
+    "built-ins/Function/prototype/call/S15.3.4.4_A16.js": "RegExp has not yet been implemented.",
+    "built-ins/Function/prototype/toString/S15.3.4.2_A15.js": "RegExp has not yet been implemented.",
+    "built-ins/Object/defineProperty/15.2.3.6-4-621.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-165.js": "RegExp has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-166.js": "RegExp has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-167.js": "RegExp has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-212.js": "RegExp has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-213.js": "RegExp has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-214.js": "RegExp has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-215.js": "RegExp has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-65.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-68.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-69.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-70.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-71.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-72.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-73.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-75.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-76.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-77.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-78.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-79.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-80.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-81.js": "String has not yet been implemented.",
+    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-82.js": "String has not yet been implemented.",
+    "language/expressions/property-accessors/S11.2.1_A4_T5.js": "String has not yet been implemented.",
+    "language/function-code/10.4.3-1-100gs.js": "String has not yet been implemented.",
+    "language/function-code/10.4.3-1-100-s.js": "String has not yet been implemented.",
+    "language/function-code/10.4.3-1-101gs.js": "String has not yet been implemented.",
+    "language/function-code/10.4.3-1-101-s.js": "String has not yet been implemented.",
+    "language/function-code/10.4.3-1-102gs.js": "String has not yet been implemented.",
+    "language/function-code/10.4.3-1-102-s.js": "String has not yet been implemented.",
+    "language/literals/null/S7.8.1_A1_T2.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/7.8.5-1.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/7.8.5-1gs.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/7.8.5-2gs.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.1_T1.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.1_T2.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.2_T1.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.2_T2.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.2_T3.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.2_T4.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.3_T1.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.3_T2.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.3_T3.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.3_T4.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.3_T5.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.3_T6.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.4_T1.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.4_T2.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.5_T1.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.5_T2.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.5_T3.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.5_T4.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.5_T5.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A1.5_T6.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.1_T1.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.1_T2.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.2_T1.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.2_T2.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.3_T1.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.3_T2.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.3_T3.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.3_T4.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.3_T5.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.3_T6.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.4_T1.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.4_T2.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.5_T1.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.5_T2.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.5_T3.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.5_T4.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.5_T5.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A2.5_T6.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A3.1_T1.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A3.1_T2.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A3.1_T3.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A3.1_T4.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A3.1_T5.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A3.1_T6.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A3.1_T7.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A3.1_T8.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A3.1_T9.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A4.1.js": "RegExp has not yet been implemented.",
+    "language/literals/regexp/S7.8.5_A4.2.js": "RegExp has not yet been implemented.",
+    "language/statements/do-while/S12.6.1_A8.js": "String has not yet been implemented.",
+    "language/statements/while/S12.6.2_A8.js": "String has not yet been implemented.",
+
+    "": ""
 }
