@@ -112,7 +112,7 @@ pub fn Function_apply(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResul
 }
 
 // 15.3.4.2 Function.prototype.toString ( )
-// TODO: This can be greatly improved, e.g. by retaining/getting the real code.
+// TODO #66: This can be greatly improved, e.g. by retaining/getting the real code.
 pub fn Function_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let this_arg = args.this(env);
     

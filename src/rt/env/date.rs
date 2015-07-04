@@ -76,7 +76,7 @@ fn get_year_from_time(time: f64) -> f64 {
     if let Some(date_time) = time_to_chrono(time) {
         date_time.year() as f64
     } else {
-        // TODO: This is wrong. Chrono should have been able to parse
+        // TODO #40: This is wrong. Chrono should have been able to parse
         // this in the firs tplace.
         f64::NAN
     }
@@ -537,7 +537,7 @@ pub fn Date_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
     
     let mut result = String::new();
     
-    // TODO: Incorporate time zone.
+    // TODO #40: Incorporate time zone.
     
     write!(
         result,
@@ -560,7 +560,7 @@ pub fn Date_toDateString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
     
     let mut result = String::new();
     
-    // TODO: Incorporate time zone.
+    // TODO #40: Incorporate time zone.
     
     write!(
         result,
@@ -579,7 +579,7 @@ pub fn Date_toTimeString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
     
     let mut result = String::new();
     
-    // TODO: Incorporate time zone.
+    // TODO #40: Incorporate time zone.
     
     write!(
         result,

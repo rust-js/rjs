@@ -553,7 +553,7 @@ impl<'a> Lexer<'a> {
         if let Some(c) = char::from_u32(value) {
             Ok(c)
         } else {
-            // TODO: What to do when we get an invalid unicode code point?
+            // TODO #60: What to do when we get an invalid unicode code point?
             Ok('�')
         }
     }
@@ -610,11 +610,11 @@ impl<'a> Lexer<'a> {
                 self.reader.next();
                 self.reader.next();
                 
-                // TODO: Invalid unicode sequences will be parsed incorrectly.
+                // TODO #60: Invalid unicode sequences will be parsed incorrectly.
                 
                 let c = try!(self.parse_escape_hex(4));
                 
-                // TODO: There probably is a more generic case that applies here.
+                // TODO #76: There probably is a more generic case that applies here.
                 
                 let illegal = match c {
                     '-' | '!' | '%' | '&' | '(' | ')' | '*' | ',' | '.' | '/' | ':' | ';' | '?' | '[' | ']' | '^' | '{' | '|' | '}' | '~' | '+' | '<' | '=' | '>' => true,

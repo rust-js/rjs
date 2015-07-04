@@ -54,7 +54,6 @@ fn get_number(env: &mut JsEnv, value: Local<JsValue>) -> JsResult<Local<JsValue>
 }
 
 // 15.7.4.2 Number.prototype.toString ( [ radix ] )
-// TODO: This is incomplete.
 pub fn Number_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let value = args.this(env);
     let value = try!(get_number(env, value)).unwrap_number();
@@ -81,8 +80,6 @@ pub fn Number_toLocaleString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> J
 }
 
 // 15.7.4.5 Number.prototype.toFixed (fractionDigits)
-// TODO: Thi isn't a very nice implementation. What we really need is proper
-// formatting methods, which Rust doesn't have.
 pub fn Number_toFixed(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let digits = args.arg(env, 0);
     let digits = if digits.is_undefined() {

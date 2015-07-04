@@ -494,7 +494,6 @@ impl JsEnv {
     }
     
     // http://ecma-international.org/ecma-262/5.1/#sec-15.2.2
-    // TODO: Wrapping value not yet implemented.
     pub fn create_object(&self) -> Local<JsObject> {
         let mut obj = JsObject::new_local(self, JsStoreType::Hash);
         
@@ -564,7 +563,6 @@ impl JsEnv {
     }
     
     // 10.6 Arguments Object
-    // TODO: Incomplete.
     pub fn new_arguments(&mut self, args: &JsArgs, strict: bool) -> JsResult<Local<JsValue>> {
         let mut result = self.create_object();
         

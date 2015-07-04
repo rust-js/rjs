@@ -327,7 +327,7 @@ impl Local<JsValue> {
     }
     
     fn get_number_from_string(&self, env: &JsEnv) -> JsResult<f64> {
-        // TODO: Use DecimalMatcher.
+        // TODO #67: Use DecimalMatcher.
         
         let value = self.unwrap_string(env).to_string();
         let mut reader = StringReader::new("", &value);
@@ -404,7 +404,7 @@ impl Local<JsValue> {
     }
     
     // 9.5 ToInt32: (Signed 32 Bit Integer)
-    // TODO: This does not adhere to the full specs.
+    // TODO #74: This does not adhere to the full specs.
     pub fn to_int32(&self, env: &mut JsEnv) -> JsResult<i32> {
         let number = try!(self.to_number(env));
         let result = if number.is_nan() || number == 0.0 || number.is_infinite() {
@@ -501,7 +501,7 @@ impl Local<JsValue> {
     }
     
     // 9.6 ToUint32: (Unsigned 32 Bit Integer)
-    // TODO: This does not adhere to the full specs.
+    // TODO #74: This does not adhere to the full specs.
     pub fn to_uint32_exact(&self, env: &mut JsEnv) -> JsResult<Option<u32>> {
         let number = try!(self.to_number(env));
         let result = if number.is_nan() || number == 0.0 || number.is_infinite() {
@@ -518,7 +518,7 @@ impl Local<JsValue> {
     }
     
     // 9.7 ToUint16: (Unsigned 16 Bit Integer)
-    // TODO: This does not adhere to the full specs.
+    // TODO #74: This does not adhere to the full specs.
     pub fn to_uint16(&self, env: &mut JsEnv) -> JsResult<u16> {
         let number = try!(self.to_number(env));
         let result = if number.is_nan() || number == 0.0 || number.is_infinite() {

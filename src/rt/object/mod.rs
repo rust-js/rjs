@@ -80,7 +80,7 @@ impl JsObject {
         
         let value = env.new_number(args as f64);
         
-        // TODO: This does not seem to be conform the specs. Value should not be configurable.
+        // TODO #68: This does not seem to be conform the specs. Value should not be configurable.
         // Don't set the length on bound functions. The caller will take care of this.
         
         if function != JsFunction::Bound {
@@ -314,7 +314,7 @@ impl Local<JsObject> {
                             // for sparse arrays. This mechanism depends on the fact that
                             // entries are stored ordered, even for sparse arrays.
                             //
-                            // TODO: This however can still be optimized. For one, when we find
+                            // TODO #69: This however can still be optimized. For one, when we find
                             // an index that matches i, we know that all names we get after that
                             // are equal to their name. We then don't have to call get_key
                             // anymore because we know what it's gonna say.

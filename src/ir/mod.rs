@@ -35,7 +35,7 @@ pub struct IrContext {
     interner: StrInterner,
     ast: AstContext,
     functions: Vec<Option<Rc<builder::Block>>>,
-    // TODO: Remove
+    // TODO #58: Remove
     last_printed: usize
 }
 
@@ -976,7 +976,7 @@ impl<'a> IrGenerator<'a> {
     }
     
     fn emit_test(&mut self, expr: &'a Expr, label: builder::Label, inverse: bool) -> JsResult<()> {
-        // TODO: This can be optimized to use actual opcodes instead of just coercing to true/false.
+        // TODO #59: This can be optimized to use actual opcodes instead of just coercing to true/false.
         
         try!(self.emit_expr(expr, true));
         

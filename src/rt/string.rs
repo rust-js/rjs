@@ -100,7 +100,7 @@ impl JsString {
         if let Ok(result) = String::from_utf16(&*self.chars) {
             result
         } else {
-            // TODO: We can do better than this. This kind of works but
+            // TODO #60: We can do better than this. This kind of works but
             // it gives an invalid result on code points that consist
             // out of multiple u16's, but are still valid code points.
             // We should implement this in utf.rs.
