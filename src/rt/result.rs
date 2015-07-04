@@ -82,7 +82,7 @@ impl JsError {
             }
             JsError::Runtime(ref error) => error.clone(),
             ref error @ _ => {
-                // TODO: This could be nicer.
+                // TODO #73: This could be nicer.
                 let error = JsString::from_str(env, &format!("{:?}", error)).as_value(env);
                 error.as_root(env)
             }

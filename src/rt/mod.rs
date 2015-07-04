@@ -338,7 +338,7 @@ pub trait JsItem {
             if desc.is_accessor() {
                 let this = self.as_value(env);
                 let set = desc.set(env);
-                // TODO: This is not conform the specs. The specs state that
+                // TODO #71: This is not conform the specs. The specs state that
                 // this cannot be undefined. However nothing is stopping
                 // you from only specifying a getter.
                 return if !set.is_undefined() {
@@ -925,7 +925,7 @@ impl PartialEq for JsFunction {
                 }
             }
             JsFunction::Native(..) => {
-                // TODO: Unable to compare pointer types (results in an ICE).
+                // TODO #72: Unable to compare pointer types (results in an ICE).
                 false
             }
             JsFunction::Bound => {

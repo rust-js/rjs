@@ -95,7 +95,7 @@ impl<'a> Parser<'a> {
     }
     
     fn register_local(&mut self, name: Name, arguments: bool, throwarg: bool) {
-        // TODO: Validate performance. We expect that most locals set will be relatively small.
+        // TODO #75: Validate performance. We expect that most locals set will be relatively small.
         // Changing this into a HashSet will very likely not make sense. However, this will
         // give issues in functions/scopes with many globals (probably more than 20 or 30).
         // An alternative is to leave duplicates in here and let the IR builder take care

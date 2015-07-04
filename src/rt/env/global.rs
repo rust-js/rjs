@@ -18,7 +18,7 @@ pub fn Global_unescape(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResu
 
 // 15.1.2.2 parseInt (string , radix)
 pub fn Global_parseInt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-    // TODO: Use DecimalMatcher.
+    // TODO #67: Use DecimalMatcher.
     
     let string = try!(args.arg(env, 0).to_string(env));
     let radix = try!(args.arg(env, 1).to_int32(env)) as i64;
@@ -124,7 +124,6 @@ pub fn Global_isFinite(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResu
 }
 
 // 15.1.2.1 eval (x)
-// TODO: Execution context has not yet been implemented.
 pub fn Global_eval(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let arg = args.arg(env, 0);
     

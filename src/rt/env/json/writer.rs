@@ -113,7 +113,7 @@ impl<'a> JsonWriter<'a> {
     
     fn write_number(&mut self, json: &mut String, value: f64) -> JsResult<()> {
         if value.is_finite() {
-            // TODO: This is very wrong. See 9.8.1 ToString Applied to the Number Type
+            // TODO #61: This is very wrong. See 9.8.1 ToString Applied to the Number Type
             // for the full specifications. A C# implementation can be found at
             // http://jurassic.codeplex.com/SourceControl/latest#Jurassic/Core/NumberFormatter.cs.
             json.push_str(&value.to_string());

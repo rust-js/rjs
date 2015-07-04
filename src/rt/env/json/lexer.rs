@@ -201,7 +201,7 @@ impl<'a> Lexer<'a> {
         if let Some(c) = char::from_u32(value) {
             Ok(c)
         } else {
-            // TODO: What to do when we get an invalid unicode code point?
+            // TODO #60: What to do when we get an invalid unicode code point?
             Ok('�')
         }
     }

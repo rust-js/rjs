@@ -117,7 +117,7 @@ impl Local<SparseArray> {
             // may end up with a very large array that is barely filled.
             // We stop this process when we go over MAX_ARRAY_SIZE.
             //
-            // TODO: This can (will?) allocate empty chunks. We should
+            // TODO #70: This can (will?) allocate empty chunks. We should
             // check for that and skip those.
             
             let transfer = if len >= MAX_ARRAY_SIZE {

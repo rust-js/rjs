@@ -1,4 +1,4 @@
-// TODO: The handles field of Root currently is a Rc. This is not preferable
+// TODO #56: The handles field of Root currently is a Rc. This is not preferable
 // because of performance. However there is a problem. If the field is changed to
 // a *const and the Rc is changed to a Box, a segmentation fault will occur.
 
@@ -387,7 +387,7 @@ impl GcRootWalker for RootHandlesWalker {
 }
 
 struct LocalScopesWalker {
-    // TODO: This does not have to be a pointer. The only reason it is
+    // TODO #57: This does not have to be a pointer. The only reason it is
     // is to remove the lifetime parameter because I cannot figure
     // out how to get it working with a lifetime.
     scopes: *const [LocalScopeData],

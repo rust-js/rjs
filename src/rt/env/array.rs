@@ -128,7 +128,7 @@ pub fn Array_concat(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
                 *index += 1;
             }
             
-            // TODO: This is not conform the spec and covers the following scenario:
+            // TODO #62: This is not conform the spec and covers the following scenario:
             //
             //   var x = [];
             //   x.length = 10;
@@ -384,7 +384,7 @@ pub fn Array_slice(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<L
 }
 
 // 15.4.4.11 Array.prototype.sort (comparefn)
-// TODO: This is not a correct implementation!
+// TODO #63: This is not a correct implementation!
 pub fn Array_sort(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let mut obj = try!(args.this(env).to_object(env));
     let len_val = try!(obj.get(env, name::LENGTH));
@@ -1011,7 +1011,7 @@ pub fn Array_isArray(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
         if arg.class(env) == Some(name::ARRAY_CLASS) {
             true
         } else if arg.get_ptr() == env.handle(JsHandle::Array).as_ptr() {
-            // TODO: This is not conform the specs (the specs state that only the [[Class]]
+            // TODO #64: This is not conform the specs (the specs state that only the [[Class]]
             // should be checked) but the ECMA test suite tests for this and Chrome
             // passes this test.
             true
