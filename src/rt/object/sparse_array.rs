@@ -102,14 +102,14 @@ impl Local<SparseArray> {
         }
     }
     
-    pub fn set_value(&mut self, env: &JsEnv, index: usize, value: Entry) {
+    pub fn set_value(&mut self, env: &JsEnv, index: usize, value: Local<Entry>) {
         if !self.items.is_null() {
             self.used += 1;
             
             let len = self.items.len();
             
             if index < len {
-                self.items[index] = value;
+                self.items[index] = *value;
                 return;
             }
             
@@ -132,7 +132,7 @@ impl Local<SparseArray> {
                 // we grow it.
                 
                 self.grow_items(env);
-                self.items[index] = value;
+                self.items[index] = *value;
                 return;
             }
             
@@ -144,7 +144,7 @@ impl Local<SparseArray> {
         
         let offset = Self::get_offset_from_index(index);
         let chunk = self.find_or_create_chunk(env, offset);
-        self.chunks[chunk.index()].items[index - offset] = value;
+        self.chunks[chunk.index()].items[index - offset] = *value;
     }
     
     fn get_offset_from_index(index: usize) -> usize {

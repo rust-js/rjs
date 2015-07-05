@@ -80,8 +80,10 @@ impl Local<HashStore> {
         
         self.count = 0;
         
+        let mut entry = env.heap.alloc_local(GC_ENTRY);
+        
         for i in 0..entries.len() {
-            let entry = entries[i];
+            *entry = entries[i];
             if entry.is_valid() {
                 self.add(env, entry.name, &entry.as_property(env));
             }
@@ -110,7 +112,9 @@ impl Store for Local<HashStore> {
         {
             // Create a copy of the current entry and remove it.
             
-            let copy = self.entries[hash as usize];
+            let mut copy = env.heap.alloc_local(GC_ENTRY);
+            
+            *copy = self.entries[hash as usize];
             
             self.remove(env, copy.name);
             
@@ -224,7 +228,11 @@ impl Store for Local<HashStore> {
     
     fn get_value(&self, env: &JsEnv, name: Name) -> Option<JsDescriptor> {
         if let Some(index) = self.find_entry(name) {
-            Some(self.entries[index].as_property(env))
+            let mut entry = env.heap.alloc_local(GC_ENTRY);
+            
+            *entry = self.entries[index];
+            
+            Some(entry.as_property(env))
         } else {
             None
         }

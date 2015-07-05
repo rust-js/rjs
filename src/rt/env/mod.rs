@@ -429,13 +429,20 @@ fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 }
 
 fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
-    let class = env.new_native_function(Some(name::REGEXP_CLASS), 1, &RegExp_constructor);
+    let class = env.new_native_function(Some(name::REGEXP_CLASS), 2, &RegExp_constructor);
+    
+    let class_obj = class.unwrap_object(env);
+    env.add_handle(JsHandle::RegExpClass, class_obj);
     
     property!(global, name::REGEXP_CLASS, class, true, false, true, env);
     
-    let prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
+    let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
     
     env.add_handle(JsHandle::RegExp, prototype);
+
+    function!(&mut prototype, name::EXEC, RegExp_exec, 1, env);
+    function!(&mut prototype, name::TEST, RegExp_test, 1, env);
+    function!(&mut prototype, name::TO_STRING, RegExp_toString, 0, env);
 }
 
 fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {

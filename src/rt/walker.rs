@@ -1,6 +1,6 @@
-use gc::{GcWalker, GcWalk, GcRootWalker, ptr_t};
-use rt::{JsType};
-use rt::{GC_ARRAY_STORE, GC_ENTRY, GC_HASH_STORE, GC_ITERATOR, GC_OBJECT};
+use gc::{GcWalker, GcWalk, GcFinalize, GcRootWalker, ptr_t};
+use rt::{JsType, JsRegExp};
+use rt::{GC_ARRAY_STORE, GC_ENTRY, GC_HASH_STORE, GC_ITERATOR, GC_OBJECT, GC_REGEXP};
 use rt::{GC_SCOPE, GC_STRING, GC_U16, GC_U32, GC_VALUE, GC_SPARSE_ARRAY, GC_ARRAY_CHUNK};
 use rt::stack::Stack;
 use std::mem::transmute;
@@ -63,6 +63,12 @@ impl GcWalker for Walker {
                         _ => GcWalk::Skip
                     }
                 }
+                GC_REGEXP => {
+                    match index {
+                        0 | 1 => GcWalk::Pointer,
+                        _ => GcWalk::Skip
+                    }
+                }
                 GC_SCOPE => {
                     match index {
                         0 => GcWalk::Pointer,
@@ -76,10 +82,10 @@ impl GcWalker for Walker {
                     }
                 }
                 GC_U16 => {
-                    GcWalk::Skip
+                    GcWalk::EndArray
                 }
                 GC_U32 => {
-                    GcWalk::Skip
+                    GcWalk::EndArray
                 }
                 GC_VALUE => {
                     match index {
@@ -100,6 +106,20 @@ impl GcWalker for Walker {
                     }
                 }
                 _ => panic!("unmapped GC type")
+            }
+        }
+    }
+    
+    fn finalize(&self, ty: u32, ptr: ptr_t) -> GcFinalize {
+        unsafe {
+            match ty {
+                GC_REGEXP => {
+                    let regex = transmute::<_, *mut JsRegExp>(ptr);
+                    (&mut *regex).finalize();
+                    
+                    GcFinalize::Finalized
+                }
+                _ => GcFinalize::NotFinalizable
             }
         }
     }

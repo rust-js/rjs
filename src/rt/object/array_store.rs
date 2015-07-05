@@ -1,4 +1,4 @@
-use rt::{JsEnv, JsDescriptor, GC_ARRAY_STORE};
+use rt::{JsEnv, JsDescriptor, GC_ARRAY_STORE, GC_ENTRY};
 use rt::validate_walker_field;
 use rt::object::{Store, StoreKey, Entry};
 use rt::object::hash_store::HashStore;
@@ -41,7 +41,11 @@ impl Local<ArrayStore> {
 impl Store for Local<ArrayStore> {
     fn add(&mut self, env: &JsEnv, name: Name, value: &JsDescriptor) {
         if let Some(index) = name.index() {
-            self.array(env).set_value(env, index, Entry::from_descriptor(value, name, -1));
+            let mut entry = env.heap.alloc_local(GC_ENTRY);
+            
+            *entry = Entry::from_descriptor(value, name, -1);
+            
+            self.array(env).set_value(env, index, entry);
         } else {
             self.props(env).add(env, name, value);
         }
@@ -49,7 +53,11 @@ impl Store for Local<ArrayStore> {
     
     fn remove(&mut self, env: &JsEnv, name: Name) {
         if let Some(index) = name.index() {
-            self.array(env).set_value(env, index, Entry::empty());
+            let mut entry = env.heap.alloc_local(GC_ENTRY);
+            
+            *entry = Entry::empty();
+            
+            self.array(env).set_value(env, index, entry);
         } else {
             self.props(env).remove(env, name);
         }
@@ -57,7 +65,10 @@ impl Store for Local<ArrayStore> {
     
     fn get_value(&self, env: &JsEnv, name: Name) -> Option<JsDescriptor> {
         if let Some(index) = name.index() {
-            let entry = self.array(env).get_value(index);
+            let mut entry = env.heap.alloc_local(GC_ENTRY);
+            
+            *entry = self.array(env).get_value(index);
+            
             if entry.is_valid() {
                 Some(entry.as_property(env))
             } else {
@@ -73,7 +84,9 @@ impl Store for Local<ArrayStore> {
             let mut array = self.array(env);
             
             if array.get_value(index).is_valid() {
-                array.set_value(env, index, Entry::from_descriptor(value, name, -1));
+                let mut entry = env.heap.alloc_local(GC_ENTRY);
+                *entry = Entry::from_descriptor(value, name, -1);
+                array.set_value(env, index, entry);
                 return true;
             }
             

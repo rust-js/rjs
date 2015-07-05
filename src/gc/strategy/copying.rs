@@ -3,7 +3,7 @@ extern crate time;
 
 use gc::strategy::Strategy;
 use gc::os::Memory;
-use gc::{GcRootWalker, GcOpts, GcMemHeader, GcWalker, GcWalk, ptr_t};
+use gc::{GcRootWalker, GcOpts, GcMemHeader, GcWalker, GcWalk, GcFinalize, ptr_t};
 use std::ptr;
 use std::mem::{size_of, transmute, swap};
 use std::cmp::max;
@@ -177,7 +177,13 @@ impl Copying {
                 while child < end {
                     tracegc!("processing index {}", index);
                     index += 1;
-                    process_block(child, ty, ptrs, &mut forwarder, walker);
+                    
+                    // Stop processing arrays when we receive a GcWalk::EndArray. This is
+                    // to signlify that none of the elements of the array will ever
+                    // contain a pointer.
+                    if !process_block(child, ty, ptrs, &mut forwarder, walker) {
+                        break;
+                    }
                     
                     child = child.offset(size as isize);
                 }
@@ -187,6 +193,63 @@ impl Copying {
             }
             
             ptr = ptr.offset(header.size as isize);
+        }
+        
+        // Walk the from space and find all not-forwarded blocks to
+        // allow them to be finalized.
+        
+        let mut ptr = Header::offset_to_user(self.from.memory.ptr());
+        let end = ptr.offset(self.from.offset as isize);
+        
+        while ptr < end {
+            let header = Header::from_ptr(ptr);
+            
+            if header.forward.is_null() {
+                let gc_header = GcMemHeader::from_ptr(ptr);
+                let ty = gc_header.get_type_id();
+                let size = gc_header.get_size();
+                
+                if gc_header.is_array() {
+                    let count = *transmute::<_, *const usize>(ptr);
+    
+                    let mut child = ptr.offset(size_of::<usize>() as isize);
+                    let end = child.offset((count * size) as isize);
+                    
+                    let mut index = 0;
+                    
+                    while child < end {
+                        tracegc!("finalizing index {}", index);
+                        index += 1;
+                        
+                        // Stop processing arrays when we receive a GcFinalize::NotFinalizable.
+                        // This signifies that none of the array elements will ever
+                        // be finalizable.
+                        match walker.finalize(ty, child) {
+                            GcFinalize::NotFinalizable => break,
+                            GcFinalize::Finalized => {}
+                        }
+                        
+                        child = child.offset(size as isize);
+                    }
+                    
+                } else {
+                    walker.finalize(ty, ptr);
+                }
+            }
+            
+            ptr = ptr.offset(header.size as isize);
+        }
+        
+        // Invalidate the from space in debug mode.
+        
+        if cfg!(not(ndebug)) {
+            let mut ptr = transmute::<_, *mut u32>(self.from.memory.ptr());
+            let end = ptr.offset((self.from.memory.size() / size_of::<u32>()) as isize);
+            
+            while ptr < end {
+                *ptr = 0xdeadbeef;
+                ptr = ptr.offset(1);
+            }
         }
         
         // Swap the from and to space.
@@ -228,10 +291,11 @@ impl Forwarder {
     }
 }
 
-unsafe fn process_block(ptr: ptr_t, ty: u32, ptrs: usize, forwarder: &mut Forwarder, walker: &GcWalker) {
+unsafe fn process_block(ptr: ptr_t, ty: u32, ptrs: usize, forwarder: &mut Forwarder, walker: &GcWalker) -> bool {
     for i in 0..ptrs {
         match walker.walk(ty, ptr, i as u32) {
-            GcWalk::End => return,
+            GcWalk::End => return true,
+            GcWalk::EndArray => return false,
             GcWalk::Skip => {},
             GcWalk::Pointer => {
                 let offset = (ptr as *mut ptr_t).offset(i as isize);
@@ -243,6 +307,8 @@ unsafe fn process_block(ptr: ptr_t, ty: u32, ptrs: usize, forwarder: &mut Forwar
             }
         }
     }
+    
+    true
 }
 
 impl Strategy for Copying {

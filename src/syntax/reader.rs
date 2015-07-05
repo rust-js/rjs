@@ -78,7 +78,9 @@ impl Reader for StringReader {
     }
     
     fn consume(&mut self, c: char) -> bool {
-        if self.peek() == c {
+        if self.is_eof() {
+            false
+        } else if self.peek() == c {
             self.next();
             true
         } else {

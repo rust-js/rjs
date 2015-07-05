@@ -723,37 +723,6 @@ impl Entry {
         (self.flags & ACCESSOR) != 0
     }
     
-    fn as_property(&self, env: &JsEnv) -> JsDescriptor {
-        if self.is_accessor() {
-            let mut value1 = env.new_value();
-            *value1 = self.value1;
-            let mut value2 = env.new_value();
-            *value2 = self.value2;
-            
-            JsDescriptor {
-                value: None,
-                get: Some(value1),
-                set: Some(value2),
-                writable: None,
-                enumerable: Some(self.is_enumerable()),
-                configurable: Some(self.is_configurable())
-            }
-        } else {
-            let mut value = env.new_value();
-            *value = self.value1;
-            
-            JsDescriptor {
-                value: Some(value),
-                get: None,
-                set: None,
-                writable: Some(self.is_writable()),
-                enumerable: Some(self.is_enumerable()),
-                configurable: Some(self.is_configurable())
-            }
-        }
-    }
-    
-    
     fn from_descriptor(descriptor: &JsDescriptor, name: Name, next: i32) -> Entry {
         let flags = VALID |
             if descriptor.is_writable() { WRITABLE } else { 0 } |
@@ -790,6 +759,38 @@ impl Entry {
             next: next,
             value1: value1,
             value2: value2
+        }
+    }
+}
+
+impl Local<Entry> {
+    fn as_property(&self, env: &JsEnv) -> JsDescriptor {
+        if self.is_accessor() {
+            let mut value1 = env.new_value();
+            *value1 = self.value1;
+            let mut value2 = env.new_value();
+            *value2 = self.value2;
+            
+            JsDescriptor {
+                value: None,
+                get: Some(value1),
+                set: Some(value2),
+                writable: None,
+                enumerable: Some(self.is_enumerable()),
+                configurable: Some(self.is_configurable())
+            }
+        } else {
+            let mut value = env.new_value();
+            *value = self.value1;
+            
+            JsDescriptor {
+                value: Some(value),
+                get: None,
+                set: None,
+                writable: Some(self.is_writable()),
+                enumerable: Some(self.is_enumerable()),
+                configurable: Some(self.is_configurable())
+            }
         }
     }
 }

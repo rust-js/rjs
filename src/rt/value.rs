@@ -1,7 +1,7 @@
 extern crate libc;
 
 use rt::{JsEnv, JsString, JsType, JsObject, JsItem, JsDescriptor, JsScope, JsPreferredType};
-use rt::{JsNull, JsUndefined, JsNumber, JsBoolean, JsIterator, JsHandle, GC_VALUE};
+use rt::{JsNull, JsUndefined, JsNumber, JsBoolean, JsIterator, JsHandle, JsRegExp, GC_VALUE};
 use rt::{validate_walker_field, validate_walker_field_at};
 use rt::fmt::{format_number, NumberFormatStyle};
 use ::{JsResult, JsError};
@@ -283,6 +283,12 @@ impl Local<JsValue> {
         assert_eq!(self.ty, JsType::Scope);
         
         self.value.get_ptr::<JsScope>().as_local(allocator)
+    }
+    
+    pub fn unwrap_regexp<T: GcAllocator>(&self, allocator: &T) -> Local<JsRegExp> {
+        assert_eq!(self.ty, JsType::RegExp);
+        
+        self.value.get_ptr::<JsRegExp>().as_local(allocator)
     }
     
     // 9.1 ToPrimitive
@@ -711,6 +717,17 @@ impl JsEnv {
         
         *result = JsValue {
             ty: JsType::Scope,
+            value: JsRawValue::new_ptr(value)
+        };
+        
+        result
+    }
+    
+    pub fn new_regexp(&self, value: Local<JsRegExp>) -> Local<JsValue> {
+        let mut result = self.new_value();
+        
+        *result = JsValue {
+            ty: JsType::RegExp,
             value: JsRawValue::new_ptr(value)
         };
         
