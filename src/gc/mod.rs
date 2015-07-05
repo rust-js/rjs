@@ -445,6 +445,8 @@ impl GcRootWalker for LocalScopesWalker {
 pub trait GcWalker {
     fn walk(&self, ty: u32, ptr: ptr_t, index: u32) -> GcWalk;
     
+    fn finalize(&self, ty: u32, ptr: ptr_t) -> GcFinalize;
+    
     fn create_root_walkers(&self) -> Vec<Box<GcRootWalker>>;
 }
 
@@ -452,7 +454,14 @@ pub trait GcWalker {
 pub enum GcWalk {
     Pointer,
     Skip,
-    End
+    End,
+    EndArray
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum GcFinalize {
+    Finalized,
+    NotFinalizable
 }
 
 pub trait GcAllocator {

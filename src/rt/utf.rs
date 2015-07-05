@@ -1,3 +1,5 @@
+use std::char;
+
 const UNI_MAX_BMP : u32 = 0xFFFF;
 const UNI_SUR_HIGH_START : u32 = 0xD800;
 const UNI_SUR_LOW_START : u32 = 0xDC00;
@@ -74,4 +76,29 @@ pub fn utf32_to_utf16(source: &[u32], strict: bool) -> Vec<u16> {
     }
     
     target
+}
+
+pub fn utf16_to_string(chars: &[u16]) -> String {
+    if let Ok(result) = String::from_utf16(chars) {
+        result
+    } else {
+        // TODO #60: We can do better than this. This kind of works but
+        // it gives an invalid result on code points that consist
+        // out of multiple u16's, but are still valid code points.
+        // We should implement this in utf.rs.
+        
+        let mut result = String::new();
+        
+        for i in 0..chars.len() {
+            let c = chars[i];
+            
+            if let Some(c) = char::from_u32(c as u32) {
+                result.push(c)
+            } else {
+                result.push('�');
+            }
+        }
+        
+        result
+    }
 }

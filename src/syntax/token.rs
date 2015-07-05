@@ -460,4 +460,19 @@ declare_idents! {
     ( "isSealed", IS_SEALED, 242 );
     ( "isFrozen", IS_FROZEN, 243 );
     ( "keys", KEYS, 244 );
+    ( "source", SOURCE, 245 );
+    ( "global", GLOBAL, 246 );
+    ( "ignoreCase", IGNORE_CASE, 247 );
+    ( "multiline", MULTILINE, 248 );
+    ( "lastIndex", LAST_INDEX, 249 );
+    ( "exec", EXEC, 250 );
+    ( "test", TEST, 251 );
+    ( "index", INDEX, 252 );
+    ( "input", INPUT, 253 );
+    ( "localeCompare", LOCALE_COMPARE, 254 );
+    ( "match", MATCH, 255 );
+    ( "replace", REPLACE, 256 );
+    ( "search", SEARCH, 257 );
+    ( "split", SPLIT, 258 );
+    ( "trim", TRIM, 259 );
 }

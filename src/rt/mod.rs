@@ -19,6 +19,7 @@ pub use self::number::JsNumber;
 pub use self::boolean::JsBoolean;
 pub use self::iterator::JsIterator;
 pub use self::scope::JsScope;
+pub use self::regexp::JsRegExp;
 
 mod interpreter;
 mod utf;
@@ -36,6 +37,7 @@ mod iterator;
 mod scope;
 mod walker;
 mod allocators;
+mod regexp;
 pub mod result;
 pub mod fmt;
 
@@ -51,6 +53,7 @@ const GC_U32 : u32 = 9;
 const GC_VALUE : u32 = 10;
 const GC_ARRAY_CHUNK : u32 = 11;
 const GC_SPARSE_ARRAY : u32 = 12;
+const GC_REGEXP : u32 = 13;
 
 impl Root<JsObject> {
     pub fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
@@ -69,15 +72,16 @@ pub enum JsHandle {
     Date = 5,
     Number = 6,
     Boolean = 7,
-    RegExp = 8,
-    Error = 9,
-    EvalError = 10,
-    RangeError = 11,
-    ReferenceError = 12,
-    SyntaxError = 13,
-    TypeError = 14,
-    URIError = 15,
-    NativeError = 16
+    RegExpClass = 8,
+    RegExp = 9,
+    Error = 10,
+    EvalError = 11,
+    RangeError = 12,
+    ReferenceError = 13,
+    SyntaxError = 14,
+    TypeError = 15,
+    URIError = 16,
+    NativeError = 17
 }
 
 pub struct JsEnv {
@@ -746,12 +750,13 @@ pub enum JsType {
     Object = 5,
     Iterator = 6,
     Scope = 7,
+    RegExp = 8
 }
 
 impl JsType {
     fn is_ptr(&self) -> bool {
         match *self {
-            JsType::String | JsType::Object | JsType::Iterator | JsType::Scope => true,
+            JsType::String | JsType::Object | JsType::Iterator | JsType::Scope | JsType::RegExp => true,
             _ => false
         }
     }
@@ -943,6 +948,7 @@ fn validate_walker(walker: &GcWalker) {
     unsafe {
         object::validate_walker(walker);
         value::validate_walker_for_value(walker);
+        regexp::validate_walker(walker);
     }
 }
 

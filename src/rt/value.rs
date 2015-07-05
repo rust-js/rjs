@@ -1,7 +1,7 @@
 extern crate libc;
 
 use rt::{JsEnv, JsString, JsType, JsObject, JsItem, JsDescriptor, JsScope, JsPreferredType};
-use rt::{JsNull, JsUndefined, JsNumber, JsBoolean, JsIterator, JsHandle, GC_VALUE};
+use rt::{JsNull, JsUndefined, JsNumber, JsBoolean, JsIterator, JsHandle, JsRegExp, GC_VALUE};
 use rt::{validate_walker_field, validate_walker_field_at};
 use rt::fmt::{format_number, NumberFormatStyle};
 use ::{JsResult, JsError};
@@ -285,6 +285,12 @@ impl Local<JsValue> {
         self.value.get_ptr::<JsScope>().as_local(allocator)
     }
     
+    pub fn unwrap_regexp<T: GcAllocator>(&self, allocator: &T) -> Local<JsRegExp> {
+        assert_eq!(self.ty, JsType::RegExp);
+        
+        self.value.get_ptr::<JsRegExp>().as_local(allocator)
+    }
+    
     // 9.1 ToPrimitive
     pub fn to_primitive(&self, env: &mut JsEnv, hint: JsPreferredType) -> JsResult<Local<JsValue>> {
         match self.ty() {
@@ -518,13 +524,30 @@ impl Local<JsValue> {
     }
     
     // 9.7 ToUint16: (Unsigned 16 Bit Integer)
-    // TODO #74: This does not adhere to the full specs.
     pub fn to_uint16(&self, env: &mut JsEnv) -> JsResult<u16> {
         let number = try!(self.to_number(env));
-        let result = if number.is_nan() || number == 0.0 || number.is_infinite() {
+        
+        let result = if !number.is_finite() {
             0
         } else {
-            number as u16
+            let result = number as u16;
+            
+            if result as f64 == number {
+                result
+            } else {
+                let mut number = if number < 0.0 {
+                    -((-number).floor())
+                } else {
+                    number.floor()
+                };
+                
+                number %= 0x10000 as f64;
+                if number < 0.0 {
+                    number += 0x10000 as f64;
+                }
+                
+                number as u16
+            }
         };
         
         Ok(result)
@@ -711,6 +734,17 @@ impl JsEnv {
         
         *result = JsValue {
             ty: JsType::Scope,
+            value: JsRawValue::new_ptr(value)
+        };
+        
+        result
+    }
+    
+    pub fn new_regexp(&self, value: Local<JsRegExp>) -> Local<JsValue> {
+        let mut result = self.new_value();
+        
+        *result = JsValue {
+            ty: JsType::RegExp,
             value: JsRawValue::new_ptr(value)
         };
         

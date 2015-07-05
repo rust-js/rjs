@@ -759,7 +759,21 @@ impl<'a> Frame<'a> {
             Ir::LoadNameLit => unimplemented!(),
             Ir::LoadNull => self.env.stack.push(JsValue::new_null()),
             Ir::LoadParam(index) => self.env.stack.push(self.args.frame.raw_get(index as usize + CALL_PROLOG)),
-            Ir::LoadRegex(..) => unimplemented!(),
+            Ir::LoadRegex(pattern, flags) => {
+                let _scope = self.env.new_local_scope();
+                
+                let pattern = self.env.ir.interner().get(pattern);
+                let pattern = JsString::from_str(self.env, &*pattern).as_value(self.env);
+                
+                let flags = self.env.ir.interner().get(flags);
+                let flags = JsString::from_str(self.env, &*flags).as_value(self.env);
+                
+                let regexp = self.env.handle(JsHandle::RegExpClass);
+                
+                let result = local_try!(regexp.construct(self.env, vec![pattern, flags]));
+                
+                self.env.stack.push(*result);
+            }
             Ir::LoadEnv(name) => {
                 let _scope = self.env.new_local_scope();
                 

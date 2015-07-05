@@ -23,3 +23,6 @@ pub static TYPE_NOT_DATE : &'static str = "Object is not a Date";
 pub static TYPE_NOT_COERCIBLE : &'static str = "Value is null or undefined";
 pub static TYPE_INVALID_ARGUMENTS_ARRAY : &'static str = "Arguments argument is not of a valid type";
 pub static TYPE_CYCLICAL_REFERENCE : &'static str = "Cannot stringify object structure with cyclical references";
+pub static TYPE_INVALID_REGEXP_ARGS : &'static str = "Flags cannot be combined with a RegExp object";
+pub static SYNTAX_INVALID_REGEXP_FLAGS : &'static str = "Invalid flags";
+pub static SYNTAX_INVALID_REGEX : &'static str = "Invalid regular expression";

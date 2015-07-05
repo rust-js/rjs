@@ -211,22 +211,26 @@ impl<'a> Lexer<'a> {
                 }
             },
             '/' => {
-                 if self.reader.consume('=') {
-                    DivideAssign
-                } else if self.reader.consume('*') {
+                if self.reader.consume('*') {
                     try!(self.parse_block_comment());
                     Comment
                 } else if self.reader.consume('/') {
                     self.skip_while(|c| !is_line_terminator(c));
                     Comment
-                } else if self.allow_regexp {
-                    if let Some(token) = try!(self.parse_regex()) {
-                        token
+                } else {
+                    let regex = if self.allow_regexp {
+                        try!(self.parse_regex())
+                    } else {
+                        None
+                    };
+                    
+                    if regex.is_some() {
+                        regex.unwrap()
+                    } else if self.reader.consume('=') {
+                        DivideAssign
                     } else {
                         Divide
                     }
-                } else {
-                    Divide
                 }
             },
             '%' => {
@@ -687,45 +691,30 @@ impl<'a> Lexer<'a> {
     
     fn parse_regex_expression(&mut self) -> JsResult<Option<String>> {
         let mut s = String::new();
+        let mut in_class = false;
         
         while !self.reader.is_eof() {
             match self.reader.next() {
-                '/' => return Ok(Some(s)),
+                '/' if !in_class => return Ok(Some(s)),
                 '\\' => {
-                    if is_line_terminator(self.reader.peek()) {
+                    if self.reader.is_eof() {
                         return Ok(None);
                     }
                     
-                    let parsed = try!(self.parse_escape());
-                    s.push_str(&parsed);
-                },
-                '[' => {
-                    s.push('[');
-                    
-                    while !self.reader.is_eof() {
-                        match self.reader.next() {
-                            ']' => {
-                                s.push(']');
-                                break;
-                            },
-                            '\\' => {
-                                if is_line_terminator(self.reader.peek()) {
-                                    return Ok(None);
-                                }
-                                
-                                let parsed = try!(self.parse_escape());
-                                s.push_str(&parsed);
-                            },
-                            c @ _ => {
-                                if is_line_terminator(c) {
-                                    return Ok(None);
-                                }
-                                
-                                s.push(c);
-                            }
-                        }
+                    if self.reader.consume('/') {
+                        s.push('/');
+                    } else {
+                        s.push('\\');
                     }
                 },
+                '[' if !in_class => {
+                    in_class = true;
+                    s.push('[');
+                }
+                ']' => {
+                    in_class = false;
+                    s.push(']');
+                }
                 c @ _ => {
                     if is_line_terminator(c) {
                         return Ok(None);
@@ -771,7 +760,7 @@ pub fn is_whitespace(c: char) -> bool {
         '\u{2009}' | '\u{200A}' | '\u{202F}' | '\u{205F}' | '\u{3000}'
             => true,
         // Others not in the spec.
-        '\u{180E}' => true,
+        '\u{180E}' | '\u{FEFF}' => true,
         _ => false
     }
 }
