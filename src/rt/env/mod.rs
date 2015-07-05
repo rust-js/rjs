@@ -264,7 +264,7 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
     let mut class = env.new_native_function(Some(name::STRING_CLASS), 1, &String_constructor);    
     
-    function!(class, name::FROM_CHAR_CODE, String_fromCharCode, 0, env);
+    function!(class, name::FROM_CHAR_CODE, String_fromCharCode, 1, env);
     
     property!(global, name::STRING_CLASS, class, true, false, true, env);
 
@@ -284,6 +284,14 @@ fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
     function!(&mut prototype, name::TO_LOCALE_LOWER_CASE, String_toLocaleLowerCase, 0, env);
     function!(&mut prototype, name::TO_UPPER_CASE, String_toUpperCase, 0, env);
     function!(&mut prototype, name::TO_LOCALE_UPPER_CASE, String_toLocaleUpperCase, 0, env);
+    function!(&mut prototype, name::CONCAT, String_concat, 1, env);
+    function!(&mut prototype, name::LOCALE_COMPARE, String_localeCompare, 1, env);
+    function!(&mut prototype, name::MATCH, String_match, 1, env);
+    function!(&mut prototype, name::REPLACE, String_replace, 2, env);
+    function!(&mut prototype, name::SEARCH, String_search, 1, env);
+    function!(&mut prototype, name::SLICE, String_slice, 2, env);
+    function!(&mut prototype, name::SPLIT, String_split, 2, env);
+    function!(&mut prototype, name::TRIM, String_trim, 0, env);
 }
 
 fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {

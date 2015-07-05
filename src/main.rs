@@ -54,15 +54,22 @@ fn walk_dir(runner: &mut Runner, dir: &str) {
     let full_dir = format!("tests/tc39/test/{}", dir);
     
     for entry in read_dir(&full_dir).ok().unwrap() {
-        children.push(
-            entry
-                .ok().unwrap()
-                .path()
-                .as_path()
-                .file_name().unwrap()
-                .to_str().unwrap()
-                .to_string()
-        );
+        let entry = entry
+            .ok().unwrap()
+            .path()
+            .as_path()
+            .file_name().unwrap()
+            .to_str().unwrap()
+            .to_string();
+        
+        if dir.len() == 0 {
+            match &*entry.to_ascii_lowercase() {
+                "language" | "built-ins" | "annexb" => {},
+                _ => continue 
+            }
+        }
+        
+        children.push(entry);
     }
     
     children.sort_by(|a, b| {
@@ -70,9 +77,7 @@ fn walk_dir(runner: &mut Runner, dir: &str) {
             match name {
                 "language" => 0,
                 "built-ins" => 1,
-                "intl402" => 2,
-                "annexb" => 3,
-                "harness" => 4,
+                "annexb" => 2,
                 _ => panic!("{}", name)
             }
         }
@@ -260,7 +265,7 @@ fn run_safe(file: String) {
         if let Header::List(ref items) = *header {
             for item in items {
                 match &**item {
-                    "arrow-function" | "generators" | "let" | "Array#find" => {
+                    "arrow-function" | "generators" | "let" | "Array#find" | "String#endsWith" | "String#includes" | "Intl" => {
                         is_es6 = true;
                     }
                     _ => {}

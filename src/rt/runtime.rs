@@ -43,7 +43,7 @@ impl JsEnv {
         if lprim.ty() == JsType::String || rprim.ty() == JsType::String {
             let lhs = try!(lprim.to_string(self));
             let rhs = try!(rprim.to_string(self));
-            let result = JsString::concat(self, lhs, rhs);
+            let result = JsString::concat(self, &[lhs, rhs]);
             
             Ok(self.new_string(result))
         } else {

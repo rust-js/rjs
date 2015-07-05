@@ -502,7 +502,6 @@ impl<'a> IrGenerator<'a> {
 
     fn emit_expr_stmt(&mut self, exprs: &'a ExprSeq) -> JsResult<()> {
         let leave = self.leave;
-        self.leave = None;
         
         try!(self.emit_exprs(exprs, leave.is_some()));
         

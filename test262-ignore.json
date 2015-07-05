@@ -787,11 +787,35 @@
         "reason": "The Rust regex implementation differs from the requirements of JavaScript. This test fails because of the mismatch.",
         "issue": "https://github.com/rust-js/rjs/issues/79"
     },
+    "built-ins/RegExp/S15.10.2.12_A1_T1.js": {
+        "reason": "The Rust regex implementation differs from the requirements of JavaScript. This test fails because of the mismatch.",
+        "issue": "https://github.com/rust-js/rjs/issues/79"
+    },
+    "built-ins/RegExp/S15.10.2.12_A2_T1.js": {
+        "reason": "The Rust regex implementation differs from the requirements of JavaScript. This test fails because of the mismatch.",
+        "issue": "https://github.com/rust-js/rjs/issues/79"
+    },
+    "built-ins/RegExp/S15.10.2.12_A3_T1.js": {
+        "reason": "The Rust regex implementation differs from the requirements of JavaScript. This test fails because of the mismatch.",
+        "issue": "https://github.com/rust-js/rjs/issues/79"
+    },
     "built-ins/RegExp/S15.10.2.12_A3_T4.js": {
         "reason": "The Rust regex implementation differs from the requirements of JavaScript. This test fails because of the mismatch.",
         "issue": "https://github.com/rust-js/rjs/issues/79"
     },
+    "built-ins/RegExp/S15.10.2.12_A4_T1.js": {
+        "reason": "The Rust regex implementation differs from the requirements of JavaScript. This test fails because of the mismatch.",
+        "issue": "https://github.com/rust-js/rjs/issues/79"
+    },
     "built-ins/RegExp/S15.10.2.12_A4_T4.js": {
+        "reason": "The Rust regex implementation differs from the requirements of JavaScript. This test fails because of the mismatch.",
+        "issue": "https://github.com/rust-js/rjs/issues/79"
+    },
+    "built-ins/RegExp/S15.10.2.12_A5_T1.js": {
+        "reason": "The Rust regex implementation differs from the requirements of JavaScript. This test fails because of the mismatch.",
+        "issue": "https://github.com/rust-js/rjs/issues/79"
+    },
+    "built-ins/RegExp/S15.10.2.12_A6_T1.js": {
         "reason": "The Rust regex implementation differs from the requirements of JavaScript. This test fails because of the mismatch.",
         "issue": "https://github.com/rust-js/rjs/issues/79"
     },
@@ -851,9 +875,25 @@
         "reason": "The test states that flags can be provided with the RegExp constructor if the pattern is a RegExp object without flags. This is contrary to what the specs state and not what Chrome does.",
         "issue": "https://github.com/rust-js/rjs/issues/81"
     },
+    "built-ins/RegExp/S15.10.4.1_A2_T2.js": {
+        "reason": "The test states that flags can be provided with the RegExp constructor if the pattern is a RegExp object without flags. This is contrary to what the specs state and not what Chrome does.",
+        "issue": "https://github.com/rust-js/rjs/issues/81"
+    },
     "built-ins/RegExp/S15.10.4.1_A8_T2.js": {
         "reason": "The Rust regex implementation differs from the requirements of JavaScript. This test fails because of the mismatch.",
         "issue": "https://github.com/rust-js/rjs/issues/79"
+    },
+    "built-ins/String/prototype/indexOf/S15.5.4.7_A1_T11.js": {
+        "reason": "The values used in this test are out of range of what Chrono can handle.",
+        "issue": "https://github.com/rust-js/rjs/issues/40"
+    },
+    "built-ins/String/prototype/replace/S15.5.4.11_A5_T1.js": {
+        "reason": "The Rust regex implementation differs from the requirements of JavaScript. This test fails because of the mismatch.",
+        "issue": "https://github.com/rust-js/rjs/issues/79"
+    },
+    "built-ins/String/prototype/split/S15.5.4.14_A2_T37.js": {
+        "reason": "This test expects an empty array, but a single empty string entry is returned. Chrome behaves the same.",
+        "issue": "https://github.com/rust-js/rjs/issues/83"
     },
     "language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-1.js": {
         "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
@@ -1314,40 +1354,5 @@
     "language/statements/function/S13_A13_T3.js": {
         "reason": "Modifying the arguments object will create a new binding for the variable. This has not yet been implemented.",
         "issue": "https://github.com/rust-js/rjs/issues/52"
-    },
-
-    "built-ins/Object/defineProperty/15.2.3.6-4-621.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-65.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-68.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-69.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-70.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-71.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-72.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-73.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-75.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-76.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-77.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-78.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-79.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-80.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-81.js": "String has not yet been implemented.",
-    "built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-82.js": "String has not yet been implemented.",
-    "language/expressions/property-accessors/S11.2.1_A4_T5.js": "String has not yet been implemented.",
-    "language/function-code/10.4.3-1-100gs.js": "String has not yet been implemented.",
-    "language/function-code/10.4.3-1-100-s.js": "String has not yet been implemented.",
-    "language/function-code/10.4.3-1-101gs.js": "String has not yet been implemented.",
-    "language/function-code/10.4.3-1-101-s.js": "String has not yet been implemented.",
-    "language/function-code/10.4.3-1-102gs.js": "String has not yet been implemented.",
-    "language/function-code/10.4.3-1-102-s.js": "String has not yet been implemented.",
-    "language/statements/do-while/S12.6.1_A8.js": "String has not yet been implemented.",
-    "language/statements/while/S12.6.2_A8.js": "String has not yet been implemented.",
-    "built-ins/RegExp/S15.10.2.8_A3_T18.js": "String has not yet been implemented.",
-    "built-ins/RegExp/S15.10.2.12_A1_T1.js": "String has not yet been implemented.",
-    "built-ins/RegExp/S15.10.2.12_A2_T1.js": "String has not yet been implemented.",
-    "built-ins/RegExp/S15.10.2.12_A3_T1.js": "String has not yet been implemented.",
-    "built-ins/RegExp/S15.10.2.12_A4_T1.js": "String has not yet been implemented.",
-    "built-ins/RegExp/S15.10.2.12_A5_T1.js": "String has not yet been implemented.",
-    "built-ins/RegExp/S15.10.2.12_A6_T1.js": "String has not yet been implemented.",
-
-    "": ""
+    }
 }

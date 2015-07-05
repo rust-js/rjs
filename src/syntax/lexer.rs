@@ -760,7 +760,7 @@ pub fn is_whitespace(c: char) -> bool {
         '\u{2009}' | '\u{200A}' | '\u{202F}' | '\u{205F}' | '\u{3000}'
             => true,
         // Others not in the spec.
-        '\u{180E}' => true,
+        '\u{180E}' | '\u{FEFF}' => true,
         _ => false
     }
 }

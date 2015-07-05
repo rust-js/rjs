@@ -524,13 +524,30 @@ impl Local<JsValue> {
     }
     
     // 9.7 ToUint16: (Unsigned 16 Bit Integer)
-    // TODO #74: This does not adhere to the full specs.
     pub fn to_uint16(&self, env: &mut JsEnv) -> JsResult<u16> {
         let number = try!(self.to_number(env));
-        let result = if number.is_nan() || number == 0.0 || number.is_infinite() {
+        
+        let result = if !number.is_finite() {
             0
         } else {
-            number as u16
+            let result = number as u16;
+            
+            if result as f64 == number {
+                result
+            } else {
+                let mut number = if number < 0.0 {
+                    -((-number).floor())
+                } else {
+                    number.floor()
+                };
+                
+                number %= 0x10000 as f64;
+                if number < 0.0 {
+                    number += 0x10000 as f64;
+                }
+                
+                number as u16
+            }
         };
         
         Ok(result)

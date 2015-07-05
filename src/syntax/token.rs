@@ -469,4 +469,10 @@ declare_idents! {
     ( "test", TEST, 251 );
     ( "index", INDEX, 252 );
     ( "input", INPUT, 253 );
+    ( "localeCompare", LOCALE_COMPARE, 254 );
+    ( "match", MATCH, 255 );
+    ( "replace", REPLACE, 256 );
+    ( "search", SEARCH, 257 );
+    ( "split", SPLIT, 258 );
+    ( "trim", TRIM, 259 );
 }

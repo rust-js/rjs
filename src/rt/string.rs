@@ -3,7 +3,6 @@ use rt::{JsEnv, JsValue, JsItem, JsDescriptor, JsHandle, GC_STRING, GC_U16};
 use rt::utf;
 use syntax::Name;
 use syntax::token::name;
-use std::char;
 
 // Modifications to this struct must be synchronized with the GC walker.
 pub struct JsString {
@@ -41,11 +40,21 @@ impl JsString {
     }
     
     pub fn from_u16(env: &JsEnv, chars: &[u16]) -> Local<JsString> {
-        let result = JsString::new_local(env, chars.len());
+        // TODO #84: Most of the calls to this function take the chars from the GC
+        // heap. Because of this we create a copy of chars. However, this must
+        // be changed so that this extra copy is unnecessary.
+        
+        let mut copy = Vec::with_capacity(chars.len());
+        for i in 0..chars.len() {
+            copy.push(chars[i]);
+        }
+        
+        let result = JsString::new_local(env, copy.len());
+        
         let mut result_chars = result.chars;
         
-        for i in 0..chars.len() {
-            result_chars[i] = chars[i];
+        for i in 0..copy.len() {
+            result_chars[i] = copy[i];
         }
         
         result
@@ -55,24 +64,24 @@ impl JsString {
         &*self.chars
     }
     
-    pub fn concat<'a>(env: &'a JsEnv, lhs: Local<JsString>, rhs: Local<JsString>) -> Local<JsString> {
-        let lhs_chars = &*lhs.chars;
-        let rhs_chars = &*rhs.chars;
-        let len = lhs_chars.len() + rhs_chars.len();
+    pub fn concat<'a>(env: &'a JsEnv, strings: &[Local<JsString>]) -> Local<JsString> {
+        let mut len = 0;
+        for string in strings {
+            len += string.chars().len();
+        }
         
         let mut result = Self::new_local(&env, len);
         
         {
             let chars = &mut *result.chars;
+            let mut offset = 0;
             
-            // The below is optimized to two memcpy's.
-            
-            for i in 0..lhs_chars.len() {
-                chars[i] = lhs_chars[i];
-            }
-            let offset = lhs_chars.len();
-            for i in 0..rhs_chars.len() {
-                chars[offset + i] = rhs_chars[i];
+            for string in strings {
+                let string_chars = string.chars();
+                for i in 0..string_chars.len() {
+                    chars[offset] = string_chars[i];
+                    offset += 1;
+                }
             }
         }
         
@@ -97,29 +106,7 @@ impl JsString {
     }
     
     pub fn to_string(&self) -> String {
-        if let Ok(result) = String::from_utf16(&*self.chars) {
-            result
-        } else {
-            // TODO #60: We can do better than this. This kind of works but
-            // it gives an invalid result on code points that consist
-            // out of multiple u16's, but are still valid code points.
-            // We should implement this in utf.rs.
-            
-            let mut result = String::new();
-            let chars = self.chars;
-            
-            for i in 0..chars.len() {
-                let c = chars[i];
-                
-                if let Some(c) = char::from_u32(c as u32) {
-                    result.push(c)
-                } else {
-                    result.push('�');
-                }
-            }
-            
-            result
-        }
+        ::rt::utf::utf16_to_string(&*self.chars)
     }
 }
 
