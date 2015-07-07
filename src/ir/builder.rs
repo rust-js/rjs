@@ -158,7 +158,6 @@ impl Block {
                     self.print_label(string, label);
                 }
                 Ir::LeaveEnv => string.push_str("env.leave"),
-                Ir::LoadArguments => string.push_str("ld.arguments"),
                 Ir::LoadEnv(name) => {
                     string.push_str("ld.env ");
                     self.print_name(string, name, interner);
@@ -189,12 +188,10 @@ impl Block {
                     string.push_str("ld.local ");
                     self.print_local(string, local, interner);
                 }
-                Ir::LoadMissing => string.push_str("ld.missing"),
                 Ir::LoadName(name) => {
                     string.push_str("ld.name ");
                     self.print_name(string, name, interner);
                 }
-                Ir::LoadNameLit => string.push_str("ld.name.lit"),
                 Ir::LoadNull => string.push_str("ld.null"),
                 Ir::LoadParam(index) => { write!(string, "ld.arg {}", index).ok(); }
                 Ir::LoadRegex(body, flags) => {
@@ -233,7 +230,6 @@ impl Block {
                 Ir::Return => string.push_str("ret"),
                 Ir::Rsh => string.push_str("rsh"),
                 Ir::RshZeroFill => string.push_str("rsh.zf"),
-                Ir::StoreGetterUnchecked(function) => { write!(string, "st.this.getter {}", function.usize()).ok(); }
                 Ir::StoreGlobal(name) => {
                     string.push_str("st.global ");
                     self.print_name(string, name, interner);
@@ -267,7 +263,6 @@ impl Block {
                     self.print_name(string, name, interner);
                 }
                 Ir::StoreEnvArguments => string.push_str("st.env.args"),
-                Ir::StoreSetterUnchecked(function) => { write!(string, "st.this.setter {}", function.usize()).ok(); }
                 Ir::StoreNameSetterUnchecked(name, function) => {
                     string.push_str("st.this.setter.name ");
                     self.print_name(string, name, interner);
@@ -571,7 +566,6 @@ pub enum Ir {
     Le,
     Leave(Label),
     LeaveEnv,
-    LoadArguments,
     LoadException,
     LoadF64(f64),
     LoadFalse,
@@ -581,9 +575,7 @@ pub enum Ir {
     LoadIndex,
     LoadLifted(u32, u32),
     LoadLocal(Local),
-    LoadMissing,
     LoadName(Name),
-    LoadNameLit,
     LoadNull,
     LoadParam(u32),
     LoadRegex(Name, Name),
@@ -616,7 +608,6 @@ pub enum Ir {
     Rsh,
     RshZeroFill,
     CallEval(u32),
-    StoreGetterUnchecked(FunctionRef),
     StoreGlobal(Name),
     StoreIndex,
     StoreIndexUnchecked,
@@ -629,7 +620,6 @@ pub enum Ir {
     StoreParam(u32),
     StoreEnv(Name),
     StoreEnvArguments,
-    StoreSetterUnchecked(FunctionRef),
     StrictEq,
     StrictNe,
     Subtract,

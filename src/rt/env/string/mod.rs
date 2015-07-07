@@ -87,10 +87,6 @@ pub fn String_valueOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResul
     }
 }
 
-pub fn String_substr(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-    unimplemented!();
-}
-
 // 15.5.3.2 String.fromCharCode ( [ char0 [ , char1 [ , … ] ] ] )
 pub fn String_fromCharCode(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let mut chars = Vec::new();

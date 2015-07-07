@@ -8,14 +8,6 @@ use ::util::matchers::DecimalMatcher;
 use std::{char, f64};
 use ::syntax::lexer::{is_line_terminator, is_whitespace};
 
-pub fn Global_escape(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-    unimplemented!();
-}
-
-pub fn Global_unescape(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-    unimplemented!();
-}
-
 // 15.1.2.2 parseInt (string , radix)
 pub fn Global_parseInt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     // TODO #67: Use DecimalMatcher.

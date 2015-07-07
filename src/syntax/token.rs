@@ -285,10 +285,10 @@ declare_idents! {
     ( "writable", WRITABLE, 67 );
     ( "enumerable", ENUMERABLE, 68 );
     ( "configurable", CONFIGURABLE, 69 );
-    ( "escape", ESCAPE, 70 );
-    ( "unescape", UNESCAPE, 71 );
+    ( "split", SPLIT, 70 );
+    ( "trim", TRIM, 71 );
     ( "String", STRING_CLASS, 72 );
-    ( "substr", SUBSTR, 73 );
+    ( "search", SEARCH, 73 );
     ( "Date", DATE_CLASS, 74 );
     ( "getYear", GET_YEAR, 75 );
     ( "setYear", SET_YEAR, 76 );
@@ -472,7 +472,4 @@ declare_idents! {
     ( "localeCompare", LOCALE_COMPARE, 254 );
     ( "match", MATCH, 255 );
     ( "replace", REPLACE, 256 );
-    ( "search", SEARCH, 257 );
-    ( "split", SPLIT, 258 );
-    ( "trim", TRIM, 259 );
 }

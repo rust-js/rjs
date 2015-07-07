@@ -113,8 +113,6 @@ fn setup_global(env: &mut JsEnv) {
     
     // Build global functions
     
-    function!(global, name::ESCAPE, Global_escape, 1, env);
-    function!(global, name::UNESCAPE, Global_unescape, 1, env);
     function!(global, name::PARSE_INT, Global_parseInt, 2, env);
     function!(global, name::PARSE_FLOAT, Global_parseFloat, 1, env);
     function!(global, name::IS_NAN, Global_isNaN, 1, env);
@@ -156,7 +154,6 @@ fn setup_function(env: &mut JsEnv, mut global: Local<JsValue>, object_prototype:
     function!(prototype, name::APPLY, Function_apply, 2, env);
     function!(prototype, name::BIND, Function_bind, 1, env);
     function!(prototype, name::TO_STRING, Function_toString, 0, env);
-    function!(prototype, name::TO_LOCALE_STRING, Function_toLocaleString, 0, env);
     
     property!(global, name::FUNCTION_CLASS, class.as_value(env), true, false, true, env);
     
@@ -272,7 +269,6 @@ fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 
     env.add_handle(JsHandle::String, prototype);
     
-    function!(&mut prototype, name::SUBSTR, String_substr, 1, env);
     function!(&mut prototype, name::TO_STRING, String_toString, 0, env);
     function!(&mut prototype, name::VALUE_OF, String_valueOf, 0, env);
     function!(&mut prototype, name::CHAR_AT, String_charAt, 1, env);

@@ -175,10 +175,6 @@ pub fn Function_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
     Err(JsError::new_type(env, ::errors::TYPE_INVALID))
 }
 
-pub fn Function_toLocaleString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-    unimplemented!();
-}
-
 // 15.3.4.5 Function.prototype.bind (thisArg [, arg1 [, arg2, …]])
 pub fn Function_bind(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
     let this_arg = args.this(env);

@@ -1395,18 +1395,10 @@ impl<'a> IrGenerator<'a> {
                         }
                     }
                     Property::Getter(ref ident, function_ref) => {
-                        if let Some(ident) = *ident {
-                            self.ir.emit(Ir::StoreNameGetterUnchecked(ident, function_ref));
-                        } else {
-                            self.ir.emit(Ir::StoreGetterUnchecked(function_ref));
-                        }
+                        self.ir.emit(Ir::StoreNameGetterUnchecked(*ident, function_ref));
                     }
                     Property::Setter(ref ident, function_ref) => {
-                        if let Some(ident) = *ident {
-                            self.ir.emit(Ir::StoreNameSetterUnchecked(ident, function_ref));
-                        } else {
-                            self.ir.emit(Ir::StoreSetterUnchecked(function_ref));
-                        }
+                        self.ir.emit(Ir::StoreNameSetterUnchecked(*ident, function_ref));
                     }
                 }
             }

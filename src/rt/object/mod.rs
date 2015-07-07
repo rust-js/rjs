@@ -563,26 +563,6 @@ impl JsItem for Local<JsObject> {
             self.scope = Ptr::null();
         }
     }
-    
-    fn formal_parameters(&self, _: &JsEnv) -> Option<Vec<Name>> {
-        unimplemented!();
-    }
-    
-    fn code(&self, _: &JsEnv) -> Option<String> {
-        unimplemented!();
-    }
-    
-    fn target_function(&self, _: &JsEnv) -> Option<Local<JsValue>> {
-        unimplemented!();
-    }
-    
-    fn bound_this(&self, _: &JsEnv) -> Option<Local<JsValue>> {
-        unimplemented!();
-    }
-    
-    fn bound_arguments(&self, _: &JsEnv) -> Option<Local<JsValue>> {
-        unimplemented!();
-    }
 }
 
 trait Store {

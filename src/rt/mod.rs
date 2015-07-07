@@ -503,32 +503,6 @@ pub trait JsItem {
     fn set_scope(&mut self, env: &JsEnv, scope: Option<Local<JsScope>>) {
         panic!("scope not supported");
     }
-    
-    fn formal_parameters(&self, env: &JsEnv) -> Option<Vec<Name>> {
-        None
-    }
-    
-    fn code(&self, env: &JsEnv) -> Option<String> {
-        None
-    }
-    
-    fn target_function(&self, env: &JsEnv) -> Option<Local<JsValue>> {
-        None
-    }
-    
-    fn bound_this(&self, env: &JsEnv) -> Option<Local<JsValue>> {
-        None
-    }
-    
-    fn bound_arguments(&self, env: &JsEnv) -> Option<Local<JsValue>> {
-        None
-    }
-    
-    // fn can_match(&self) -> bool;
-    
-    // fn match_(&self, env: &JsEnv, pattern: String, index: u32) -> JsMatchResult;
-    
-    // fn parameter_map(&self) -> JsParameterMap;
 }
 
 #[derive(Copy, Clone)]
