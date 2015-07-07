@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `GcAllocator` trait in crate `rjs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, GcAllocator">
+
+    <title>rjs::gc::GcAllocator - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rjs</a>::<wbr><a href='index.html'>gc</a></p><script>window.sidebarCurrent = {name: 'GcAllocator', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press 'S' to search, '?' for more options..."
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content trait">
+<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>rjs</a>::<wbr><a href='index.html'>gc</a>::<wbr><a class='trait' href=''>GcAllocator</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-74626' class='srclink' href='../../src/rjs/gc/mod.rs.html#467-479' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait GcAllocator {
+    fn <a href='#tymethod.alloc_array_local_from_root' class='fnname'>alloc_array_local_from_root</a>&lt;T&gt;(&amp;self, root: &amp;<a class='struct' href='../../rjs/gc/handles/array_root/struct.ArrayRoot.html' title='rjs::gc::handles::array_root::ArrayRoot'>ArrayRoot</a>&lt;T&gt;) -&gt; <a class='struct' href='../../rjs/gc/handles/array_local/struct.ArrayLocal.html' title='rjs::gc::handles::array_local::ArrayLocal'>ArrayLocal</a>&lt;T&gt;;
+    fn <a href='#tymethod.alloc_array_root_from_local' class='fnname'>alloc_array_root_from_local</a>&lt;T&gt;(&amp;self, local: <a class='struct' href='../../rjs/gc/handles/array_local/struct.ArrayLocal.html' title='rjs::gc::handles::array_local::ArrayLocal'>ArrayLocal</a>&lt;T&gt;) -&gt; <a class='struct' href='../../rjs/gc/handles/array_root/struct.ArrayRoot.html' title='rjs::gc::handles::array_root::ArrayRoot'>ArrayRoot</a>&lt;T&gt;;
+    fn <a href='#tymethod.alloc_array_local_from_array' class='fnname'>alloc_array_local_from_array</a>&lt;T&gt;(&amp;self, array: <a class='struct' href='../../rjs/gc/handles/array/struct.Array.html' title='rjs::gc::handles::array::Array'>Array</a>&lt;T&gt;) -&gt; <a class='struct' href='../../rjs/gc/handles/array_local/struct.ArrayLocal.html' title='rjs::gc::handles::array_local::ArrayLocal'>ArrayLocal</a>&lt;T&gt;;
+    fn <a href='#tymethod.alloc_root_from_local' class='fnname'>alloc_root_from_local</a>&lt;T&gt;(&amp;self, local: <a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;T&gt;) -&gt; <a class='struct' href='../../rjs/gc/handles/root/struct.Root.html' title='rjs::gc::handles::root::Root'>Root</a>&lt;T&gt;;
+    fn <a href='#tymethod.alloc_local_from_ptr' class='fnname'>alloc_local_from_ptr</a>&lt;T&gt;(&amp;self, ptr: <a class='struct' href='../../rjs/gc/handles/ptr/struct.Ptr.html' title='rjs::gc::handles::ptr::Ptr'>Ptr</a>&lt;T&gt;) -&gt; <a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;T&gt;;
+    fn <a href='#tymethod.alloc_local_from_root' class='fnname'>alloc_local_from_root</a>&lt;T&gt;(&amp;self, root: &amp;<a class='struct' href='../../rjs/gc/handles/root/struct.Root.html' title='rjs::gc::handles::root::Root'>Root</a>&lt;T&gt;) -&gt; <a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;T&gt;;
+}</pre>
+            <h2 id='required-methods'>Required Methods</h2>
+            <div class='methods'>
+        <h3 id='tymethod.alloc_array_local_from_root' class='method stab '><code>fn <a href='#tymethod.alloc_array_local_from_root' class='fnname'>alloc_array_local_from_root</a>&lt;T&gt;(&amp;self, root: &amp;<a class='struct' href='../../rjs/gc/handles/array_root/struct.ArrayRoot.html' title='rjs::gc::handles::array_root::ArrayRoot'>ArrayRoot</a>&lt;T&gt;) -&gt; <a class='struct' href='../../rjs/gc/handles/array_local/struct.ArrayLocal.html' title='rjs::gc::handles::array_local::ArrayLocal'>ArrayLocal</a>&lt;T&gt;</code></h3><h3 id='tymethod.alloc_array_root_from_local' class='method stab '><code>fn <a href='#tymethod.alloc_array_root_from_local' class='fnname'>alloc_array_root_from_local</a>&lt;T&gt;(&amp;self, local: <a class='struct' href='../../rjs/gc/handles/array_local/struct.ArrayLocal.html' title='rjs::gc::handles::array_local::ArrayLocal'>ArrayLocal</a>&lt;T&gt;) -&gt; <a class='struct' href='../../rjs/gc/handles/array_root/struct.ArrayRoot.html' title='rjs::gc::handles::array_root::ArrayRoot'>ArrayRoot</a>&lt;T&gt;</code></h3><h3 id='tymethod.alloc_array_local_from_array' class='method stab '><code>fn <a href='#tymethod.alloc_array_local_from_array' class='fnname'>alloc_array_local_from_array</a>&lt;T&gt;(&amp;self, array: <a class='struct' href='../../rjs/gc/handles/array/struct.Array.html' title='rjs::gc::handles::array::Array'>Array</a>&lt;T&gt;) -&gt; <a class='struct' href='../../rjs/gc/handles/array_local/struct.ArrayLocal.html' title='rjs::gc::handles::array_local::ArrayLocal'>ArrayLocal</a>&lt;T&gt;</code></h3><h3 id='tymethod.alloc_root_from_local' class='method stab '><code>fn <a href='#tymethod.alloc_root_from_local' class='fnname'>alloc_root_from_local</a>&lt;T&gt;(&amp;self, local: <a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;T&gt;) -&gt; <a class='struct' href='../../rjs/gc/handles/root/struct.Root.html' title='rjs::gc::handles::root::Root'>Root</a>&lt;T&gt;</code></h3><h3 id='tymethod.alloc_local_from_ptr' class='method stab '><code>fn <a href='#tymethod.alloc_local_from_ptr' class='fnname'>alloc_local_from_ptr</a>&lt;T&gt;(&amp;self, ptr: <a class='struct' href='../../rjs/gc/handles/ptr/struct.Ptr.html' title='rjs::gc::handles::ptr::Ptr'>Ptr</a>&lt;T&gt;) -&gt; <a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;T&gt;</code></h3><h3 id='tymethod.alloc_local_from_root' class='method stab '><code>fn <a href='#tymethod.alloc_local_from_root' class='fnname'>alloc_local_from_root</a>&lt;T&gt;(&amp;self, root: &amp;<a class='struct' href='../../rjs/gc/handles/root/struct.Root.html' title='rjs::gc::handles::root::Root'>Root</a>&lt;T&gt;) -&gt; <a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;T&gt;</code></h3></div>
+        <h2 id='implementors'>Implementors</h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><code>impl <a class='trait' href='../../rjs/gc/trait.GcAllocator.html' title='rjs::gc::GcAllocator'>GcAllocator</a> for <a class='struct' href='../../rjs/gc/struct.GcHeap.html' title='rjs::gc::GcHeap'>GcHeap</a></code></li>
+<li><code>impl <a class='trait' href='../../rjs/gc/trait.GcAllocator.html' title='rjs::gc::GcAllocator'>GcAllocator</a> for <a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a></code></li>
+</ul><script type="text/javascript" async
+                              src="../../implementors/rjs/gc/trait.GcAllocator.js">
+                      </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div class="shortcuts">
+            <h1>Keyboard shortcuts</h1>
+            <dl>
+                <dt>?</dt>
+                <dd>Show this help dialog</dd>
+                <dt>S</dt>
+                <dd>Focus the search field</dd>
+                <dt>&larrb;</dt>
+                <dd>Move up in search results</dd>
+                <dt>&rarrb;</dt>
+                <dd>Move down in search results</dd>
+                <dt>&#9166;</dt>
+                <dd>Go to active search result</dd>
+            </dl>
+        </div>
+        <div class="infos">
+            <h1>Search tricks</h1>
+            <p>
+                Prefix searches with a type followed by a colon (e.g.
+                <code>fn:</code>) to restrict the search to a given type.
+            </p>
+            <p>
+                Accepted types are: <code>fn</code>, <code>mod</code>,
+                <code>struct</code>, <code>enum</code>,
+                <code>trait</code>, <code>typedef</code> (or
+                <code>tdef</code>).
+            </p>
+            <p>
+                Search functions by type signature (e.g.
+                <code>vec -> usize</code>)
+            </p>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rjs";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script async src="../../search-index.js"></script>
+</body>
+</html>

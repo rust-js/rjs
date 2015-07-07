@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `JsBoolean` struct in crate `rjs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, JsBoolean">
+
+    <title>rjs::rt::JsBoolean - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rjs</a>::<wbr><a href='index.html'>rt</a></p><script>window.sidebarCurrent = {name: 'JsBoolean', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press 'S' to search, '?' for more options..."
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>rjs</a>::<wbr><a href='index.html'>rt</a>::<wbr><a class='struct' href=''>JsBoolean</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-136054' class='srclink' href='../../src/rjs/rt/boolean.rs.html#4-6' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct JsBoolean {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl <a class='struct' href='../../rjs/rt/struct.JsBoolean.html' title='rjs::rt::JsBoolean'>JsBoolean</a></code></h3><div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(value: <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>) -&gt; <a class='struct' href='../../rjs/rt/struct.JsBoolean.html' title='rjs::rt::JsBoolean'>JsBoolean</a></code></h4>
+</div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><code>impl <a class='trait' href='../../rjs/rt/trait.JsItem.html' title='rjs::rt::JsItem'>JsItem</a> for <a class='struct' href='../../rjs/rt/struct.JsBoolean.html' title='rjs::rt::JsBoolean'>JsBoolean</a></code></h3><div class='impl-items'><h4 id='method.as_value' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.as_value' class='fnname'>as_value</a>(&amp;self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>) -&gt; <a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsValue.html' title='rjs::rt::JsValue'>JsValue</a>&gt;</code></h4>
+<h4 id='method.has_prototype' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.has_prototype' class='fnname'>has_prototype</a>(&amp;self, _: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<h4 id='method.prototype' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.prototype' class='fnname'>prototype</a>(&amp;self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsValue.html' title='rjs::rt::JsValue'>JsValue</a>&gt;&gt;</code></h4>
+<h4 id='method.get_own_property' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.get_own_property' class='fnname'>get_own_property</a>(&amp;self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, property: Name) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsDescriptor.html' title='rjs::rt::JsDescriptor'>JsDescriptor</a>&gt;</code></h4>
+<h4 id='method.get_property' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.get_property' class='fnname'>get_property</a>(&amp;self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, property: Name) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsDescriptor.html' title='rjs::rt::JsDescriptor'>JsDescriptor</a>&gt;</code></h4>
+<h4 id='method.get' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.get' class='fnname'>get</a>(&amp;self, env: &amp;mut <a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, property: Name) -&gt; <a class='type' href='../../rjs/rt/type.JsResult.html' title='rjs::rt::JsResult'>JsResult</a>&lt;<a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsValue.html' title='rjs::rt::JsValue'>JsValue</a>&gt;&gt;</code></h4>
+<h4 id='method.can_put' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.can_put' class='fnname'>can_put</a>(&amp;self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, property: Name) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<h4 id='method.put' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.put' class='fnname'>put</a>(&amp;mut self, env: &amp;mut <a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, property: Name, value: <a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsValue.html' title='rjs::rt::JsValue'>JsValue</a>&gt;, throw: <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>) -&gt; <a class='type' href='../../rjs/rt/type.JsResult.html' title='rjs::rt::JsResult'>JsResult</a>&lt;<a href='http://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<h4 id='method.has_property' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.has_property' class='fnname'>has_property</a>(&amp;self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, property: Name) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<h4 id='method.delete' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.delete' class='fnname'>delete</a>(&amp;mut self, env: &amp;mut <a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, property: Name, throw: <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>) -&gt; <a class='type' href='../../rjs/rt/type.JsResult.html' title='rjs::rt::JsResult'>JsResult</a>&lt;<a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>&gt;</code></h4>
+<h4 id='method.default_value' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.default_value' class='fnname'>default_value</a>(&amp;self, env: &amp;mut <a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, hint: <a class='enum' href='../../rjs/rt/enum.JsPreferredType.html' title='rjs::rt::JsPreferredType'>JsPreferredType</a>) -&gt; <a class='type' href='../../rjs/rt/type.JsResult.html' title='rjs::rt::JsResult'>JsResult</a>&lt;<a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsValue.html' title='rjs::rt::JsValue'>JsValue</a>&gt;&gt;</code></h4>
+<h4 id='method.define_own_property' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.define_own_property' class='fnname'>define_own_property</a>(&amp;mut self, env: &amp;mut <a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, property: Name, descriptor: <a class='struct' href='../../rjs/rt/struct.JsDescriptor.html' title='rjs::rt::JsDescriptor'>JsDescriptor</a>, throw: <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>) -&gt; <a class='type' href='../../rjs/rt/type.JsResult.html' title='rjs::rt::JsResult'>JsResult</a>&lt;<a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>&gt;</code></h4>
+<h4 id='method.is_callable' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.is_callable' class='fnname'>is_callable</a>(&amp;self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<h4 id='method.call' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.call' class='fnname'>call</a>(&amp;self, env: &amp;mut <a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, this: <a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsValue.html' title='rjs::rt::JsValue'>JsValue</a>&gt;, args: <a class='struct' href='http://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsValue.html' title='rjs::rt::JsValue'>JsValue</a>&gt;&gt;, strict: <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>) -&gt; <a class='type' href='../../rjs/rt/type.JsResult.html' title='rjs::rt::JsResult'>JsResult</a>&lt;<a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsValue.html' title='rjs::rt::JsValue'>JsValue</a>&gt;&gt;</code></h4>
+<h4 id='method.can_construct' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.can_construct' class='fnname'>can_construct</a>(&amp;self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<h4 id='method.construct' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.construct' class='fnname'>construct</a>(&amp;self, env: &amp;mut <a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, args: <a class='struct' href='http://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsValue.html' title='rjs::rt::JsValue'>JsValue</a>&gt;&gt;) -&gt; <a class='type' href='../../rjs/rt/type.JsResult.html' title='rjs::rt::JsResult'>JsResult</a>&lt;<a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsValue.html' title='rjs::rt::JsValue'>JsValue</a>&gt;&gt;</code></h4>
+<h4 id='method.set_prototype' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.set_prototype' class='fnname'>set_prototype</a>(&amp;mut self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, prototype: <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsValue.html' title='rjs::rt::JsValue'>JsValue</a>&gt;&gt;)</code></h4>
+<h4 id='method.has_class' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.has_class' class='fnname'>has_class</a>(&amp;self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<h4 id='method.class' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.class' class='fnname'>class</a>(&amp;self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;Name&gt;</code></h4>
+<h4 id='method.set_class' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.set_class' class='fnname'>set_class</a>(&amp;mut self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, class: <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;Name&gt;)</code></h4>
+<h4 id='method.is_extensible' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.is_extensible' class='fnname'>is_extensible</a>(&amp;self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<h4 id='method.has_instance' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.has_instance' class='fnname'>has_instance</a>(&amp;self, env: &amp;mut <a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, object: <a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsValue.html' title='rjs::rt::JsValue'>JsValue</a>&gt;) -&gt; <a class='type' href='../../rjs/rt/type.JsResult.html' title='rjs::rt::JsResult'>JsResult</a>&lt;<a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>&gt;</code></h4>
+<h4 id='method.scope' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.scope' class='fnname'>scope</a>(&amp;self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsScope.html' title='rjs::rt::JsScope'>JsScope</a>&gt;&gt;</code></h4>
+<h4 id='method.set_scope' class='method'><code>fn <a href='../../rjs/rt/trait.JsItem.html#method.set_scope' class='fnname'>set_scope</a>(&amp;mut self, env: &amp;<a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, scope: <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsScope.html' title='rjs::rt::JsScope'>JsScope</a>&gt;&gt;)</code></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div class="shortcuts">
+            <h1>Keyboard shortcuts</h1>
+            <dl>
+                <dt>?</dt>
+                <dd>Show this help dialog</dd>
+                <dt>S</dt>
+                <dd>Focus the search field</dd>
+                <dt>&larrb;</dt>
+                <dd>Move up in search results</dd>
+                <dt>&rarrb;</dt>
+                <dd>Move down in search results</dd>
+                <dt>&#9166;</dt>
+                <dd>Go to active search result</dd>
+            </dl>
+        </div>
+        <div class="infos">
+            <h1>Search tricks</h1>
+            <p>
+                Prefix searches with a type followed by a colon (e.g.
+                <code>fn:</code>) to restrict the search to a given type.
+            </p>
+            <p>
+                Accepted types are: <code>fn</code>, <code>mod</code>,
+                <code>struct</code>, <code>enum</code>,
+                <code>trait</code>, <code>typedef</code> (or
+                <code>tdef</code>).
+            </p>
+            <p>
+                Search functions by type signature (e.g.
+                <code>vec -> usize</code>)
+            </p>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rjs";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script async src="../../search-index.js"></script>
+</body>
+</html>

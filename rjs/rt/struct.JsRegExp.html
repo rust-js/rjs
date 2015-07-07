@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `JsRegExp` struct in crate `rjs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, JsRegExp">
+
+    <title>rjs::rt::JsRegExp - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rjs</a>::<wbr><a href='index.html'>rt</a></p><script>window.sidebarCurrent = {name: 'JsRegExp', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press 'S' to search, '?' for more options..."
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>rjs</a>::<wbr><a href='index.html'>rt</a>::<wbr><a class='struct' href=''>JsRegExp</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-137816' class='srclink' href='../../src/rjs/rt/regexp.rs.html#12-19' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct JsRegExp {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl <a class='struct' href='../../rjs/rt/struct.JsRegExp.html' title='rjs::rt::JsRegExp'>JsRegExp</a></code></h3><div class='impl-items'><h4 id='method.new_local' class='method'><code>fn <a href='#method.new_local' class='fnname'>new_local</a>(env: &amp;mut <a class='struct' href='../../rjs/rt/struct.JsEnv.html' title='rjs::rt::JsEnv'>JsEnv</a>, pattern: <a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsString.html' title='rjs::rt::JsString'>JsString</a>&gt;, flags: <a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsString.html' title='rjs::rt::JsString'>JsString</a>&gt;, global: <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>, ignore_case: <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>, multiline: <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>) -&gt; <a class='type' href='../../rjs/rt/type.JsResult.html' title='rjs::rt::JsResult'>JsResult</a>&lt;<a class='struct' href='../../rjs/gc/handles/local/struct.Local.html' title='rjs::gc::handles::local::Local'>Local</a>&lt;<a class='struct' href='../../rjs/rt/struct.JsRegExp.html' title='rjs::rt::JsRegExp'>JsRegExp</a>&gt;&gt;</code></h4>
+<h4 id='method.finalize' class='method'><code>fn <a href='#method.finalize' class='fnname'>finalize</a>(&amp;mut self)</code></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div class="shortcuts">
+            <h1>Keyboard shortcuts</h1>
+            <dl>
+                <dt>?</dt>
+                <dd>Show this help dialog</dd>
+                <dt>S</dt>
+                <dd>Focus the search field</dd>
+                <dt>&larrb;</dt>
+                <dd>Move up in search results</dd>
+                <dt>&rarrb;</dt>
+                <dd>Move down in search results</dd>
+                <dt>&#9166;</dt>
+                <dd>Go to active search result</dd>
+            </dl>
+        </div>
+        <div class="infos">
+            <h1>Search tricks</h1>
+            <p>
+                Prefix searches with a type followed by a colon (e.g.
+                <code>fn:</code>) to restrict the search to a given type.
+            </p>
+            <p>
+                Accepted types are: <code>fn</code>, <code>mod</code>,
+                <code>struct</code>, <code>enum</code>,
+                <code>trait</code>, <code>typedef</code> (or
+                <code>tdef</code>).
+            </p>
+            <p>
+                Search functions by type signature (e.g.
+                <code>vec -> usize</code>)
+            </p>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rjs";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script async src="../../search-index.js"></script>
+</body>
+</html>

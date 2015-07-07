@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["GcFinalize",""],["GcWalk",""]],"mod":[["handles",""],["os",""]],"struct":[["GcHeap",""],["GcOpts",""],["LocalScope",""]],"trait":[["GcAllocator",""],["GcRootWalker",""],["GcWalker",""]],"type":[["ptr_t",""]]});

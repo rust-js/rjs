@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["array",""],["array_local",""],["array_root",""],["local",""],["ptr",""],["root",""]]});
