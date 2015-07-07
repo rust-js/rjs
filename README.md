@@ -16,6 +16,11 @@ Contribution can be done by creating a pull request. Pull requests for small iss
 are always welcome. If you want to pick up a larger feature, please contact
 the maintainer to get started.
 
+## Documentation
+
+The documentation can be found at http://rust-js.github.io/rjs/rjs/. This is still
+work in progress, so a lot of information is still missing.
+
 ## License
 
 `rjs` is licensed under the Apache 2.0 license.

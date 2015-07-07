@@ -1,6 +1,5 @@
 use rt::*;
 use gc::*;
-use ::{JsResult, JsError};
 use syntax::Name;
 use syntax::ast::FunctionRef;
 use syntax::token::name;
