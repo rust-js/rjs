@@ -33,7 +33,7 @@ fn walk_dir(runner: &mut Runner, dir: &str) {
         
         if dir.len() == 0 {
             match &*entry.to_ascii_lowercase() {
-                "language" | "built-ins" | "annexb" => {},
+                "language" | "built-ins" => {},
                 _ => continue 
             }
         }
@@ -46,7 +46,6 @@ fn walk_dir(runner: &mut Runner, dir: &str) {
             match name {
                 "language" => 0,
                 "built-ins" => 1,
-                "annexb" => 2,
                 _ => unreachable!()
             }
         }
