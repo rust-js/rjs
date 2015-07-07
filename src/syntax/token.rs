@@ -126,7 +126,6 @@ pub enum Token {
     LessThan,
     LessThanEquals,
     Let,
-    LineTerminator,
     Literal(Lit),
     Minus,
     MinusAssign,

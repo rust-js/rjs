@@ -109,13 +109,6 @@ pub struct InternedString {
 /// somehow.
 impl InternedString {
     #[inline]
-    pub fn new(string: &'static str) -> InternedString {
-        InternedString {
-            string: RcStr::new(string),
-        }
-    }
-
-    #[inline]
     fn new_from_rc_str(string: RcStr) -> InternedString {
         InternedString {
             string: string,

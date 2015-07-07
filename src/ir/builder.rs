@@ -100,7 +100,6 @@ impl Block {
                     self.print_local(string, local, interner);
                 }
                 Ir::Debugger => string.push_str("debug"),
-                Ir::Delete => string.push_str("delete"),
                 Ir::DeleteName(name) => {
                     string.push_str("delete.name ");
                     self.print_name(string, name, interner);
@@ -172,7 +171,6 @@ impl Block {
                     string.push_str("ld.global ");
                     self.print_name(string, name, interner);
                 }
-                Ir::LoadGlobalObject => string.push_str("ld.global.obj"),
                 Ir::LoadException => string.push_str("ld.exception"),
                 Ir::LoadF64(value) => { write!(string, "ld.f64 {}", value).ok(); }
                 Ir::LoadFalse => string.push_str("ld.false"),
@@ -301,12 +299,6 @@ impl Block {
             string.push('\n');
         }
     }
-}
-
-pub struct Function {
-    pub name: Option<Name>,
-    pub args: Vec<Name>,
-    pub block: Block
 }
 
 #[derive(Copy, Clone)]
@@ -541,7 +533,6 @@ pub enum Ir {
     Call(u32),
     CurrentIter(Local),
     Debugger,
-    Delete,
     DeleteIndex,
     DeleteName(Name),
     DeleteEnvName(Name),
@@ -583,7 +574,6 @@ pub enum Ir {
     LoadEnvObject,
     LoadEnvObjectFor(Name),
     LoadGlobal(Name),
-    LoadGlobalObject,
     LoadEnvArguments(u32),
     LoadString(Name),
     LoadThis,

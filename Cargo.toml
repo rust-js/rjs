@@ -5,6 +5,7 @@ version = "0.0.1"
 authors = [ "Pieter van Ginkel <pvginkel@gmail.com>" ]
 
 [features]
+
 trace = []
 tracegc = []
 
@@ -12,6 +13,7 @@ tracegc = []
 
 name = "rjs"
 path = "src/main.rs"
+doc = false
 
 [lib]
 

@@ -19,7 +19,6 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
-use std::hash::Hash;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::str::FromStr;
@@ -87,12 +86,6 @@ impl StrInterner {
             vect: RefCell::new(Vec::new()),
         }
     }
-
-    pub fn prefill(init: &[&str]) -> StrInterner {
-        let rv = StrInterner::new();
-        for &v in init { rv.intern(v); }
-        rv
-    }
     
     fn parse_index(&self, val: &str) -> Option<usize> {
         // TODO #77: Improve. We shouldn't have to create a string again. Instead we
@@ -124,36 +117,6 @@ impl StrInterner {
         }
     }
 
-    pub fn gensym(&self, val: &str) -> Name {
-        let new_idx = Name::from_name(self.len());
-        // leave out of .map to avoid colliding
-        self.vect.borrow_mut().push(RcStr::new(val));
-        new_idx
-    }
-
-    // I want these gensyms to share name pointers
-    // with existing entries. This would be automatic,
-    // except that the existing gensym creates its
-    // own managed ptr using to_managed. I think that
-    // adding this utility function is the most
-    // lightweight way to get what I want, though not
-    // necessarily the cleanest.
-
-    /// Create a gensym with the same name as an existing
-    /// entry.
-    pub fn gensym_copy(&self, idx : Name) -> Name {
-        if idx.is_index() {
-            idx
-        } else {
-            let new_idx = Name::from_name(self.len());
-            // leave out of map to avoid colliding
-            let mut vect = self.vect.borrow_mut();
-            let existing = (*vect)[idx.name().unwrap()].clone();
-            vect.push(existing);
-            new_idx
-        }
-    }
-
     pub fn get(&self, idx: Name) -> RcStr {
         if let Some(index) = idx.index() {
             RcStr {
@@ -166,23 +129,5 @@ impl StrInterner {
 
     pub fn len(&self) -> usize {
         self.vect.borrow().len()
-    }
-
-    pub fn find<Q: ?Sized>(&self, val: &Q) -> Option<Name>
-    where RcStr: Borrow<Q>, Q: Eq + Hash {
-        match (*self.map.borrow()).get(val) {
-            Some(v) => Some(*v),
-            None => None,
-        }
-    }
-
-    pub fn clear(&self) {
-        *self.map.borrow_mut() = HashMap::new();
-        *self.vect.borrow_mut() = Vec::new();
-    }
-
-    pub fn reset(&self, other: StrInterner) {
-        *self.map.borrow_mut() = other.map.into_inner();
-        *self.vect.borrow_mut() = other.vect.into_inner();
     }
 }

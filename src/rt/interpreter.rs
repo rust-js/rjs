@@ -445,14 +445,6 @@ impl<'a> Frame<'a> {
             Ir::Debugger => {
                 // Not implemented. Debugger support is not yet part of rjs.
             }
-            Ir::Delete => {
-                let _scope = self.env.new_local_scope();
-                
-                let frame = self.env.stack.create_frame(1);
-                self.env.stack.drop_frame(frame);
-                
-                self.env.stack.push(JsValue::new_bool(false));
-            }
             Ir::DeleteIndex => {
                 let _scope = self.env.new_local_scope();
                 
@@ -709,13 +701,6 @@ impl<'a> Frame<'a> {
                 let result = local_try!(global.get(self.env, name));
                 
                 self.env.stack.push(*result);
-            }
-            Ir::LoadGlobalObject => {
-                let _scope = self.env.new_local_scope();
-                
-                let global = self.env.handle(JsHandle::Global).as_value(self.env);
-                
-                self.env.stack.push(*global);
             }
             Ir::LoadI32(value) => self.env.stack.push(JsValue::new_number(value as f64)),
             Ir::LoadI64(value) => self.env.stack.push(JsValue::new_number(value as f64)),
