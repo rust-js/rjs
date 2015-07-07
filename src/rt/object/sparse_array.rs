@@ -4,7 +4,7 @@ use rt::object::{StoreKey, Entry};
 use std::cmp::{min, max};
 use rt::{GC_ENTRY, GC_ARRAY_CHUNK, GC_SPARSE_ARRAY, validate_walker_field};
 use syntax::Name;
-use std::mem::{transmute, zeroed};
+use std::mem::{transmute, zeroed, size_of};
 
 const CHUNK_SHIFT : usize = 5;
 const CHUNK_SIZE : usize = 1 << CHUNK_SHIFT;
@@ -313,6 +313,8 @@ unsafe fn validate_walker_for_sparse_array(walker: &GcWalker) {
     object.used = 1;
     validate_walker_field(walker, GC_SPARSE_ARRAY, ptr, false);
     object.used = 0;
+    
+    assert_eq!(size_of::<SparseArray>(), 32);
 }
 
 unsafe fn validate_walker_for_array_chunk(walker: &GcWalker) {
@@ -326,4 +328,6 @@ unsafe fn validate_walker_for_array_chunk(walker: &GcWalker) {
     object.items = Array::from_ptr(transmute(1usize));
     validate_walker_field(walker, GC_ARRAY_CHUNK, ptr, true);
     object.items = Array::null();
+    
+    assert_eq!(size_of::<Chunk>(), 16);
 }

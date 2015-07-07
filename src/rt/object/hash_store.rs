@@ -5,7 +5,7 @@ use rt::validate_walker_field;
 use rt::object::{Store, StoreKey, Entry};
 use syntax::Name;
 use gc::{Local, Array, GcWalker, ptr_t};
-use std::mem::{transmute, zeroed};
+use std::mem::{transmute, zeroed, size_of};
 
 // Modifications to this struct must be synchronized with the GC walker.
 pub struct HashStore {
@@ -332,6 +332,8 @@ pub unsafe fn validate_walker_for_hash_store(walker: &GcWalker) {
     object.count = 1;
     validate_walker_field(walker, GC_HASH_STORE, ptr, false);
     object.count = 0;
+    
+    assert_eq!(size_of::<HashStore>(), 16);
 }
 
 /*

@@ -9,9 +9,8 @@ use gc::{Local, Ptr, AsPtr, ptr_t, GcWalker};
 use ::{JsResult, JsError};
 use self::hash_store::HashStore;
 use self::array_store::ArrayStore;
-use std::mem;
 use std::str::FromStr;
-use std::mem::{transmute, zeroed};
+use std::mem::{zeroed, transmute, size_of};
 
 mod hash_store;
 mod array_store;
@@ -680,7 +679,7 @@ pub struct Entry {
 
 impl Entry {
     fn empty() -> Entry {
-        unsafe { mem::zeroed() }
+        unsafe { zeroed() }
     }
     
     fn is_valid(&self) -> bool {
@@ -820,6 +819,8 @@ unsafe fn validate_walker_for_object(walker: &GcWalker) {
     object.extensible = true;
     validate_walker_field(walker, GC_OBJECT, ptr, false);
     object.extensible = false;
+    
+    assert_eq!(size_of::<JsObject>(), 136);
 }
 
 unsafe fn validate_walker_for_entry(walker: &GcWalker) {
@@ -849,4 +850,6 @@ unsafe fn validate_walker_for_entry(walker: &GcWalker) {
     object.value2 = transmute(zeroed::<JsValue>());
     
     validate_walker_for_embedded_value(walker, ptr, GC_ENTRY, value_offset, &mut object.value2);
+    
+    assert_eq!(size_of::<Entry>(), 48);
 }

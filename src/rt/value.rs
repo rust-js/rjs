@@ -737,6 +737,8 @@ pub unsafe fn validate_walker_for_value(walker: &GcWalker) {
     let ptr = transmute::<_, ptr_t>(&*object);
     
     validate_walker_for_embedded_value(walker, ptr, GC_VALUE, 0, &mut *object);
+    
+    assert_eq!(size_of::<JsValue>(), 16);
 }
 
 pub unsafe fn validate_walker_for_embedded_value(walker: &GcWalker, ptr: ptr_t, ty: u32, offset: u32, object: *mut JsValue) {
