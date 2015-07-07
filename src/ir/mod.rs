@@ -1061,7 +1061,7 @@ impl<'a> IrGenerator<'a> {
             Op::RightShiftArithmetic => self.ir.emit(Ir::Rsh),
             Op::RightShiftLogical => self.ir.emit(Ir::RshZeroFill),
             Op::Subtract => self.ir.emit(Ir::Subtract),
-            _ => panic!("Invalid operator")
+            _ => panic!("invalid operator")
         }
     }
     
@@ -1395,18 +1395,10 @@ impl<'a> IrGenerator<'a> {
                         }
                     }
                     Property::Getter(ref ident, function_ref) => {
-                        if let Some(ident) = *ident {
-                            self.ir.emit(Ir::StoreNameGetterUnchecked(ident, function_ref));
-                        } else {
-                            self.ir.emit(Ir::StoreGetterUnchecked(function_ref));
-                        }
+                        self.ir.emit(Ir::StoreNameGetterUnchecked(*ident, function_ref));
                     }
                     Property::Setter(ref ident, function_ref) => {
-                        if let Some(ident) = *ident {
-                            self.ir.emit(Ir::StoreNameSetterUnchecked(ident, function_ref));
-                        } else {
-                            self.ir.emit(Ir::StoreSetterUnchecked(function_ref));
-                        }
+                        self.ir.emit(Ir::StoreNameSetterUnchecked(*ident, function_ref));
                     }
                 }
             }
@@ -1538,7 +1530,7 @@ impl<'a> IrGenerator<'a> {
                                 IdentState::Slot(..) | IdentState::LiftedSlot(..) | IdentState::LoadFunction(..) => {
                                     self.ir.emit(Ir::LoadFalse);
                                 }
-                                IdentState::None => panic!()
+                                IdentState::None => panic!("unexpected unresolved identifier state")
                             }
                         } else {
                             try!(self.emit_expr(expr, true));
@@ -1698,7 +1690,7 @@ impl<'a> IrGenerator<'a> {
                     return Ok(())
                 }
             }
-            _ => panic!("Unexpected unary")
+            _ => panic!("unexpected unary operator")
         }
         
         if !leave {
@@ -1731,7 +1723,7 @@ impl<'a> IrGenerator<'a> {
                 self.ir.emit(Ir::LoadName(Name::from_index(index as usize)));
             }
             IdentState::LoadFunction(function_ref) => self.ir.emit(Ir::LoadFunction(function_ref)),
-            IdentState::None => panic!()
+            IdentState::None => panic!("unexpected unresolved identifier state")
         }
     }
     
@@ -1752,7 +1744,7 @@ impl<'a> IrGenerator<'a> {
         } else if let SlotState::Lifted(index) = self.ctx.get_slot(slot_ref).state {
             self.ir.emit(Ir::LoadLifted(index, slot_ref.depth()));
         } else {
-            panic!();
+            panic!("unexpected identifier state for lifted slot");
         }
     }
     
@@ -1772,7 +1764,7 @@ impl<'a> IrGenerator<'a> {
                 self.ir.emit(Ir::StoreName(Name::from_index(index as usize)));
             }
             IdentState::LoadFunction(..) => self.ir.emit(Ir::Pop),
-            IdentState::None => panic!()
+            IdentState::None => panic!("unexpected unresolved identifier state")
         }
     }
     
@@ -1781,7 +1773,7 @@ impl<'a> IrGenerator<'a> {
             IdentState::Arg(slot_ref, _) => self.emit_load_slot(slot_ref),
             IdentState::LiftedArg(slot_ref, _) => self.emit_load_lifted_slot(slot_ref),
             IdentState::ScopedArg(depth, _) => self.ir.emit(Ir::LoadEnvArguments(depth)),
-            _ => panic!()
+            _ => panic!("unexpected identifier state for arguments")
         }
     }
     
@@ -1802,7 +1794,7 @@ impl<'a> IrGenerator<'a> {
         } else if let SlotState::Lifted(index) = self.ctx.get_slot(slot_ref).state {
             self.ir.emit(Ir::StoreLifted(index, slot_ref.depth()));
         } else {
-            panic!();
+            panic!("unexpected identifier state for lifted slot");
         }
     }
     

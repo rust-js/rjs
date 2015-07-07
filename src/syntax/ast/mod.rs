@@ -300,8 +300,8 @@ impl CastType {
 #[derive(Debug)]
 pub enum Property {
     Assignment(PropertyKey, Box<Expr>),
-    Getter(Option<Name>, FunctionRef),
-    Setter(Option<Name>, FunctionRef)
+    Getter(Name, FunctionRef),
+    Setter(Name, FunctionRef)
 }
 
 #[derive(Debug)]

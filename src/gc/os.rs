@@ -61,7 +61,7 @@ pages_map(void *addr, size_t size)
 #[cfg(target_os = "windows")]
 unsafe fn unmap(addr: ptr_t, _: usize) {
     if VirtualFree(mem::transmute(addr), 0, MEM_RELEASE) == 0 {
-        panic!("Error in VirtualFree");
+        panic!("error in VirtualFree");
     }
 }
 

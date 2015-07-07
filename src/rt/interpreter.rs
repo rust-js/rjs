@@ -152,7 +152,7 @@ impl JsEnv {
                             } else if let Some(finally) = try_catch.finally {
                                 finally.start().offset()
                             } else {
-                                panic!("Expected either a catch or finally block");
+                                panic!("expected either a catch or finally block");
                             };
                             
                             found = true;
@@ -250,7 +250,7 @@ impl JsEnv {
                             frame.ip = leave_;
                             leave = None;
                         } else {
-                            panic!("Cannot find try/catch frame of leave");
+                            panic!("cannot find try/catch frame of leave");
                         }
                     }
                 }
@@ -442,7 +442,9 @@ impl<'a> Frame<'a> {
                 
                 self.env.stack.push(*result);
             }
-            Ir::Debugger => unimplemented!(),
+            Ir::Debugger => {
+                // Not implemented. Debugger support is not yet part of rjs.
+            }
             Ir::Delete => {
                 let _scope = self.env.new_local_scope();
                 
@@ -663,12 +665,11 @@ impl<'a> Frame<'a> {
                 
                 self.locals.set(self.scope, parent);
             }
-            Ir::LoadArguments => unimplemented!(),
             Ir::LoadException => {
                 if let Some(ref exception) = self.thrown {
                     self.env.stack.push(**exception)
                 } else {
-                    panic!("Load exception statement without exception in flight");
+                    panic!("load exception statement without exception in flight");
                 }
 
                 // We clear the exception in flight here. Every catch
@@ -744,7 +745,6 @@ impl<'a> Frame<'a> {
             Ir::LoadLocal(local) => {
                 self.env.stack.push(self.locals.raw_get(local.offset()));
             }
-            Ir::LoadMissing => unimplemented!(),
             Ir::LoadName(name) => {
                 let _scope = self.env.new_local_scope();
                 
@@ -756,7 +756,6 @@ impl<'a> Frame<'a> {
                 
                 self.env.stack.push(*result);
             }
-            Ir::LoadNameLit => unimplemented!(),
             Ir::LoadNull => self.env.stack.push(JsValue::new_null()),
             Ir::LoadParam(index) => self.env.stack.push(self.args.frame.raw_get(index as usize + CALL_PROLOG)),
             Ir::LoadRegex(pattern, flags) => {
@@ -973,7 +972,6 @@ impl<'a> Frame<'a> {
                 
                 self.env.stack.drop_frame(frame);
             }
-            Ir::StoreGetterUnchecked(..) => unimplemented!(),
             Ir::StoreNameGetterUnchecked(name, function) => {
                 let _scope = self.env.new_local_scope();
                 
@@ -1025,7 +1023,6 @@ impl<'a> Frame<'a> {
                 
                 self.env.stack.drop_frame(frame);
             }
-            Ir::StoreSetterUnchecked(..) => unimplemented!(),
             Ir::StoreNameSetterUnchecked(name, function) => {
                 let _scope = self.env.new_local_scope();
                 

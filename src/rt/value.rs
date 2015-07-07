@@ -137,7 +137,7 @@ macro_rules! delegate {
             JsType::Boolean => JsBoolean::new($target.unwrap_bool()).$method( $( $arg ),* ),
             JsType::Object => $target.unwrap_object($env).$method( $( $arg ),* ),
             JsType::String => $target.unwrap_string($env).$method( $( $arg ),* ),
-            _ => panic!("unexpected type {:?}", $target.ty())
+            _ => panic!("unexpected type")
         }
     }
 }
@@ -237,26 +237,6 @@ impl JsItem for Local<JsValue> {
     
     fn set_scope(&mut self, env: &JsEnv, scope: Option<Local<JsScope>>) {
         delegate!(self, env, set_scope(env, scope))
-    }
-    
-    fn formal_parameters(&self, env: &JsEnv) -> Option<Vec<Name>>  {
-        delegate!(self, env, formal_parameters(env))
-    }
-    
-    fn code(&self, env: &JsEnv) -> Option<String>  {
-        delegate!(self, env, code(env))
-    }
-    
-    fn target_function(&self, env: &JsEnv) -> Option<Local<JsValue>>  {
-        delegate!(self, env, target_function(env))
-    }
-    
-    fn bound_this(&self, env: &JsEnv) -> Option<Local<JsValue>>  {
-        delegate!(self, env, bound_this(env))
-    }
-    
-    fn bound_arguments(&self, env: &JsEnv) -> Option<Local<JsValue>>  {
-        delegate!(self, env, bound_arguments(env))
     }
 }
 

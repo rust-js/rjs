@@ -1,5 +1,3 @@
-#![allow(unused_variables)]
-
 use ::{JsResult, JsError};
 use rt::{JsEnv, JsArgs, JsValue, JsType, JsFnMode, JsString, JsHandle, JsItem};
 use gc::*;
@@ -7,14 +5,6 @@ use syntax::parser::ParseMode;
 use ::util::matchers::DecimalMatcher;
 use std::{char, f64};
 use ::syntax::lexer::{is_line_terminator, is_whitespace};
-
-pub fn Global_escape(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-    unimplemented!();
-}
-
-pub fn Global_unescape(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-    unimplemented!();
-}
 
 // 15.1.2.2 parseInt (string , radix)
 pub fn Global_parseInt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
@@ -227,7 +217,7 @@ fn decode<F: Fn(char) -> bool>(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, i
                     return Err(JsError::new_uri(env));
                 }
                 
-                for j in 1..n {
+                for _ in 1..n {
                     if let Some(value) = try!(decode_part(env, chars, i)) {
                         if value >> 6 != 0b10 {
                             return Err(JsError::new_uri(env));

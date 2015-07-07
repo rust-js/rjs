@@ -1324,6 +1324,12 @@ impl<'a> Parser<'a> {
             let prop_ident = try!(self.parse_ident_name());
             
             if try!(self.consume(Token::OpenParen)) {
+                let prop_ident = if let Some(prop_ident) = prop_ident {
+                    prop_ident
+                } else {
+                    return self.fatal("Missing get/set property name");
+                };
+                
                 if name == name::GET {
                     try!(self.expect(Token::CloseParen));
                     
@@ -1542,7 +1548,7 @@ impl<'a> Parser<'a> {
                         
                         Ok(Item::ForIn(label, left, in_, Box::new(stmt)))
                     } else {
-                        panic!();
+                        unreachable!();
                     }
                 } else if try!(self.consume(Token::SemiColon)) {
                     let (test, incr, stmt) = try!(self.parse_for_tail());

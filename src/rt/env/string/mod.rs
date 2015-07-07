@@ -1,5 +1,3 @@
-#![allow(unused_variables)]
-
 use ::{JsResult, JsError};
 use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsString, JsType, JsDescriptor, JsHandle};
 use gc::*;
@@ -85,10 +83,6 @@ pub fn String_valueOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResul
         }
         _ => Err(JsError::new_type(env, ::errors::TYPE_INVALID))
     }
-}
-
-pub fn String_substr(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-    unimplemented!();
 }
 
 // 15.5.3.2 String.fromCharCode ( [ char0 [ , char1 [ , … ] ] ] )

@@ -346,7 +346,7 @@ impl Strategy for Copying {
         
         let elapsed = (time::precise_time_ns() - start) / 1_000_000;
 
-        println!("=== GC === allocated {} ({}) used {} ms {}", nice_size(self.from.memory.size()), nice_size(self.mem_allocated()), nice_size(self.mem_used()), elapsed);
+        tracegc!("=== GC === allocated {} ({}) used {} ms {}", nice_size(self.from.memory.size()), nice_size(self.mem_allocated()), nice_size(self.mem_used()), elapsed);
     }
 }
 

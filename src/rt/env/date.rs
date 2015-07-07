@@ -173,7 +173,7 @@ fn get_date_from_time(time: f64) -> f64 {
         9.0 => day_within_year - 272.0 - in_leap_year,
         10.0 => day_within_year - 303.0 - in_leap_year,
         11.0 => day_within_year - 333.0 - in_leap_year,
-        _ => panic!()
+        _ => panic!("unexpected month")
     }
 }
 

@@ -1,5 +1,3 @@
-#![allow(unused_variables)]
-
 use ::{JsResult, JsError};
 use rt::{JsEnv, JsString, JsFnMode, JsArgs, JsValue, JsItem, JsFunction, JsType};
 use rt::{JsScope, JsDescriptor, JsObject, JsHandle};
@@ -11,8 +9,7 @@ use std::cmp::max;
 use syntax::Name;
 use syntax::token::name;
 
-pub fn Function_baseConstructor(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-    // Nothing to do. The default result already is undefined.
+pub fn Function_baseConstructor(env: &mut JsEnv, _mode: JsFnMode, _args: JsArgs) -> JsResult<Local<JsValue>> {
     Ok(env.new_undefined())
 }
 
@@ -173,10 +170,6 @@ pub fn Function_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
     }
     
     Err(JsError::new_type(env, ::errors::TYPE_INVALID))
-}
-
-pub fn Function_toLocaleString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-    unimplemented!();
 }
 
 // 15.3.4.5 Function.prototype.bind (thisArg [, arg1 [, arg2, …]])

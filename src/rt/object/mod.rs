@@ -325,7 +325,7 @@ impl Local<JsObject> {
                                 let index = match self.store.get_key(env, i) {
                                     StoreKey::Missing => continue,
                                     StoreKey::Key(index, _) => index.index().unwrap(),
-                                    _ => panic!()
+                                    _ => panic!("did not expect store key end")
                                 };
                                 
                                 if index < new_len as usize {
@@ -562,26 +562,6 @@ impl JsItem for Local<JsObject> {
         } else {
             self.scope = Ptr::null();
         }
-    }
-    
-    fn formal_parameters(&self, _: &JsEnv) -> Option<Vec<Name>> {
-        unimplemented!();
-    }
-    
-    fn code(&self, _: &JsEnv) -> Option<String> {
-        unimplemented!();
-    }
-    
-    fn target_function(&self, _: &JsEnv) -> Option<Local<JsValue>> {
-        unimplemented!();
-    }
-    
-    fn bound_this(&self, _: &JsEnv) -> Option<Local<JsValue>> {
-        unimplemented!();
-    }
-    
-    fn bound_arguments(&self, _: &JsEnv) -> Option<Local<JsValue>> {
-        unimplemented!();
     }
 }
 
