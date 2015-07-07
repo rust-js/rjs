@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 #[macro_use]
 extern crate rjs;
 extern crate rustc_serialize;
@@ -14,36 +12,7 @@ use std::cmp::{Ordering, min};
 use std::ascii::AsciiExt;
 use rustc_serialize::json::Json;
 
-fn test() {
-    let mut env = JsEnv::new().ok().unwrap();
-    
-    debug::reset();
-    
-    let result = env.eval(r#"
-    "#);
-    
-    // print!("{}", debug::reset());
-    
-    if let Err(error) = result {
-        let _scope = env.new_local_scope();
-        
-        let error = error.as_runtime(&mut env);
-        let error = error.as_local(&env);
-        
-        let error = if let Ok(error) = error.to_string(&mut env) {
-            error.to_string()
-        } else {
-            "(cannot convert error to string)".to_string()
-        };
-        
-        panic!("Uncaught {}", error)
-    }
-}
-
 fn main() {
-//    test();
-//    return;
-
     let mut runner = Runner::new();
     
     walk_dir(&mut runner, "");
