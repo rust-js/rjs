@@ -149,7 +149,7 @@ impl JsEnv {
             JsFunction::Native(_, _, ref callback, _) => {
                 let frame = args.frame;
                 
-                let result = try!(callback.call(self, mode, args));
+                let result = try!(callback(self, mode, args));
                 
                 self.stack.drop_frame(frame);
                 self.stack.push(*result);
@@ -579,7 +579,7 @@ impl JsEnv {
             let function = args.function(self);
             try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_value(function, true, false, true), false));
         } else {
-            let thrower = self.new_native_function(None, 0, &throw_type_error);
+            let thrower = self.new_native_function(None, 0, throw_type_error);
             
             try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false));
             try!(result.define_own_property(self, name::CALLER, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false));

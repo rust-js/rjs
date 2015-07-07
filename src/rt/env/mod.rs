@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use rt::{JsEnv, JsObject, JsFunction, JsFn, JsFnRef, JsValue, JsDescriptor, JsItem};
+use rt::{JsEnv, JsObject, JsFunction, JsFn, JsValue, JsDescriptor, JsItem};
 use rt::{JsStoreType, JsScope, JsString, JsHandle};
 use ::JsResult;
 use syntax::Name;
@@ -39,7 +39,7 @@ mod json;
 macro_rules! function {
     ( $target:expr , $name:expr , $function:ident , $arity:expr , $env:expr ) => {
         {
-            let function = new_naked_function($env, Some($name), $arity, &$function, false);
+            let function = new_naked_function($env, Some($name), $arity, $function, false);
             $target.define_own_property($env, $name, JsDescriptor::new_value(function, true, false, true), false).ok();
         }
     }
@@ -48,8 +48,8 @@ macro_rules! function {
 macro_rules! accessor {
     ( $target:expr , $name:expr , $get:ident , $set:ident , $prototype:expr , $env:expr ) => {
         {
-            let get_function = new_naked_function($env, Some($name), 0, &$get, $prototype, false);
-            let set_function = new_naked_function($env, Some($name), 1, &$set, $prototype, false);
+            let get_function = new_naked_function($env, Some($name), 0, $get, $prototype, false);
+            let set_function = new_naked_function($env, Some($name), 1, $set, $prototype, false);
             $target.define_own_property($env, $name, JsDescriptor::new_accessor(get_function, set_function, false, true), false).ok();
         }
     }
@@ -131,14 +131,14 @@ fn setup_global(env: &mut JsEnv) {
 fn setup_function(env: &mut JsEnv, mut global: Local<JsValue>, object_prototype: Local<JsObject>) -> Local<JsObject> {
     let mut prototype = JsObject::new_function_with_prototype(
         env,
-        JsFunction::Native(None, 0, JsFnRef::new(&Function_baseConstructor), false),
+        JsFunction::Native(None, 0, Function_baseConstructor, false),
         object_prototype,
         false
     );
 
     env.add_handle(JsHandle::Function, prototype);
     
-    let class = new_naked_function(env, Some(name::FUNCTION_CLASS), 1, &Function_constructor, true);
+    let class = new_naked_function(env, Some(name::FUNCTION_CLASS), 1, Function_constructor, true);
     
     let mut class_object = class.unwrap_object(env);
 
@@ -168,7 +168,7 @@ fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut
     function!(prototype, name::IS_PROTOTYPE_OF, Object_isPrototypeOf, 1, env);
     function!(prototype, name::PROPERTY_IS_ENUMERABLE, Object_propertyIsEnumerable, 1, env);
     
-    let class = JsObject::new_function(env, JsFunction::Native(Some(name::OBJECT_CLASS), 1, JsFnRef::new(&Object_constructor), true), false);
+    let class = JsObject::new_function(env, JsFunction::Native(Some(name::OBJECT_CLASS), 1, Object_constructor, true), false);
     let mut class = class.as_value(env);
     
     property!(global, name::OBJECT_CLASS, class, true, false, true, env);
@@ -221,7 +221,7 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
     prototype.set_class(env, Some(name::ARRAY_CLASS));
     
     // Create the class as usual.
-    let mut class = JsObject::new_function(env, JsFunction::Native(Some(name::ARRAY_CLASS), 1, JsFnRef::new(&Array_constructor), true), false).as_value(env);
+    let mut class = JsObject::new_function(env, JsFunction::Native(Some(name::ARRAY_CLASS), 1, Array_constructor, true), false).as_value(env);
 
     // But set the prototype to our array intance.
     class.define_own_property(env, name::PROTOTYPE, JsDescriptor::new_value(array_prototype, false, false, false), false).ok();
@@ -259,7 +259,7 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 }
 
 fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
-    let mut class = env.new_native_function(Some(name::STRING_CLASS), 1, &String_constructor);    
+    let mut class = env.new_native_function(Some(name::STRING_CLASS), 1, String_constructor);    
     
     function!(class, name::FROM_CHAR_CODE, String_fromCharCode, 1, env);
     
@@ -291,7 +291,7 @@ fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 }
 
 fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
-    let mut class = env.new_native_function(Some(name::DATE_CLASS), 7, &Date_constructor);    
+    let mut class = env.new_native_function(Some(name::DATE_CLASS), 7, Date_constructor);    
     
     function!(class, name::PARSE, Date_parse, 1, env);
     function!(class, name::UTC, Date_UTC, 7, env);
@@ -352,7 +352,7 @@ fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 }
 
 fn setup_number<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
-    let mut class = env.new_native_function(Some(name::NUMBER_CLASS), 1, &Number_constructor);
+    let mut class = env.new_native_function(Some(name::NUMBER_CLASS), 1, Number_constructor);
     
     value!(class, name::MAX_VALUE, env.new_number(f64::MAX), false, false, false, env);
     value!(class, name::MIN_VALUE, env.new_number(5e-324), false, false, false, env);
@@ -376,7 +376,7 @@ fn setup_number<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 }
 
 fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
-    let class = env.new_native_function(Some(name::BOOLEAN_CLASS), 1, &Boolean_constructor);
+    let class = env.new_native_function(Some(name::BOOLEAN_CLASS), 1, Boolean_constructor);
     
     property!(global, name::BOOLEAN_CLASS, class, true, false, true, env);
     
@@ -433,7 +433,7 @@ fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 }
 
 fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
-    let class = env.new_native_function(Some(name::REGEXP_CLASS), 2, &RegExp_constructor);
+    let class = env.new_native_function(Some(name::REGEXP_CLASS), 2, RegExp_constructor);
     
     let class_obj = class.unwrap_object(env);
     env.add_handle(JsHandle::RegExpClass, class_obj);
@@ -472,7 +472,7 @@ fn setup_console<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 
 fn setup_error<'a>(env: &mut JsEnv, global: Local<JsValue>) {
     fn register_error(env: &mut JsEnv, mut global: Local<JsValue>, error_class: Option<Local<JsValue>>, error_prototype: Option<Local<JsValue>>, name: Name, handle: JsHandle) -> (Local<JsValue>, Local<JsValue>) {
-        let class = env.new_native_function(Some(name), 1, &Error_constructor);
+        let class = env.new_native_function(Some(name), 1, Error_constructor);
         
         let mut class_obj = class.unwrap_object(env);
         env.add_handle(handle, class_obj);
@@ -507,6 +507,6 @@ fn setup_error<'a>(env: &mut JsEnv, global: Local<JsValue>) {
     register_error(env, global, Some(error_class), Some(error_prototype), name::NATIVE_ERROR_CLASS, JsHandle::NativeError);
 }
 
-fn new_naked_function<'a>(env: &mut JsEnv, name: Option<Name>, args: u32, function: &JsFn, can_construct: bool) -> Local<JsValue> {
-    JsObject::new_function(env, JsFunction::Native(name, args, JsFnRef::new(function), can_construct), false).as_value(env)
+fn new_naked_function<'a>(env: &mut JsEnv, name: Option<Name>, args: u32, function: JsFn, can_construct: bool) -> Local<JsValue> {
+    JsObject::new_function(env, JsFunction::Native(name, args, function, can_construct), false).as_value(env)
 }

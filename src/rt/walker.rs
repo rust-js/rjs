@@ -59,7 +59,7 @@ impl GcWalker for Walker {
                 GC_OBJECT => {
                     match index {
                         3 if is_value_ptr(ptr, 2) => GcWalk::Pointer,
-                        12 | 13 | 15 => GcWalk::Pointer,
+                        11 | 12 | 14 => GcWalk::Pointer,
                         _ => GcWalk::Skip
                     }
                 }

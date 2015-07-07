@@ -94,7 +94,7 @@ impl JsObject {
         result.define_own_property(env, name::NAME, JsDescriptor::new_value(name, false, false, true), false).ok();
         
         if strict {
-            let thrower = env.new_native_function(None, 0, &throw_type_error);
+            let thrower = env.new_native_function(None, 0, throw_type_error);
             
             result.define_own_property(env, name::CALLER, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false).ok();
             result.define_own_property(env, name::ARGUMENTS, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false).ok();
@@ -820,7 +820,7 @@ unsafe fn validate_walker_for_object(walker: &GcWalker) {
     validate_walker_field(walker, GC_OBJECT, ptr, false);
     object.extensible = false;
     
-    assert_eq!(size_of::<JsObject>(), 136);
+    assert_eq!(size_of::<JsObject>(), 128);
 }
 
 unsafe fn validate_walker_for_entry(walker: &GcWalker) {
