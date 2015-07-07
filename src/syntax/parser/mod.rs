@@ -1548,7 +1548,7 @@ impl<'a> Parser<'a> {
                         
                         Ok(Item::ForIn(label, left, in_, Box::new(stmt)))
                     } else {
-                        panic!();
+                        unreachable!();
                     }
                 } else if try!(self.consume(Token::SemiColon)) {
                     let (test, incr, stmt) = try!(self.parse_for_tail());

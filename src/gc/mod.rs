@@ -219,7 +219,7 @@ impl GcHeap {
             
             ptr = self.heap.borrow_mut().alloc_raw(size);
             if ptr.is_null() {
-                panic!("Could not allocate memory after GC");
+                panic!("could not allocate memory after GC");
             }
         }
         
@@ -353,7 +353,7 @@ impl GcHeap {
         let mut scopes = self.scopes.borrow_mut();
         
         if scopes.len() != index + 1 {
-            panic!("Local scopes must be destoryed in the order they are created");
+            panic!("local scopes must be destoryed in the order they are created");
         }
         
         scopes.pop();

@@ -381,7 +381,7 @@ impl TryCatch {
             } else if let Some(catch) = self.catch {
                 (catch.0).0
             } else {
-                panic!("Expected at least a catch or finally");
+                panic!("expected at least a catch or finally");
             };
             
             offset < end
@@ -438,7 +438,7 @@ impl IrBuilder {
         }
         
         if self.try_catch_stack.len() > 0 {
-            panic!("There are unclosed try/catch blocks");
+            panic!("there are unclosed try/catch blocks");
         }
         
         // Ensure the sort order of the try/catch blocks. Try/catches need
@@ -495,7 +495,7 @@ impl IrBuilder {
         } else if try_catch.catch.is_some() {
             try_catch.finalize_catch(self.ir.len());
         } else {
-            panic!("Try block requires at least a catch or finally");
+            panic!("try block requires at least a catch or finally");
         }
         
         self.try_catches.push(try_catch);
@@ -506,7 +506,7 @@ impl IrBuilder {
         let try_catch = &mut self.try_catch_stack[top];
         
         if try_catch.catch.is_some() {
-            panic!("Exception block cannot contain multiple catch blocks");
+            panic!("exception block cannot contain multiple catch blocks");
         }
         
         try_catch.finalize_try(self.ir.len());
@@ -519,7 +519,7 @@ impl IrBuilder {
         let try_catch = &mut self.try_catch_stack[top];
         
         if try_catch.finally.is_some() {
-            panic!("Exception block cannot contain multiple finally blocks");
+            panic!("exception block cannot contain multiple finally blocks");
         }
         
         if try_catch.catch.is_some() {

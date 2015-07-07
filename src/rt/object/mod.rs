@@ -325,7 +325,7 @@ impl Local<JsObject> {
                                 let index = match self.store.get_key(env, i) {
                                     StoreKey::Missing => continue,
                                     StoreKey::Key(index, _) => index.index().unwrap(),
-                                    _ => panic!()
+                                    _ => panic!("did not expect store key end")
                                 };
                                 
                                 if index < new_len as usize {

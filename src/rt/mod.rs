@@ -125,7 +125,7 @@ impl JsEnv {
                 "(cannot convert error to string)".to_string()
             };
             
-            panic!("(setup): Uncaught {}", error);
+            panic!("(setup): uncaught {}", error);
         }
         
         // Turn of privileged mode for normal code (i.e. not setup code).

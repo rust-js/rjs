@@ -413,7 +413,7 @@ impl<'a> AstVisitor<'a> for LocalResolver<'a> {
     }
     
     fn visit_root_block(&mut self, _: &'a RootBlock) {
-        panic!();
+        panic!("root block must be handled at a higher level");
     }
     
     fn visit_item_for_var_in(&mut self, item: &'a Item) {

@@ -152,7 +152,7 @@ impl JsEnv {
                             } else if let Some(finally) = try_catch.finally {
                                 finally.start().offset()
                             } else {
-                                panic!("Expected either a catch or finally block");
+                                panic!("expected either a catch or finally block");
                             };
                             
                             found = true;
@@ -250,7 +250,7 @@ impl JsEnv {
                             frame.ip = leave_;
                             leave = None;
                         } else {
-                            panic!("Cannot find try/catch frame of leave");
+                            panic!("cannot find try/catch frame of leave");
                         }
                     }
                 }
@@ -669,7 +669,7 @@ impl<'a> Frame<'a> {
                 if let Some(ref exception) = self.thrown {
                     self.env.stack.push(**exception)
                 } else {
-                    panic!("Load exception statement without exception in flight");
+                    panic!("load exception statement without exception in flight");
                 }
 
                 // We clear the exception in flight here. Every catch

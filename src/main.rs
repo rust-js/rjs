@@ -47,7 +47,7 @@ fn walk_dir(runner: &mut Runner, dir: &str) {
                 "language" => 0,
                 "built-ins" => 1,
                 "annexb" => 2,
-                _ => panic!("{}", name)
+                _ => unreachable!()
             }
         }
         
@@ -147,7 +147,7 @@ impl Runner {
                     panic!("invalid test262-ignore.json");
                 }
             }
-            Err(error) => panic!("{:?}", error)
+            Err(..) => panic!("could not read test262-ignore.json")
         }
         
         Runner {
