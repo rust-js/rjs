@@ -1,4 +1,4 @@
-use syntax::Name;
+use syntax::{Name, INVALID_NAME};
 use syntax::ast::FunctionRef;
 use syntax::token::name;
 use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString};
@@ -19,15 +19,18 @@ mod array_store;
 mod sparse_array;
 
 // Modifications to this struct must be synchronized with the GC walker.
+// The class name is optional, but not stored as an option, to save space.
+// Instead we use a special marker value INVALID_NAME to signify that
+// the class name is unset.
 #[repr(C)]
 pub struct JsObject {
-    class: Option<Name>,
+    class: Name,
+    extensible: bool,
     value: JsValue,
     function: Function,
     prototype: Ptr<JsObject>,
     scope: Ptr<JsScope>,
-    store: StorePtr,
-    extensible: bool
+    store: StorePtr
 }
 
 impl JsObject {
@@ -40,7 +43,7 @@ impl JsObject {
         };
         
         JsObject {
-            class: None,
+            class: INVALID_NAME,
             value: JsValue::new_undefined(),
             function: Function::None,
             prototype: Ptr::null(),
@@ -78,7 +81,7 @@ impl JsObject {
         };
         
         result.prototype = prototype.as_ptr();
-        result.class = Some(name::FUNCTION_CLASS);
+        result.class = name::FUNCTION_CLASS;
         
         let value = env.new_number(args as f64);
         
@@ -466,7 +469,7 @@ impl JsItem for Local<JsObject> {
     // 8.12.9 [[DefineOwnProperty]] (P, Desc, Throw)
     // 15.4.5.1 [[DefineOwnProperty]] ( P, Desc, Throw )
     fn define_own_property(&mut self, env: &mut JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
-        if self.class == Some(name::ARRAY_CLASS) {
+        if self.class == name::ARRAY_CLASS {
             self.define_own_array_property(env, property, descriptor, throw)
         } else {
             self.define_own_object_property(env, property, descriptor, throw)
@@ -509,15 +512,22 @@ impl JsItem for Local<JsObject> {
     }
     
     fn has_class(&self, _: &JsEnv) -> bool {
-        self.class.is_some()
+        self.class != INVALID_NAME
     }
     
     fn class(&self, _: &JsEnv) -> Option<Name> {
-        self.class
+        if self.class == INVALID_NAME {
+            None
+        } else {
+            Some(self.class)
+        }
     }
     
     fn set_class(&mut self, _: &JsEnv, class: Option<Name>) {
-        self.class = class
+        self.class = match class {
+            Some(name) => name,
+            None => INVALID_NAME
+        }
     }
     
     fn is_extensible(&self, _: &JsEnv) -> bool {
@@ -853,9 +863,9 @@ unsafe fn validate_walker_for_object(walker: &GcWalker) {
     let mut object : Box<JsObject> = Box::new(zeroed());
     let ptr = transmute::<_, ptr_t>(&*object);
     
-    object.class = Some(Name::from_index(1));
+    object.class = Name::from_index(1);
     validate_walker_field(walker, GC_OBJECT, ptr, false);
-    object.class = None;
+    object.class = Name::from_index(0);
     
     object.value = JsValue::new_bool(true);
     let value_offset = validate_walker_field(walker, GC_OBJECT, ptr, false);
@@ -887,7 +897,7 @@ unsafe fn validate_walker_for_object(walker: &GcWalker) {
     validate_walker_field(walker, GC_OBJECT, ptr, false);
     object.extensible = false;
     
-    assert_eq!(size_of::<JsObject>(), 88);
+    assert_eq!(size_of::<JsObject>(), 80);
 }
 
 unsafe fn validate_walker_for_entry(walker: &GcWalker) {
