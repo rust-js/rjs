@@ -850,41 +850,6 @@ pub enum JsFunction {
     Bound
 }
 
-impl Clone for JsFunction {
-    fn clone(&self) -> JsFunction {
-        match *self {
-            JsFunction::Ir(function_ref) => JsFunction::Ir(function_ref),
-            JsFunction::Native(name, args, callback, can_construct) => JsFunction::Native(name, args, callback, can_construct),
-            JsFunction::Bound => JsFunction::Bound
-        }
-    }
-}
-
-impl PartialEq for JsFunction {
-    fn eq(&self, other: &JsFunction) -> bool {
-        match *self {
-            JsFunction::Ir(function_ref) => {
-                if let JsFunction::Ir(other_function_ref) = *other {
-                    function_ref == other_function_ref
-                } else {
-                    false
-                }
-            }
-            JsFunction::Native(..) => {
-                // TODO #72: Unable to compare pointer types (results in an ICE).
-                false
-            }
-            JsFunction::Bound => {
-                if let JsFunction::Bound = *other {
-                    true
-                } else {
-                    false
-                }
-            }
-        }
-    }
-}
-
 pub type JsResult<T> = Result<T, JsError>;
 
 pub enum JsError {

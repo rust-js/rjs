@@ -1,12 +1,14 @@
 use syntax::Name;
 use syntax::ast::FunctionRef;
 use syntax::token::name;
-use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString, JsArgs, JsFnMode, JsHandle};
+use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString};
+use rt::{JsArgs, JsFnMode, JsHandle, JsFn};
 use rt::{GC_OBJECT, GC_ENTRY};
 use rt::validate_walker_field;
 use rt::value::validate_walker_for_embedded_value;
 use gc::{Local, Ptr, AsPtr, ptr_t, GcWalker};
 use ::{JsResult, JsError};
+use util::manualbox::ManualBox;
 use self::hash_store::HashStore;
 use self::array_store::ArrayStore;
 use std::str::FromStr;
@@ -21,7 +23,7 @@ mod sparse_array;
 pub struct JsObject {
     class: Option<Name>,
     value: JsValue,
-    function: Option<JsFunction>,
+    function: Function,
     prototype: Ptr<JsObject>,
     scope: Ptr<JsScope>,
     store: StorePtr,
@@ -40,7 +42,7 @@ impl JsObject {
         JsObject {
             class: None,
             value: JsValue::new_undefined(),
-            function: None,
+            function: Function::None,
             prototype: Ptr::null(),
             scope: Ptr::null(),
             store: store,
@@ -83,11 +85,12 @@ impl JsObject {
         // TODO #68: This does not seem to be conform the specs. Value should not be configurable.
         // Don't set the length on bound functions. The caller will take care of this.
         
-        if function != JsFunction::Bound {
-            result.define_own_property(env, name::LENGTH, JsDescriptor::new_value(value, false, false, true), false).ok();
+        match function {
+            JsFunction::Bound => {},
+            _ => { result.define_own_property(env, name::LENGTH, JsDescriptor::new_value(value, false, false, true), false).ok(); }
         }
         
-        result.function = Some(function);
+        result.function = Function::new(function);
 
         let name = name.unwrap_or(name::EMPTY);
         let name = JsString::from_str(env, &*env.ir.interner().get(name)).as_value(env);
@@ -102,6 +105,12 @@ impl JsObject {
         }
         
         result
+    }
+    
+    pub fn finalize(&mut self) {
+        if let Function::Native(ref mut native) = self.function {
+            native.drop();
+        }
     }
 }
 
@@ -131,7 +140,7 @@ impl Local<JsObject> {
     }
     
     pub fn function(&self) -> Option<JsFunction> {
-        self.function.clone()
+        self.function.to_function()
     }
     
     pub fn get_key(&self, env: &JsEnv, offset: usize) -> JsStoreKey {
@@ -465,14 +474,15 @@ impl JsItem for Local<JsObject> {
     }
     
     fn is_callable(&self, _: &JsEnv) -> bool {
-        self.function.is_some()
+        !self.function.is_none()
     }
     
     fn can_construct(&self, _: &JsEnv) -> bool {
         match self.function {
-            Some(JsFunction::Native(_, _, _, can_construct)) => can_construct,
-            Some(..) => true,
-            _ => false
+            Function::Ir(..) => true,
+            Function::Native(ref native) => native.can_construct,
+            Function::Bound => true,
+            Function::None => false
         }
     }
     
@@ -522,13 +532,14 @@ impl JsItem for Local<JsObject> {
         } else if object.ty() != JsType::Object {
             Ok(false)
         } else {
-            let prototype = if *self.function.as_ref().unwrap() == JsFunction::Bound {
-                let scope = self.scope(env).unwrap();
-                let target = scope.get(env, 0);
-                
-                try!(target.get(env, name::PROTOTYPE))
-            } else {
-                try!(self.get(env, name::PROTOTYPE))
+            let prototype = match self.function {
+                Function::Bound => {
+                    let scope = self.scope(env).unwrap();
+                    let target = scope.get(env, 0);
+                    
+                    try!(target.get(env, name::PROTOTYPE))
+                }
+                _ => try!(self.get(env, name::PROTOTYPE))
             };
             
             if prototype.ty() != JsType::Object {
@@ -563,6 +574,60 @@ impl JsItem for Local<JsObject> {
             self.scope = Ptr::null();
         }
     }
+}
+
+enum Function {
+    Ir(FunctionRef),
+    Native(ManualBox<NativeFunction>),
+    Bound,
+    None
+}
+
+impl Function {
+    fn new(function: JsFunction) -> Function {
+        match function {
+            JsFunction::Ir(function_ref) => Function::Ir(function_ref),
+            JsFunction::Native(name, args, function, can_construct) => {
+                let native = ManualBox::new(NativeFunction {
+                    name: name,
+                    args: args,
+                    function: function,
+                    can_construct: can_construct
+                });
+                
+                Function::Native(native)
+            }
+            JsFunction::Bound => Function::Bound
+        }
+    }
+    
+    fn to_function(&self) -> Option<JsFunction> {
+        match *self {
+            Function::Ir(ref function_ref) => Some(JsFunction::Ir(*function_ref)),
+            Function::Native(ref native) => Some(JsFunction::Native(
+                native.name,
+                native.args,
+                native.function,
+                native.can_construct
+            )),
+            Function::Bound => Some(JsFunction::Bound),
+            Function::None => None
+        }
+    }
+    
+    fn is_none(&self) -> bool {
+        match *self {
+            Function::None => true,
+            _ => false
+        }
+    }
+}
+
+struct NativeFunction {
+    name: Option<Name>,
+    args: u32,
+    function: JsFn,
+    can_construct: bool
 }
 
 trait Store {
@@ -798,9 +863,9 @@ unsafe fn validate_walker_for_object(walker: &GcWalker) {
     
     validate_walker_for_embedded_value(walker, ptr, GC_OBJECT, value_offset, &mut object.value);
     
-    object.function = Some(JsFunction::Ir(FunctionRef(1)));
+    object.function = Function::Ir(FunctionRef(1));
     validate_walker_field(walker, GC_OBJECT, ptr, false);
-    object.function = None;
+    *object = zeroed();
     
     object.prototype = Ptr::from_ptr(transmute(1usize));
     validate_walker_field(walker, GC_OBJECT, ptr, true);
@@ -822,7 +887,7 @@ unsafe fn validate_walker_for_object(walker: &GcWalker) {
     validate_walker_field(walker, GC_OBJECT, ptr, false);
     object.extensible = false;
     
-    assert_eq!(size_of::<JsObject>(), 128);
+    assert_eq!(size_of::<JsObject>(), 88);
 }
 
 unsafe fn validate_walker_for_entry(walker: &GcWalker) {

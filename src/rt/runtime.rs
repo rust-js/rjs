@@ -90,15 +90,14 @@ impl JsEnv {
             return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_CONSTRUCTOR));
         }
         
-        let function = function_obj.unwrap_object(self).function();
-        if !function.is_some() {
-            return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
-        }
+        let function = match function_obj.unwrap_object(self).function() {
+            Some(function) => function,
+            None => return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION))
+        };
         
-        let function = function.as_ref().unwrap();
         let frame = args.frame;
         
-        let result = self.do_call(mode, args, function_obj, function);
+        let result = self.do_call(mode, args, function_obj, &function);
         
         // If we're throwing an exception, we need to pop the stack here. Otherwise
         // the stack will have been popped by the callee.
@@ -185,8 +184,10 @@ impl JsEnv {
         
         let is_bound = if function.class(self) == Some(name::FUNCTION_CLASS) {
             let object = function.as_value(self).unwrap_object(self);
-            let function = object.function().unwrap();
-            function == JsFunction::Bound
+            match object.function().unwrap() {
+                JsFunction::Bound => true,
+                _ => false
+            }
         } else {
             false
         };

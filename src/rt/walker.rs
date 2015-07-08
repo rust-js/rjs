@@ -1,5 +1,5 @@
 use gc::{GcWalker, GcWalk, GcFinalize, GcRootWalker, ptr_t};
-use rt::{JsType, JsRegExp};
+use rt::{JsType, JsRegExp, JsObject};
 use rt::{GC_ARRAY_STORE, GC_ENTRY, GC_HASH_STORE, GC_ITERATOR, GC_OBJECT, GC_REGEXP};
 use rt::{GC_SCOPE, GC_STRING, GC_U16, GC_U32, GC_VALUE, GC_SPARSE_ARRAY, GC_ARRAY_CHUNK};
 use rt::stack::Stack;
@@ -59,7 +59,7 @@ impl GcWalker for Walker {
                 GC_OBJECT => {
                     match index {
                         3 if is_value_ptr(ptr, 2) => GcWalk::Pointer,
-                        11 | 12 | 14 => GcWalk::Pointer,
+                        6 | 7 | 9 => GcWalk::Pointer,
                         _ => GcWalk::Skip
                     }
                 }
@@ -116,6 +116,12 @@ impl GcWalker for Walker {
                 GC_REGEXP => {
                     let regex = transmute::<_, *mut JsRegExp>(ptr);
                     (&mut *regex).finalize();
+                    
+                    GcFinalize::Finalized
+                }
+                GC_OBJECT => {
+                    let object = transmute::<_, *mut JsObject>(ptr);
+                    (&mut *object).finalize();
                     
                     GcFinalize::Finalized
                 }
