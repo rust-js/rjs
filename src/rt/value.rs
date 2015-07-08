@@ -36,6 +36,7 @@ const DOUBLE_EXPONENT_BITS    : u64 = 0x7ff0000000000000u64;
 const DOUBLE_SIGNIFICANT_BITS : u64 = 0x000fffffffffffffu64;
 
 #[derive(Copy, Clone, PartialEq)]
+#[repr(C)]
 pub struct JsValue {
     ty: JsType,
     value: JsRawValue

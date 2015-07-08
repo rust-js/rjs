@@ -17,6 +17,7 @@ mod array_store;
 mod sparse_array;
 
 // Modifications to this struct must be synchronized with the GC walker.
+#[repr(C)]
 pub struct JsObject {
     class: Option<Name>,
     value: JsValue,
@@ -667,8 +668,9 @@ const ENUMERABLE   : u32 = 0b00100;
 const CONFIGURABLE : u32 = 0b01000;
 const ACCESSOR     : u32 = 0b10000;
 
-#[derive(Copy, Clone)]
 // Modifications to this struct must be synchronized with the GC walker.
+#[derive(Copy, Clone)]
+#[repr(C)]
 pub struct Entry {
     name: Name,
     flags: u32,

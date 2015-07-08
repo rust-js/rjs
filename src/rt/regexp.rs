@@ -9,6 +9,7 @@ use ::{JsResult, JsError};
 use std::mem::{transmute, zeroed, size_of};
 
 // Modifications to this struct must be synchronized with the GC walker.
+#[repr(C)]
 pub struct JsRegExp {
     pattern: Ptr<JsString>,
     flags: Ptr<JsString>,

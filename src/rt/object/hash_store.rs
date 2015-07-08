@@ -8,6 +8,7 @@ use gc::{Local, Array, GcWalker, ptr_t};
 use std::mem::{transmute, zeroed, size_of};
 
 // Modifications to this struct must be synchronized with the GC walker.
+#[repr(C)]
 pub struct HashStore {
     entries: Array<Entry>,
     count: u32

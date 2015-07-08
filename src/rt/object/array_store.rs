@@ -8,6 +8,7 @@ use std::mem::{transmute, zeroed, size_of};
 use rt::object::sparse_array::SparseArray;
 
 // Modifications to this struct must be synchronized with the GC walker.
+#[repr(C)]
 pub struct ArrayStore {
     array: Ptr<SparseArray>,
     props: Ptr<HashStore>

@@ -13,6 +13,7 @@ const INITIAL_CHUNK_COUNT : usize = 10;
 const MAX_ARRAY_SIZE : usize = 1024;
 const MAX_ARRAY_SIZE_FILL_FACTOR : f64 = 0.5;
 
+#[repr(C)]
 pub struct SparseArray {
     items: Array<Entry>,
     chunks: Array<Chunk>,
@@ -21,6 +22,7 @@ pub struct SparseArray {
 }
 
 #[derive(Copy, Clone)]
+#[repr(C)]
 struct Chunk {
     offset: usize,
     items: Array<Entry>
