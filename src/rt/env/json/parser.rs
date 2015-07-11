@@ -2,7 +2,6 @@ use syntax::Name;
 use ::{JsResult, JsError};
 use rt::{JsEnv, JsValue, JsDescriptor, JsString, JsItem};
 use rt::env::json::lexer::{Lexer, Token, Lit};
-use gc::Local;
 
 pub struct Parser<'a> {
     lexer: &'a mut Lexer<'a>,
@@ -59,7 +58,7 @@ impl<'a> Parser<'a> {
         Err(JsError::Parse(message.to_string()))
     }
     
-    pub fn parse_json(env: &'a mut JsEnv, lexer: &'a mut Lexer<'a>) -> JsResult<Local<JsValue>> {
+    pub fn parse_json(env: &'a mut JsEnv, lexer: &'a mut Lexer<'a>) -> JsResult<JsValue> {
         let mut parser = Parser {
             lexer: lexer,
             env: env
@@ -74,14 +73,14 @@ impl<'a> Parser<'a> {
         }
     }
     
-    fn parse_value(&mut self) -> JsResult<Local<JsValue>> {
+    fn parse_value(&mut self) -> JsResult<JsValue> {
         match try!(self.next()) {
             Token::Literal(lit) => {
                 match lit {
-                    Lit::Null => Ok(self.env.new_null()),
-                    Lit::Boolean(value) => Ok(self.env.new_bool(value)),
-                    Lit::String(value) => Ok(JsString::from_str(self.env, &value).as_value(self.env)),
-                    Lit::Number(value) => Ok(self.env.new_number(value))
+                    Lit::Null => Ok(JsValue::new_null()),
+                    Lit::Boolean(value) => Ok(JsValue::new_bool(value)),
+                    Lit::String(value) => Ok(JsString::from_str(self.env, &value).as_value()),
+                    Lit::Number(value) => Ok(JsValue::new_number(value))
                 }
             }
             Token::OpenBrace => self.parse_object(),
@@ -90,7 +89,7 @@ impl<'a> Parser<'a> {
         }
     }
     
-    fn parse_object(&mut self) -> JsResult<Local<JsValue>> {
+    fn parse_object(&mut self) -> JsResult<JsValue> {
         let mut object = self.env.create_object();
         
         if !try!(self.consume(Token::CloseBrace)) {
@@ -114,10 +113,10 @@ impl<'a> Parser<'a> {
             }
         }
         
-        Ok(object.as_value(self.env))
+        Ok(object.as_value())
     }
     
-    fn parse_array(&mut self) -> JsResult<Local<JsValue>> {
+    fn parse_array(&mut self) -> JsResult<JsValue> {
         let mut array = self.env.create_array();
         let mut offset = 0;
         
@@ -136,6 +135,6 @@ impl<'a> Parser<'a> {
             }
         }
     
-        Ok(array.as_value(self.env))
+        Ok(array.as_value())
     }
 }

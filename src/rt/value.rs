@@ -35,22 +35,162 @@ const DOUBLE_EXPONENT_BITS    : u64 = 0x7ff0000000000000u64;
 #[allow(dead_code)]
 const DOUBLE_SIGNIFICANT_BITS : u64 = 0x000fffffffffffffu64;
 
-#[derive(Copy, Clone, PartialEq)]
 #[repr(C)]
-pub struct JsValue {
+#[derive(Copy, Clone)]
+pub struct JsRawValue {
     ty: JsType,
-    value: JsRawValue
+    value: Data
 }
 
-impl PartialEq for Local<JsValue> {
-    fn eq(&self, other: &Local<JsValue>) -> bool {
-        **self == **other
+impl fmt::Debug for JsRawValue {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        try!(write!(fmt, "JsRawValue {{ ty: {:?}, value: ", self.ty));
+        match self.ty {
+            JsType::Undefined => try!(write!(fmt, "undefined")),
+            JsType::Null => try!(write!(fmt, "null")),
+            JsType::Number => try!(write!(fmt, "{}", self.unwrap_number())),
+            JsType::Boolean => try!(write!(fmt, "{}", self.unwrap_bool())),
+            JsType::String => try!(write!(fmt, "string")),
+            JsType::Object => try!(write!(fmt, "object")),
+            _ => panic!("unexpected type")
+        }
+        try!(write!(fmt, " }}"));
+        
+        Ok(())
+    }
+}
+
+impl JsRawValue {
+    pub fn new_undefined() -> JsRawValue {
+        JsRawValue {
+            ty: JsType::Undefined,
+            value: Data::new()
+        }
+    }
+    
+    pub fn new_null() -> JsRawValue {
+        JsRawValue {
+            ty: JsType::Null,
+            value: Data::new()
+        }
+    }
+    
+    pub fn new_number(value: f64) -> JsRawValue {
+        JsRawValue {
+            ty: JsType::Number,
+            value: Data::new_number(value)
+        }
+    }
+    
+    pub fn new_bool(value: bool) -> JsRawValue {
+        JsRawValue {
+            ty: JsType::Boolean,
+            value: Data::new_bool(value)
+        }
+    }
+    
+    pub fn ty(&self) -> JsType {
+        self.ty
+    }
+    
+    fn unwrap_number(&self) -> f64 {
+        assert_eq!(self.ty, JsType::Number);
+        
+        self.value.get_number()
+    }
+    
+    fn unwrap_bool(&self) -> bool {
+        assert_eq!(self.ty, JsType::Boolean);
+        
+        self.value.get_bool()
+    }
+    
+    fn get_ptr<T>(&self) -> Ptr<T> {
+        self.value.get_ptr()
+    }
+    
+    pub fn as_value<T: GcAllocator>(&self, allocator: &T) -> JsValue {
+        let value = if self.ty.is_ptr() {
+            LocalData::new_local(allocator.alloc_local_from_ptr::<()>(self.get_ptr()))
+        } else {
+            LocalData {
+                data: self.value.data
+            }
+        };
+        
+        JsValue {
+            ty: self.ty,
+            value: value
+        }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+struct Data {
+    data: u64
+}
+
+impl Data {
+    fn new() -> Data {
+        Data {
+            data: 0
+        }
+    }
+    
+    fn new_number(value: f64) -> Data {
+        Data {
+            data: unsafe { transmute(value) }
+        }
+    }
+    
+    fn new_bool(value: bool) -> Data {
+        Data {
+            data: unsafe { transmute::<_, u8>(value) as u64 }
+        }
+    }
+    
+    fn new_ptr<T, U: AsPtr<T>>(value: U) -> Data {
+        Data {
+            data: value.as_ptr().ptr() as u64
+        }
+    }
+    
+    fn get_number(&self) -> f64 {
+        unsafe { transmute(self.data) }
+    }
+    
+    fn get_bool(&self) -> bool {
+        unsafe { transmute(self.data as u8) }
+    }
+    
+    fn get_ptr<T>(&self) -> Ptr<T> {
+        Ptr::from_ptr(self.data as ptr_t)
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct JsValue {
+    ty: JsType,
+    value: LocalData
+}
+
+impl PartialEq for JsValue {
+    fn eq(&self, other: &JsValue) -> bool {
+        if self.ty != other.ty {
+            false
+        } else {
+            if self.ty.is_ptr() {
+                self.value.get_local::<()>().as_ptr() == other.value.get_local::<()>().as_ptr()
+            } else {
+                self.value.data == other.value.data
+            }
+        }
     }
 }
 
 impl fmt::Debug for JsValue {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(fmt, "JsValue {{ ty: {:?}, value: ", self.ty));
+        try!(write!(fmt, "JsRawValue {{ ty: {:?}, value: ", self.ty));
         match self.ty {
             JsType::Undefined => try!(write!(fmt, "undefined")),
             JsType::Null => try!(write!(fmt, "null")),
@@ -70,28 +210,63 @@ impl JsValue {
     pub fn new_undefined() -> JsValue {
         JsValue {
             ty: JsType::Undefined,
-            value: JsRawValue::new()
+            value: LocalData::new()
         }
     }
     
     pub fn new_null() -> JsValue {
         JsValue {
             ty: JsType::Null,
-            value: JsRawValue::new()
+            value: LocalData::new()
         }
     }
     
     pub fn new_number(value: f64) -> JsValue {
         JsValue {
             ty: JsType::Number,
-            value: JsRawValue::new_number(value)
+            value: LocalData::new_number(value)
         }
     }
     
     pub fn new_bool(value: bool) -> JsValue {
         JsValue {
             ty: JsType::Boolean,
-            value: JsRawValue::new_bool(value)
+            value: LocalData::new_bool(value)
+        }
+    }
+    
+    pub fn new_string(value: Local<JsString>) -> JsValue {
+        JsValue {
+            ty: JsType::String,
+            value: LocalData::new_local(value)
+        }
+    }
+    
+    pub fn new_object(value: Local<JsObject>) -> JsValue {
+        JsValue {
+            ty: JsType::Object,
+            value: LocalData::new_local(value)
+        }
+    }
+    
+    pub fn new_iterator(value: Local<JsIterator>) -> JsValue {
+        JsValue {
+            ty: JsType::Iterator,
+            value: LocalData::new_local(value)
+        }
+    }
+    
+    pub fn new_scope(value: Local<JsScope>) -> JsValue {
+        JsValue {
+            ty: JsType::Scope,
+            value: LocalData::new_local(value)
+        }
+    }
+    
+    pub fn new_regexp(value: Local<JsRegExp>) -> JsValue {
+        JsValue {
+            ty: JsType::RegExp,
+            value: LocalData::new_local(value)
         }
     }
     
@@ -124,156 +299,53 @@ impl JsValue {
         self.value.get_bool()
     }
     
-    pub fn get_ptr<T>(&self) -> Ptr<T> {
-        self.value.get_ptr()
-    }
-}
-
-macro_rules! delegate {
-    ( $target:expr, $env:expr, $method:ident ( $( $arg:expr ),* ) ) => {
-        match $target.ty() {
-            JsType::Undefined => JsUndefined.$method( $( $arg ),* ),
-            JsType::Null => JsNull.$method( $( $arg ),* ),
-            JsType::Number => JsNumber::new($target.unwrap_number()).$method( $( $arg ),* ),
-            JsType::Boolean => JsBoolean::new($target.unwrap_bool()).$method( $( $arg ),* ),
-            JsType::Object => $target.unwrap_object($env).$method( $( $arg ),* ),
-            JsType::String => $target.unwrap_string($env).$method( $( $arg ),* ),
-            _ => panic!("unexpected type")
-        }
-    }
-}
-
-impl JsItem for Local<JsValue> {
-    fn as_value(&self, _: &JsEnv) -> Local<JsValue> {
-        *self
-    }
-    
-    fn get_own_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
-        delegate!(self, env, get_own_property(env, property))
-    }
-    
-    fn get_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
-        delegate!(self, env, get_property(env, property))
-    }
-    
-    fn get(&self, env: &mut JsEnv, property: Name) -> JsResult<Local<JsValue>> {
-        delegate!(self, env, get(env, property))
-    }
-    
-    fn can_put(&self, env: &JsEnv, property: Name) -> bool {
-        delegate!(self, env, can_put(env, property))
-    }
-    
-    fn put(&mut self, env: &mut JsEnv, property: Name, value: Local<JsValue>, throw: bool) -> JsResult<()> {
-        delegate!(self, env, put(env, property, value, throw))
-    }
-    
-    fn has_property(&self, env: &JsEnv, property: Name) -> bool {
-        delegate!(self, env, has_property(env, property))
-    }
-    
-    fn delete(&mut self, env: &mut JsEnv, property: Name, throw: bool) -> JsResult<bool> {
-        delegate!(self, env, delete(env, property, throw))
-    }
-    
-    fn default_value(&self, env: &mut JsEnv, hint: JsPreferredType) -> JsResult<Local<JsValue>> {
-        delegate!(self, env, default_value(env, hint))
-    }
-    
-    fn define_own_property(&mut self, env: &mut JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
-        delegate!(self, env, define_own_property(env, property, descriptor, throw))
-    }
-    
-    fn is_callable(&self, env: &JsEnv) -> bool  {
-        delegate!(self, env, is_callable(env))
-    }
-    
-    fn call(&self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>, strict: bool) -> JsResult<Local<JsValue>>  {
-        delegate!(self, env, call(env, this, args, strict))
-    }
-    
-    fn can_construct(&self, env: &JsEnv) -> bool  {
-        delegate!(self, env, can_construct(env))
-    }
-    
-    fn construct(&self, env: &mut JsEnv, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>>  {
-        delegate!(self, env, construct(env, args))
-    }
-    
-    fn has_prototype(&self, env: &JsEnv) -> bool  {
-        delegate!(self, env, has_prototype(env))
-    }
-    
-    fn prototype(&self, env: &JsEnv) -> Option<Local<JsValue>>  {
-        delegate!(self, env, prototype(env))
-    }
-    
-    fn set_prototype(&mut self, env: &JsEnv, prototype: Option<Local<JsValue>>)  {
-        delegate!(self, env, set_prototype(env, prototype))
-    }
-    
-    fn has_class(&self, env: &JsEnv) -> bool  {
-        delegate!(self, env, has_class(env))
-    }
-    
-    fn class(&self, env: &JsEnv) -> Option<Name>  {
-        delegate!(self, env, class(env))
-    }
-    
-    fn set_class(&mut self, env: &JsEnv, class: Option<Name>)  {
-        delegate!(self, env, set_class(env, class))
-    }
-    
-    fn is_extensible(&self, env: &JsEnv) -> bool  {
-        delegate!(self, env, is_extensible(env))
-    }
-    
-    fn has_instance(&self, env: &mut JsEnv, object: Local<JsValue>) -> JsResult<bool>  {
-        delegate!(self, env, has_instance(env, object))
-    }
-    
-    fn scope(&self, env: &JsEnv) -> Option<Local<JsScope>>  {
-        delegate!(self, env, scope(env))
-    }
-    
-    fn set_scope(&mut self, env: &JsEnv, scope: Option<Local<JsScope>>) {
-        delegate!(self, env, set_scope(env, scope))
-    }
-}
-
-impl Local<JsValue> {
-    pub fn unwrap_string<T: GcAllocator>(&self, allocator: &T) -> Local<JsString> {
+    pub fn unwrap_string(&self) -> Local<JsString> {
         assert_eq!(self.ty, JsType::String);
         
-        self.value.get_ptr::<JsString>().as_local(allocator)
+        self.value.get_local::<JsString>()
     }
     
-    pub fn unwrap_object<T: GcAllocator>(&self, allocator: &T) -> Local<JsObject> {
+    pub fn unwrap_object(&self) -> Local<JsObject> {
         assert_eq!(self.ty, JsType::Object);
         
-        self.value.get_ptr::<JsObject>().as_local(allocator)
+        self.value.get_local::<JsObject>()
     }
     
-    pub fn unwrap_iterator<T: GcAllocator>(&self, allocator: &T) -> Local<JsIterator> {
+    pub fn unwrap_iterator(&self) -> Local<JsIterator> {
         assert_eq!(self.ty, JsType::Iterator);
         
-        self.value.get_ptr::<JsIterator>().as_local(allocator)
+        self.value.get_local::<JsIterator>()
     }
     
-    pub fn unwrap_scope<T: GcAllocator>(&self, allocator: &T) -> Local<JsScope> {
+    pub fn unwrap_scope(&self) -> Local<JsScope> {
         assert_eq!(self.ty, JsType::Scope);
         
-        self.value.get_ptr::<JsScope>().as_local(allocator)
+        self.value.get_local::<JsScope>()
     }
     
-    pub fn unwrap_regexp<T: GcAllocator>(&self, allocator: &T) -> Local<JsRegExp> {
+    pub fn unwrap_regexp(&self) -> Local<JsRegExp> {
         assert_eq!(self.ty, JsType::RegExp);
         
-        self.value.get_ptr::<JsRegExp>().as_local(allocator)
+        self.value.get_local::<JsRegExp>()
+    }
+    
+    pub fn as_raw(&self) -> JsRawValue {
+        let value = if self.ty.is_ptr() {
+            Data::new_ptr(self.value.get_local::<()>())
+        } else {
+            Data {
+                data: self.value.data
+            }
+        };
+        
+        JsRawValue {
+            ty: self.ty,
+            value: value
+        }
     }
     
     // 9.1 ToPrimitive
-    pub fn to_primitive(&self, env: &mut JsEnv, hint: JsPreferredType) -> JsResult<Local<JsValue>> {
+    pub fn to_primitive(&self, env: &mut JsEnv, hint: JsPreferredType) -> JsResult<JsValue> {
         match self.ty() {
             JsType::Object => self.default_value(env, hint),
             _ => Ok(*self)
@@ -289,7 +361,7 @@ impl Local<JsValue> {
                 let value = self.unwrap_number();
                 !(value == 0.0 || value.is_nan())
             }
-            JsType::String => self.get_ptr::<JsString>().chars().len() > 0,
+            JsType::String => self.value.get_local::<JsString>().chars().len() > 0,
             JsType::Object => true,
             _ => panic!("unexpected type")
         }
@@ -316,7 +388,7 @@ impl Local<JsValue> {
     fn get_number_from_string(&self, env: &JsEnv) -> JsResult<f64> {
         // TODO #67: Use DecimalMatcher.
         
-        let value = self.unwrap_string(env).to_string();
+        let value = self.unwrap_string().to_string();
         let mut reader = StringReader::new("", &value);
         
         if let Ok(mut lexer) = Lexer::new(&mut reader, env.ir.interner(), LexerMode::Runtime) {
@@ -411,7 +483,7 @@ impl Local<JsValue> {
     }
     
     // Taken from http://mxr.mozilla.org/mozilla-central/source/js/public/Conversions.h#255.
-    fn f64_to_u32(number: f64) -> u32 {
+    pub fn f64_to_u32(number: f64) -> u32 {
         let bits = unsafe { transmute::<_, u64>(number) };
         
         // Extract the exponent component.  (Be careful here!  It's not technically
@@ -545,7 +617,7 @@ impl Local<JsValue> {
                 let result = format_number(number, 10, NumberFormatStyle::Regular, 0);
                 JsString::from_str(env, &result)
             }
-            JsType::String => self.unwrap_string(env),
+            JsType::String => self.unwrap_string(),
             JsType::Object => {
                 let result = try!(self.to_primitive(env, JsPreferredType::String));
                 try!(result.to_string(env))
@@ -557,7 +629,7 @@ impl Local<JsValue> {
     }
     
     // 9.9 ToObject
-    pub fn to_object(&self, env: &mut JsEnv) -> JsResult<Local<JsValue>> {
+    pub fn to_object(&self, env: &mut JsEnv) -> JsResult<JsValue> {
         match self.ty {
             JsType::Null | JsType::Undefined => Err(JsError::new_type(env, ::errors::TYPE_INVALID)),
             JsType::String => {
@@ -575,7 +647,7 @@ impl Local<JsValue> {
                 
                 let constructor = try!(env.handle(JsHandle::Global).get(env, class));
                 let object = try!(constructor.construct(env, Vec::new()));
-                object.unwrap_object(env).set_value(*self);
+                object.unwrap_object().set_value(*self);
                 Ok(object)
             }
             JsType::Object => Ok(*self),
@@ -593,167 +665,193 @@ impl Local<JsValue> {
     }
 }
 
+macro_rules! delegate {
+    ( $target:expr, $method:ident ( $( $arg:expr ),* ) ) => {
+        match $target.ty() {
+            JsType::Undefined => JsUndefined.$method( $( $arg ),* ),
+            JsType::Null => JsNull.$method( $( $arg ),* ),
+            JsType::Number => JsNumber::new($target.unwrap_number()).$method( $( $arg ),* ),
+            JsType::Boolean => JsBoolean::new($target.unwrap_bool()).$method( $( $arg ),* ),
+            JsType::Object => $target.unwrap_object().$method( $( $arg ),* ),
+            JsType::String => $target.unwrap_string().$method( $( $arg ),* ),
+            _ => panic!("unexpected type")
+        }
+    };
+    ( $target:expr, $env:expr, $method:ident ( $( $arg:expr ),* ) ) => {
+        match $target.ty() {
+            JsType::Undefined => JsUndefined.$method( $( $arg ),* ),
+            JsType::Null => JsNull.$method( $( $arg ),* ),
+            JsType::Number => JsNumber::new($target.unwrap_number()).$method( $( $arg ),* ),
+            JsType::Boolean => JsBoolean::new($target.unwrap_bool()).$method( $( $arg ),* ),
+            JsType::Object => $target.unwrap_object().$method( $( $arg ),* ),
+            JsType::String => $target.unwrap_string().$method( $( $arg ),* ),
+            _ => panic!("unexpected type")
+        }
+    }
+}
+
+impl JsItem for JsValue {
+    fn as_value(&self) -> JsValue {
+        *self
+    }
+    
+    fn get_own_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
+        delegate!(self, env, get_own_property(env, property))
+    }
+    
+    fn get_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
+        delegate!(self, env, get_property(env, property))
+    }
+    
+    fn get(&self, env: &mut JsEnv, property: Name) -> JsResult<JsValue> {
+        delegate!(self, env, get(env, property))
+    }
+    
+    fn can_put(&self, env: &JsEnv, property: Name) -> bool {
+        delegate!(self, env, can_put(env, property))
+    }
+    
+    fn put(&mut self, env: &mut JsEnv, property: Name, value: JsValue, throw: bool) -> JsResult<()> {
+        delegate!(self, env, put(env, property, value, throw))
+    }
+    
+    fn has_property(&self, env: &JsEnv, property: Name) -> bool {
+        delegate!(self, env, has_property(env, property))
+    }
+    
+    fn delete(&mut self, env: &mut JsEnv, property: Name, throw: bool) -> JsResult<bool> {
+        delegate!(self, env, delete(env, property, throw))
+    }
+    
+    fn default_value(&self, env: &mut JsEnv, hint: JsPreferredType) -> JsResult<JsValue> {
+        delegate!(self, env, default_value(env, hint))
+    }
+    
+    fn define_own_property(&mut self, env: &mut JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
+        delegate!(self, env, define_own_property(env, property, descriptor, throw))
+    }
+    
+    fn is_callable(&self) -> bool  {
+        delegate!(self, is_callable())
+    }
+    
+    fn call(&self, env: &mut JsEnv, this: JsValue, args: Vec<JsValue>, strict: bool) -> JsResult<JsValue>  {
+        delegate!(self, env, call(env, this, args, strict))
+    }
+    
+    fn can_construct(&self) -> bool  {
+        delegate!(self, can_construct())
+    }
+    
+    fn construct(&self, env: &mut JsEnv, args: Vec<JsValue>) -> JsResult<JsValue>  {
+        delegate!(self, env, construct(env, args))
+    }
+    
+    fn has_prototype(&self) -> bool  {
+        delegate!(self, has_prototype())
+    }
+    
+    fn prototype(&self, env: &JsEnv) -> Option<JsValue>  {
+        delegate!(self, env, prototype(env))
+    }
+    
+    fn set_prototype(&mut self, prototype: Option<JsValue>)  {
+        delegate!(self, set_prototype(prototype))
+    }
+    
+    fn has_class(&self) -> bool  {
+        delegate!(self, has_class())
+    }
+    
+    fn class(&self) -> Option<Name>  {
+        delegate!(self, class())
+    }
+    
+    fn set_class(&mut self, class: Option<Name>)  {
+        delegate!(self, set_class(class))
+    }
+    
+    fn is_extensible(&self) -> bool  {
+        delegate!(self, is_extensible())
+    }
+    
+    fn has_instance(&self, env: &mut JsEnv, object: JsValue) -> JsResult<bool>  {
+        delegate!(self, env, has_instance(env, object))
+    }
+    
+    fn scope(&self, env: &JsEnv) -> Option<Local<JsScope>>  {
+        delegate!(self, env, scope(env))
+    }
+    
+    fn set_scope(&mut self, scope: Option<Local<JsScope>>) {
+        delegate!(self, set_scope(scope))
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Debug)]
-struct JsRawValue {
+struct LocalData {
     data: u64
 }
 
-impl JsRawValue {
-    fn new() -> JsRawValue {
-        JsRawValue {
+impl LocalData {
+    fn new() -> LocalData {
+        LocalData {
             data: 0
         }
     }
     
-    fn new_number(value: f64) -> JsRawValue {
-        let mut result = JsRawValue::new();
-        result.set_number(value);
-        result
-    }
-    
-    fn new_bool(value: bool) -> JsRawValue {
-        JsRawValue {
-            data: if value { 1 } else { 0 }
+    fn new_number(value: f64) -> LocalData {
+        LocalData {
+            data: unsafe { transmute(value) }
         }
     }
     
-    fn new_ptr<T, U: AsPtr<T>>(value: U) -> JsRawValue {
-        let mut result = JsRawValue::new();
-        result.set_ptr(value.as_ptr());
-        result
+    fn new_bool(value: bool) -> LocalData {
+        LocalData {
+            data: unsafe { transmute::<_, u8>(value) as u64 }
+        }
+    }
+    
+    fn new_local<T>(value: Local<T>) -> LocalData {
+        LocalData {
+            data: unsafe { transmute(value) }
+        }
     }
     
     fn get_number(&self) -> f64 {
         unsafe { transmute(self.data) }
     }
     
-    fn set_number(&mut self, value: f64) {
-        unsafe { self.data = transmute(value); }
-    }
-    
     fn get_bool(&self) -> bool {
-        self.data != 0
+        unsafe { transmute(self.data as u8) }
     }
     
-    fn get_ptr<T>(&self) -> Ptr<T> {
-        Ptr::from_ptr(self.data as ptr_t)
-    }
-    
-    fn set_ptr<T>(&mut self, value: Ptr<T>) {
-        self.data = value.as_ptr().ptr() as u64
-    }
-}
-
-impl JsEnv {
-    pub fn new_value(&self) -> Local<JsValue> {
-        self.heap.alloc_local(GC_VALUE)
-    }
-    
-    pub fn new_undefined(&self) -> Local<JsValue> {
-        self.new_value()
-    }
-    
-    pub fn new_null(&self) -> Local<JsValue> {
-        let mut result = self.new_value();
-        
-        *result = JsValue::new_null();
-        
-        result
-    }
-    
-    pub fn new_number(&self, value: f64) -> Local<JsValue> {
-        let mut result = self.new_value();
-        
-        *result = JsValue::new_number(value);
-        
-        result
-    }
-    
-    pub fn new_bool(&self, value: bool) -> Local<JsValue> {
-        let mut result = self.new_value();
-        
-        *result = JsValue::new_bool(value);
-        
-        result
-    }
-    
-    pub fn new_string(&self, value: Local<JsString>) -> Local<JsValue> {
-        let mut result = self.new_value();
-        
-        *result = JsValue {
-            ty: JsType::String,
-            value: JsRawValue::new_ptr(value)
-        };
-        
-        result
-    }
-    
-    pub fn new_object(&self, value: Local<JsObject>) -> Local<JsValue> {
-        let mut result = self.new_value();
-        
-        *result = JsValue {
-            ty: JsType::Object,
-            value: JsRawValue::new_ptr(value)
-        };
-        
-        result
-    }
-    
-    pub fn new_iterator(&self, value: Local<JsIterator>) -> Local<JsValue> {
-        let mut result = self.new_value();
-        
-        *result = JsValue {
-            ty: JsType::Iterator,
-            value: JsRawValue::new_ptr(value)
-        };
-        
-        result
-    }
-    
-    pub fn new_scope(&self, value: Local<JsScope>) -> Local<JsValue> {
-        let mut result = self.new_value();
-        
-        *result = JsValue {
-            ty: JsType::Scope,
-            value: JsRawValue::new_ptr(value)
-        };
-        
-        result
-    }
-    
-    pub fn new_regexp(&self, value: Local<JsRegExp>) -> Local<JsValue> {
-        let mut result = self.new_value();
-        
-        *result = JsValue {
-            ty: JsType::RegExp,
-            value: JsRawValue::new_ptr(value)
-        };
-        
-        result
+    fn get_local<T>(&self) -> Local<T> {
+        unsafe { transmute(self.data) }
     }
 }
 
 pub unsafe fn validate_walker_for_value(walker: &GcWalker) {
-    let mut object : Box<JsValue> = Box::new(zeroed());
+    let mut object : Box<JsRawValue> = Box::new(zeroed());
     let ptr = transmute::<_, ptr_t>(&*object);
     
     validate_walker_for_embedded_value(walker, ptr, GC_VALUE, 0, &mut *object);
     
-    assert_eq!(size_of::<JsValue>(), 16);
+    assert_eq!(size_of::<JsRawValue>(), 16);
 }
 
-pub unsafe fn validate_walker_for_embedded_value(walker: &GcWalker, ptr: ptr_t, ty: u32, offset: u32, object: *mut JsValue) {
+pub unsafe fn validate_walker_for_embedded_value(walker: &GcWalker, ptr: ptr_t, ty: u32, offset: u32, object: *mut JsRawValue) {
     (*object).ty = JsType::Boolean;
     validate_walker_field(walker, ty, ptr, false);
     (*object).ty = JsType::Undefined;
     
-    (*object).value = JsRawValue { data: 1 };
+    (*object).value = Data { data: 1 };
     validate_walker_field_at(walker, ty, ptr, false, offset + 1);
-    (*object).value = JsRawValue { data: 0 };
+    (*object).value = Data { data: 0 };
     
     (*object).ty = JsType::String;
-    (*object).value = JsRawValue { data: 1 };
+    (*object).value = Data { data: 1 };
     validate_walker_field_at(walker, ty, ptr, true, offset + 1);
     
-    *object = transmute(zeroed::<JsValue>());
+    *object = transmute(zeroed::<JsRawValue>());
 }

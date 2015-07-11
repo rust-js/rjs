@@ -21,7 +21,7 @@ macro_rules! local_try {
 // 15.4.1 The Array Constructor Called as a Function
 // 15.4.2.1 new Array ( [ item0 [ , item1 [ , … ] ] ] )
 // 15.4.2.2 new Array (len)
-pub fn Array_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     if !mode.construct() {
         let target_args = args.args(env);
         return args.function(env).construct(env, target_args);
@@ -33,7 +33,7 @@ pub fn Array_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsRes
         let arg = args.arg(env, 0);
         if arg.ty() == JsType::Number {
             if let Some(len) = try!(arg.to_uint32_exact(env)) {
-                let len = env.new_number(len as f64);
+                let len = JsValue::new_number(len as f64);
                 try!(array.put(env, name::LENGTH, len, false));
             } else {
                 return Err(JsError::new_range(env));
@@ -48,14 +48,14 @@ pub fn Array_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsRes
         }
     }
     
-    Ok(array.as_value(env))
+    Ok(array.as_value())
 }
 
 // 15.4.4.2 Array.prototype.toString ( )
-pub fn Array_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let array = try!(args.this(env).to_object(env));
     let mut func = try!(array.get(env, name::JOIN));
-    if !func.is_callable(env) {
+    if !func.is_callable() {
         func = try!(env.handle(JsHandle::Object).get(env, name::TO_STRING));
     }
     
@@ -63,7 +63,7 @@ pub fn Array_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResul
 }
 
 // 15.4.4.3 Array.prototype.toLocaleString ( )
-pub fn Array_toLocaleString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_toLocaleString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let array = try!(args.this(env).to_object(env));
     let array_len = try!(array.get(env, name::LENGTH));
     let len = try!(array_len.to_uint32(env));
@@ -71,14 +71,14 @@ pub fn Array_toLocaleString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> J
     let result = if len == 0 {
         "0".to_string()
     } else {
-        fn to_string(env: &mut JsEnv, string: &mut String, array: &Local<JsValue>, index: usize) -> JsResult<()> {
+        fn to_string(env: &mut JsEnv, string: &mut String, array: &JsValue, index: usize) -> JsResult<()> {
             let value = try!(array.get(env, Name::from_index(index)));
             match value.ty() {
                 JsType::Null | JsType::Undefined => {},
                 _ => {
                     let element_obj = try!(value.to_object(env));
                     let func = try!(element_obj.get(env, name::TO_LOCALE_STRING));
-                    if !func.is_callable(env) {
+                    if !func.is_callable() {
                         return Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
                     }
                     let result = try!(try!(func.call(env, element_obj, Vec::new(), false)).to_string(env)).to_string();
@@ -100,13 +100,13 @@ pub fn Array_toLocaleString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> J
         result
     };
     
-    Ok(JsString::from_str(env, &result).as_value(env))
+    Ok(JsString::from_str(env, &result).as_value())
 }
 
 // 15.4.4.4 Array.prototype.concat ( [ item1 [ , item2 [ , … ] ] ] )
-pub fn Array_concat(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-    fn append(env: &mut JsEnv, result: &mut Local<JsValue>, index: &mut usize, element: Local<JsValue>) -> JsResult<()> {
-        if element.class(env) == Some(name::ARRAY_CLASS) {
+pub fn Array_concat(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
+    fn append(env: &mut JsEnv, result: &mut JsValue, index: &mut usize, element: JsValue) -> JsResult<()> {
+        if element.class() == Some(name::ARRAY_CLASS) {
             let length = try!(element.get(env, name::LENGTH));
             let length = try!(length.to_number(env)) as usize;
             let mut set_length = 0;
@@ -138,7 +138,7 @@ pub fn Array_concat(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
             // update the length of the result array.
             
             if length != set_length {
-                let value = env.new_number(*index as f64);
+                let value = JsValue::new_number(*index as f64);
                 let desc = JsDescriptor {
                     value: Some(value),
                     ..JsDescriptor::default()
@@ -160,7 +160,7 @@ pub fn Array_concat(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
     }
     
     let array = try!(args.this(env).to_object(env));
-    let mut result = env.create_array().as_value(env);
+    let mut result = env.create_array().as_value();
     let mut index = 0usize;
     
     try!(append(env, &mut result, &mut index, array));
@@ -174,7 +174,7 @@ pub fn Array_concat(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
 }
 
 // 15.4.4.5 Array.prototype.join (separator)
-pub fn Array_join(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_join(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let array = try!(args.this(env).to_object(env));
     let len_val = try!(array.get(env, name::LENGTH));
     let len = try!(len_val.to_uint32(env));
@@ -193,7 +193,7 @@ pub fn Array_join(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Lo
     let mut result = String::new();
     
     if len > 0 {
-        fn append(env: &mut JsEnv, result: &mut String, array: &Local<JsValue>, index: usize) -> JsResult<()> {
+        fn append(env: &mut JsEnv, result: &mut String, array: &JsValue, index: usize) -> JsResult<()> {
             let element = try!(array.get(env, Name::from_index(index)));
             match element.ty() {
                 JsType::Null | JsType::Undefined => {},
@@ -214,26 +214,26 @@ pub fn Array_join(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Lo
         }
     }
     
-    Ok(JsString::from_str(env, &result).as_value(env))
+    Ok(JsString::from_str(env, &result).as_value())
 }
 
 // 15.4.4.6 Array.prototype.pop ( )
-pub fn Array_pop(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_pop(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let mut array = try!(args.this(env).to_object(env));
     let len_val = try!(array.get(env, name::LENGTH));
     let len = try!(len_val.to_uint32(env));
     
     if len == 0 {
-        let length = env.new_number(0.0);
+        let length = JsValue::new_number(0.0);
         try!(array.put(env, name::LENGTH, length, true));
         
-        Ok(env.new_undefined())
+        Ok(JsValue::new_undefined())
     } else {
         let index = len as usize - 1;
         let element = try!(array.get(env, Name::from_index(index)));
         try!(array.delete(env, Name::from_index(index), true));
         
-        let length = env.new_number(index as f64);
+        let length = JsValue::new_number(index as f64);
         try!(array.put(env, name::LENGTH, length, true));
         
         Ok(element)
@@ -241,7 +241,7 @@ pub fn Array_pop(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Loc
 }
 
 // 15.4.4.7 Array.prototype.push ( [ item1 [ , item2 [ , … ] ] ] )
-pub fn Array_push(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_push(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let mut array = try!(args.this(env).to_object(env));
     let len_val = try!(array.get(env, name::LENGTH));
     let mut index = try!(len_val.to_uint32(env)) as usize;
@@ -260,14 +260,14 @@ pub fn Array_push(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Lo
         index += 1;
     }
     
-    let length = env.new_number(index as f64);
+    let length = JsValue::new_number(index as f64);
     try!(array.put(env, name::LENGTH, length, true));
     
     Ok(length)
 }
 
 // 15.4.4.8 Array.prototype.reverse ( )
-pub fn Array_reverse(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_reverse(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let mut array = try!(args.this(env).to_object(env));
     let len_val = try!(array.get(env, name::LENGTH));
     let len = try!(len_val.to_uint32(env)) as usize;
@@ -301,16 +301,16 @@ pub fn Array_reverse(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
 }
 
 // 15.4.4.9 Array.prototype.shift ( )
-pub fn Array_shift(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_shift(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let mut array = try!(args.this(env).to_object(env));
     let len_val = try!(array.get(env, name::LENGTH));
     let len = try!(len_val.to_uint32(env)) as usize;
     
     let result = if len == 0 {
-        let length = env.new_number(0.0);
+        let length = JsValue::new_number(0.0);
         try!(array.put(env, name::LENGTH, length, true));
         
-        env.new_undefined()
+        JsValue::new_undefined()
     } else {
         let first = try!(array.get(env, Name::from_index(0)));
         
@@ -327,7 +327,7 @@ pub fn Array_shift(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<L
         }
         
         try!(array.delete(env, Name::from_index(len - 1), true));
-        let length = env.new_number((len - 1) as f64);
+        let length = JsValue::new_number((len - 1) as f64);
         try!(array.put(env, name::LENGTH, length, true));
         
         first
@@ -337,7 +337,7 @@ pub fn Array_shift(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<L
 }
 
 // 15.4.4.10 Array.prototype.slice (start, end)
-pub fn Array_slice(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_slice(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let array = try!(args.this(env).to_object(env));
     let mut result = env.create_array();
     let len_val = try!(array.get(env, name::LENGTH));
@@ -378,12 +378,12 @@ pub fn Array_slice(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<L
         n += 1;
     }
     
-    Ok(result.as_value(env))
+    Ok(result.as_value())
 }
 
 // 15.4.4.11 Array.prototype.sort (comparefn)
 // TODO #63: This is not a correct implementation!
-pub fn Array_sort(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_sort(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let mut obj = try!(args.this(env).to_object(env));
     let len_val = try!(obj.get(env, name::LENGTH));
     let len = try!(len_val.to_uint32(env)) as usize;
@@ -404,8 +404,8 @@ pub fn Array_sort(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Lo
     };
     
     let mut error = None;
-    let this = env.new_undefined();
-    let zero = env.new_number(0.0);
+    let this = JsValue::new_undefined();
+    let zero = JsValue::new_number(0.0);
     
     values.sort_by(|x, y| {
         // Fast escape if we're in error mode.
@@ -430,7 +430,7 @@ pub fn Array_sort(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Lo
             } else if y.is_undefined() {
                 Ordering::Less
             } else if let Some(compare_fn) = compare_fn {
-                if !compare_fn.is_callable(env) {
+                if !compare_fn.is_callable() {
                     error = Some(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
                     Ordering::Equal
                 } else {
@@ -447,8 +447,8 @@ pub fn Array_sort(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Lo
             } else {
                 let x_string = local_try!(x.to_string(env), error);
                 let y_string = local_try!(y.to_string(env), error);
-                let x_string = x_string.as_value(env);
-                let y_string = y_string.as_value(env);
+                let x_string = x_string.as_value();
+                let y_string = y_string.as_value();
                 
                 if local_try!(env.compare_lt(x_string, y_string), error) {
                     Ordering::Less
@@ -477,7 +477,7 @@ pub fn Array_sort(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Lo
 }
 
 // 15.4.4.12 Array.prototype.splice (start, deleteCount [ , item1 [ , item2 [ , … ] ] ] )
-pub fn Array_splice(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_splice(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let mut array = try!(args.this(env).to_object(env));
     let mut result = env.create_array();
     let len_val = try!(array.get(env, name::LENGTH));
@@ -557,14 +557,14 @@ pub fn Array_splice(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
         k += 1;
     }
     
-    let length = env.new_number((len - actual_delete_count + item_count) as f64);
+    let length = JsValue::new_number((len - actual_delete_count + item_count) as f64);
     try!(array.put(env, name::LENGTH, length, true));
     
-    Ok(result.as_value(env))
+    Ok(result.as_value())
 }
 
 // 15.4.4.13 Array.prototype.unshift ( [ item1 [ , item2 [ , … ] ] ] )
-pub fn Array_unshift(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_unshift(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let mut array = try!(args.this(env).to_object(env));
     let len_val = try!(array.get(env, name::LENGTH));
     let len = try!(len_val.to_uint32(env)) as usize;
@@ -590,14 +590,14 @@ pub fn Array_unshift(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
         try!(array.put(env, Name::from_index(i), arg, true));
     }
     
-    let length = env.new_number((len + arg_count) as f64);
+    let length = JsValue::new_number((len + arg_count) as f64);
     try!(array.put(env, name::LENGTH, length, true));
     
     Ok(length)
 }
 
 // 15.4.4.14 Array.prototype.indexOf ( searchElement [ , fromIndex ] )
-pub fn Array_indexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_indexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let array = try!(args.this(env).to_object(env));
     let len_value = try!(array.get(env, name::LENGTH));
     let len = try!(len_value.to_uint32(env)) as usize;
@@ -628,7 +628,7 @@ pub fn Array_indexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
                 if present {
                     let element = try!(array.get(env, Name::from_index(i)));
                     if env.strict_eq(search_element, element) {
-                        return Ok(env.new_number(i as f64));
+                        return Ok(JsValue::new_number(i as f64));
                     }
                 }
             }
@@ -637,11 +637,11 @@ pub fn Array_indexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
         }
     };
     
-    Ok(env.new_number(result as f64))
+    Ok(JsValue::new_number(result as f64))
 }
 
 // 15.4.4.15 Array.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
-pub fn Array_lastIndexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_lastIndexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let array = try!(args.this(env).to_object(env));
     let len_value = try!(array.get(env, name::LENGTH));
     let len = try!(len_value.to_uint32(env)) as usize;
@@ -660,7 +660,7 @@ pub fn Array_lastIndexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
         } else {
             let n = n.abs();
             if n > len as f64 {
-                return Ok(env.new_number(-1.0));
+                return Ok(JsValue::new_number(-1.0));
             } else {
                 len - n as usize
             }
@@ -673,7 +673,7 @@ pub fn Array_lastIndexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
             if k_present {
                 let element_k = try!(array.get(env, Name::from_index(k)));
                 if env.strict_eq(search_element, element_k) {
-                    return Ok(env.new_number(k as f64));
+                    return Ok(JsValue::new_number(k as f64));
                 }
             }
             
@@ -687,18 +687,18 @@ pub fn Array_lastIndexOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
         -1
     };
     
-    Ok(env.new_number(result as f64))
+    Ok(JsValue::new_number(result as f64))
 }
 
 // 15.4.4.16 Array.prototype.every ( callbackfn [ , thisArg ] )
 // 15.4.4.17 Array.prototype.some ( callbackfn [ , thisArg ] )
-fn Array_everyOrSome(env: &mut JsEnv, args: JsArgs, test: bool) -> JsResult<Local<JsValue>> {
+fn Array_everyOrSome(env: &mut JsEnv, args: JsArgs, test: bool) -> JsResult<JsValue> {
     let array = try!(args.this(env).to_object(env));
     let len_value = try!(array.get(env, name::LENGTH));
     let len = try!(len_value.to_uint32(env)) as usize;
     
     let callback_fn = args.arg(env, 0);
-    if !callback_fn.is_callable(env) {
+    if !callback_fn.is_callable() {
         return Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
     }
     
@@ -709,7 +709,7 @@ fn Array_everyOrSome(env: &mut JsEnv, args: JsArgs, test: bool) -> JsResult<Loca
         let k_present = array.has_property(env, p_k);
         if k_present {
             let k_value = try!(array.get(env, p_k));
-            let k = env.new_number(k as f64);
+            let k = JsValue::new_number(k as f64);
             
             let test_result = try!(callback_fn.call(
                 env,
@@ -719,33 +719,33 @@ fn Array_everyOrSome(env: &mut JsEnv, args: JsArgs, test: bool) -> JsResult<Loca
             ));
             
             if test_result.to_boolean() == test {
-                return Ok(env.new_bool(test));
+                return Ok(JsValue::new_bool(test));
             }
         }
     }
     
-    Ok(env.new_bool(!test))
+    Ok(JsValue::new_bool(!test))
 }
 
 // 15.4.4.16 Array.prototype.every ( callbackfn [ , thisArg ] )
-pub fn Array_every(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_every(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     Array_everyOrSome(env, args, false)
 }
 
 // 15.4.4.17 Array.prototype.some ( callbackfn [ , thisArg ] )
-pub fn Array_some(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_some(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     Array_everyOrSome(env, args, true)
 }
 
 // 15.4.4.18 Array.prototype.forEach ( callbackfn [ , thisArg ] )
-pub fn Array_forEach(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_forEach(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let array = try!(args.this(env).to_object(env));
     let len_value = try!(array.get(env, name::LENGTH));
     let len = try!(len_value.to_uint32(env)) as usize;
     
     let callback_fn = if args.argc > 0 {
         let callback_fn = args.arg(env, 0);
-        if !callback_fn.is_callable(env) {
+        if !callback_fn.is_callable() {
             return Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
         }
         callback_fn
@@ -760,7 +760,7 @@ pub fn Array_forEach(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
         let k_present = array.has_property(env, p_k);
         if k_present {
             let k_value = try!(array.get(env, p_k));
-            let k = env.new_number(k as f64);
+            let k = JsValue::new_number(k as f64);
             
             try!(callback_fn.call(
                 env,
@@ -771,18 +771,18 @@ pub fn Array_forEach(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
         }
     }
     
-    Ok(env.new_undefined())
+    Ok(JsValue::new_undefined())
 }
 
 // 15.4.4.19 Array.prototype.map ( callbackfn [ , thisArg ] )
-pub fn Array_map(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_map(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let array = try!(args.this(env).to_object(env));
     let len_value = try!(array.get(env, name::LENGTH));
     let len = try!(len_value.to_uint32(env)) as usize;
     
     let callback_fn = if args.argc > 0 {
         let callback_fn = args.arg(env, 0);
-        if !callback_fn.is_callable(env) {
+        if !callback_fn.is_callable() {
             return Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
         }
         callback_fn
@@ -799,7 +799,7 @@ pub fn Array_map(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Loc
         let k_present = array.has_property(env, p_k);
         let mapped_value = if k_present {
             let k_value = try!(array.get(env, p_k));
-            let k = env.new_number(k as f64);
+            let k = JsValue::new_number(k as f64);
             
             try!(callback_fn.call(
                 env,
@@ -808,24 +808,24 @@ pub fn Array_map(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Loc
                 false
             ))
         } else {
-            env.new_undefined()
+            JsValue::new_undefined()
         };
         
         try!(result.define_own_property(env, p_k, JsDescriptor::new_simple_value(mapped_value), false));
     }
     
-    Ok(result.as_value(env))
+    Ok(result.as_value())
 }
 
 // 15.4.4.20 Array.prototype.filter ( callbackfn [ , thisArg ] )
-pub fn Array_filter(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_filter(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let array = try!(args.this(env).to_object(env));
     let len_value = try!(array.get(env, name::LENGTH));
     let len = try!(len_value.to_uint32(env)) as usize;
     
     let callback_fn = if args.argc > 0 {
         let callback_fn = args.arg(env, 0);
-        if !callback_fn.is_callable(env) {
+        if !callback_fn.is_callable() {
             return Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
         }
         callback_fn
@@ -844,7 +844,7 @@ pub fn Array_filter(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
         let k_present = array.has_property(env, p_k);
         if k_present {
             let k_value = try!(array.get(env, p_k));
-            let k = env.new_number(k as f64);
+            let k = JsValue::new_number(k as f64);
             
             let selected = try!(callback_fn.call(
                 env,
@@ -866,18 +866,18 @@ pub fn Array_filter(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
         }
     }
     
-    Ok(result.as_value(env))
+    Ok(result.as_value())
 }
 
 // 15.4.4.21 Array.prototype.reduce ( callbackfn [ , initialValue ] )
-pub fn Array_reduce(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_reduce(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let array = try!(args.this(env).to_object(env));
     let len_value = try!(array.get(env, name::LENGTH));
     let len = try!(len_value.to_uint32(env)) as usize;
     
     let callback_fn = if args.argc > 0 {
         let callback_fn = args.arg(env, 0);
-        if !callback_fn.is_callable(env) {
+        if !callback_fn.is_callable() {
             return Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
         }
         callback_fn
@@ -912,14 +912,14 @@ pub fn Array_reduce(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
         }
     };
     
-    let undefined = env.new_undefined();
+    let undefined = JsValue::new_undefined();
     
     while k < len {
         let p_k = Name::from_index(k);
         let k_present = array.has_property(env, p_k);
         if k_present {
             let k_value = try!(array.get(env, p_k));
-            let k = env.new_number(k as f64);
+            let k = JsValue::new_number(k as f64);
             accumulator = try!(callback_fn.call(
                 env,
                 undefined,
@@ -935,14 +935,14 @@ pub fn Array_reduce(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
 }
 
 // 15.4.4.22 Array.prototype.reduceRight ( callbackfn [ , initialValue ] )
-pub fn Array_reduceRight(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_reduceRight(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let array = try!(args.this(env).to_object(env));
     let len_value = try!(array.get(env, name::LENGTH));
     let len = try!(len_value.to_uint32(env)) as isize;
     
     let callback_fn = if args.argc > 0 {
         let callback_fn = args.arg(env, 0);
-        if !callback_fn.is_callable(env) {
+        if !callback_fn.is_callable() {
             return Err(JsError::new_type(env, ::errors::TYPE_NOT_A_FUNCTION));
         }
         callback_fn
@@ -977,14 +977,14 @@ pub fn Array_reduceRight(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
         }
     };
     
-    let undefined = env.new_undefined();
+    let undefined = JsValue::new_undefined();
     
     while k >= 0 {
         let p_k = Name::from_index(k as usize);
         let k_present = array.has_property(env, p_k);
         if k_present {
             let k_value = try!(array.get(env, p_k));
-            let k = env.new_number(k as f64);
+            let k = JsValue::new_number(k as f64);
             accumulator = try!(callback_fn.call(
                 env,
                 undefined,
@@ -1000,15 +1000,15 @@ pub fn Array_reduceRight(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
 }
 
 // 15.4.3.2 Array.isArray ( arg )
-pub fn Array_isArray(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Array_isArray(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let arg = args.arg(env, 0);
     
     let result = if arg.ty() != JsType::Object {
         false
     } else {
-        if arg.class(env) == Some(name::ARRAY_CLASS) {
+        if arg.class() == Some(name::ARRAY_CLASS) {
             true
-        } else if arg.get_ptr() == env.handle(JsHandle::Array).as_ptr() {
+        } else if arg.unwrap_object().as_ptr() == env.handle(JsHandle::Array).as_ptr() {
             // TODO #64: This is not conform the specs (the specs state that only the [[Class]]
             // should be checked) but the ECMA test suite tests for this and Chrome
             // passes this test.
@@ -1018,5 +1018,5 @@ pub fn Array_isArray(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
         }
     };
     
-    Ok(env.new_bool(result))
+    Ok(JsValue::new_bool(result))
 }

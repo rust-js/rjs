@@ -88,13 +88,13 @@ fn setup_global(env: &mut JsEnv) {
         global_scope.as_root(env)
     };
     
-    let mut global = env.handle(JsHandle::Global).as_value(env);
+    let mut global = env.handle(JsHandle::Global).as_value();
     
     let mut object_prototype = JsObject::new_local(&env, JsStoreType::Hash);
     env.add_handle(JsHandle::Object, object_prototype);
     
-    global.set_prototype(env, Some(object_prototype.as_value(env)));
-    global.set_class(env, Some(name::OBJECT_CLASS));
+    global.set_prototype(Some(object_prototype.as_value()));
+    global.set_class(Some(name::OBJECT_CLASS));
     
     // Constructor setup.
     
@@ -123,12 +123,12 @@ fn setup_global(env: &mut JsEnv) {
     function!(global, name::ENCODE_URI, Global_encodeURI, 1, env);
     function!(global, name::ENCODE_URI_COMPONENT, Global_encodeURIComponent, 1, env);
     
-    value!(global, name::NAN, env.new_number(f64::NAN), false, false, false, env);
-    value!(global, name::INFINITY, env.new_number(f64::INFINITY), false, false, false, env);
-    value!(global, name::UNDEFINED, env.new_undefined(), false, false, false, env);
+    value!(global, name::NAN, JsValue::new_number(f64::NAN), false, false, false, env);
+    value!(global, name::INFINITY, JsValue::new_number(f64::INFINITY), false, false, false, env);
+    value!(global, name::UNDEFINED, JsValue::new_undefined(), false, false, false, env);
 }
 
-fn setup_function(env: &mut JsEnv, mut global: Local<JsValue>, object_prototype: Local<JsObject>) -> Local<JsObject> {
+fn setup_function(env: &mut JsEnv, mut global: JsValue, object_prototype: Local<JsObject>) -> Local<JsObject> {
     let mut prototype = JsObject::new_function_with_prototype(
         env,
         JsFunction::Native(None, 0, Function_baseConstructor, false),
@@ -140,27 +140,27 @@ fn setup_function(env: &mut JsEnv, mut global: Local<JsValue>, object_prototype:
     
     let class = new_naked_function(env, Some(name::FUNCTION_CLASS), 1, Function_constructor, true);
     
-    let mut class_object = class.unwrap_object(env);
+    let mut class_object = class.unwrap_object();
 
-    let value = prototype.as_value(env);
+    let value = prototype.as_value();
     class_object.define_own_property(env, name::PROTOTYPE, JsDescriptor::new_value(value, false, false, false), false).ok();
     prototype.define_own_property(env, name::CONSTRUCTOR, JsDescriptor::new_value(class, true, false, true), false).ok();
     
-    class_object.set_class(env, Some(name::FUNCTION_CLASS));
+    class_object.set_class(Some(name::FUNCTION_CLASS));
     
-    property!(prototype, name::CONSTRUCTOR, class.as_value(env), true, false, true, env);
+    property!(prototype, name::CONSTRUCTOR, class.as_value(), true, false, true, env);
     
     function!(prototype, name::CALL, Function_call, 1, env);
     function!(prototype, name::APPLY, Function_apply, 2, env);
     function!(prototype, name::BIND, Function_bind, 1, env);
     function!(prototype, name::TO_STRING, Function_toString, 0, env);
     
-    property!(global, name::FUNCTION_CLASS, class.as_value(env), true, false, true, env);
+    property!(global, name::FUNCTION_CLASS, class.as_value(), true, false, true, env);
     
     prototype
 }
 
-fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut Local<JsObject>) {
+fn setup_object<'a>(env: &mut JsEnv, mut global: JsValue, prototype: &mut Local<JsObject>) {
     function!(prototype, name::TO_STRING, Object_toString, 0, env);
     function!(prototype, name::TO_LOCALE_STRING, Object_toLocaleString, 0, env);
     function!(prototype, name::VALUE_OF, Object_valueOf, 0, env);
@@ -169,11 +169,11 @@ fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut
     function!(prototype, name::PROPERTY_IS_ENUMERABLE, Object_propertyIsEnumerable, 1, env);
     
     let class = JsObject::new_function(env, JsFunction::Native(Some(name::OBJECT_CLASS), 1, Object_constructor, true), false);
-    let mut class = class.as_value(env);
+    let mut class = class.as_value();
     
     property!(global, name::OBJECT_CLASS, class, true, false, true, env);
         
-    property!(class, name::PROTOTYPE, prototype.as_value(env), false, false, false, env);
+    property!(class, name::PROTOTYPE, prototype.as_value(), false, false, false, env);
     property!(prototype, name::CONSTRUCTOR, class, true, false, true, env);
     
     function!(class, name::CREATE, Object_create, 2, env);
@@ -191,7 +191,7 @@ fn setup_object<'a>(env: &mut JsEnv, mut global: Local<JsValue>, prototype: &mut
     function!(class, name::KEYS, Object_keys, 1, env);
 }
 
-fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
+fn setup_array<'a>(env: &mut JsEnv, mut global: JsValue) {
     // This is a bit of a mess. Array.prototype is itself an array.
     // To get this to work, we duplicate JsEnv.new_native_function here.
     // There are two changes compared to the normal implementation.
@@ -207,7 +207,7 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
     
     let mut prototype = JsObject::new_local(env, JsStoreType::Array);
     
-    let length = env.new_number(0.0);
+    let length = JsValue::new_number(0.0);
     prototype.define_own_property(
         env,
         name::LENGTH,
@@ -215,13 +215,13 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
         false
     ).ok();
     
-    let array_prototype = prototype.as_value(env);
+    let array_prototype = prototype.as_value();
     // Set the [[Prototype]] value as usual.
-    prototype.set_prototype(env, Some(env.handle(JsHandle::Object).as_value(env)));
-    prototype.set_class(env, Some(name::ARRAY_CLASS));
+    prototype.set_prototype(Some(env.handle(JsHandle::Object).as_value()));
+    prototype.set_class(Some(name::ARRAY_CLASS));
     
     // Create the class as usual.
-    let mut class = JsObject::new_function(env, JsFunction::Native(Some(name::ARRAY_CLASS), 1, Array_constructor, true), false).as_value(env);
+    let mut class = JsObject::new_function(env, JsFunction::Native(Some(name::ARRAY_CLASS), 1, Array_constructor, true), false).as_value();
 
     // But set the prototype to our array intance.
     class.define_own_property(env, name::PROTOTYPE, JsDescriptor::new_value(array_prototype, false, false, false), false).ok();
@@ -258,14 +258,14 @@ fn setup_array<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
     function!(class, name::IS_ARRAY, Array_isArray, 1, env);
 }
 
-fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
+fn setup_string<'a>(env: &mut JsEnv, mut global: JsValue) {
     let mut class = env.new_native_function(Some(name::STRING_CLASS), 1, String_constructor);    
     
     function!(class, name::FROM_CHAR_CODE, String_fromCharCode, 1, env);
     
     property!(global, name::STRING_CLASS, class, true, false, true, env);
 
-    let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
+    let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object();
 
     env.add_handle(JsHandle::String, prototype);
     
@@ -290,7 +290,7 @@ fn setup_string<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
     function!(&mut prototype, name::TRIM, String_trim, 0, env);
 }
 
-fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
+fn setup_date<'a>(env: &mut JsEnv, mut global: JsValue) {
     let mut class = env.new_native_function(Some(name::DATE_CLASS), 7, Date_constructor);    
     
     function!(class, name::PARSE, Date_parse, 1, env);
@@ -299,7 +299,7 @@ fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
 
     property!(global, name::DATE_CLASS, class, true, false, true, env);
 
-    let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
+    let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object();
     
     env.add_handle(JsHandle::Date, prototype);
     
@@ -351,19 +351,19 @@ fn setup_date<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
     function!(&mut prototype, name::TO_GMT_STRING, Date_toGMTString, 0, env);
 }
 
-fn setup_number<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
+fn setup_number<'a>(env: &mut JsEnv, mut global: JsValue) {
     let mut class = env.new_native_function(Some(name::NUMBER_CLASS), 1, Number_constructor);
     
-    value!(class, name::MAX_VALUE, env.new_number(f64::MAX), false, false, false, env);
-    value!(class, name::MIN_VALUE, env.new_number(5e-324), false, false, false, env);
-    value!(class, name::NAN, env.new_number(f64::NAN), false, false, false, env);
-    value!(class, name::NEGATIVE_INFINITY, env.new_number(f64::NEG_INFINITY), false, false, false, env);
-    value!(class, name::POSITIVE_INFINITY, env.new_number(f64::INFINITY), false, false, false, env);
-    value!(class, name::EPSILON, env.new_number(2.2204460492503130808472633361816e-16), false, false, false, env);
+    value!(class, name::MAX_VALUE, JsValue::new_number(f64::MAX), false, false, false, env);
+    value!(class, name::MIN_VALUE, JsValue::new_number(5e-324), false, false, false, env);
+    value!(class, name::NAN, JsValue::new_number(f64::NAN), false, false, false, env);
+    value!(class, name::NEGATIVE_INFINITY, JsValue::new_number(f64::NEG_INFINITY), false, false, false, env);
+    value!(class, name::POSITIVE_INFINITY, JsValue::new_number(f64::INFINITY), false, false, false, env);
+    value!(class, name::EPSILON, JsValue::new_number(2.2204460492503130808472633361816e-16), false, false, false, env);
     
     property!(global, name::NUMBER_CLASS, class, true, false, true, env);
 
-    let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
+    let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object();
     
     env.add_handle(JsHandle::Number, prototype);
 
@@ -375,12 +375,12 @@ fn setup_number<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
     function!(&mut prototype, name::TO_PRECISION, Number_toPrecision, 1, env);
 }
 
-fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
+fn setup_boolean<'a>(env: &mut JsEnv, mut global: JsValue) {
     let class = env.new_native_function(Some(name::BOOLEAN_CLASS), 1, Boolean_constructor);
     
     property!(global, name::BOOLEAN_CLASS, class, true, false, true, env);
     
-    let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
+    let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object();
     
     env.add_handle(JsHandle::Boolean, prototype);
     
@@ -388,29 +388,29 @@ fn setup_boolean<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
     function!(&mut prototype, name::TO_STRING, Boolean_toString, 0, env);
 }
 
-fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
+fn setup_math<'a>(env: &mut JsEnv, mut global: JsValue) {
     let mut class = env.create_object();
     
     // 15.8.1.1 E
-    value!(class, name::E, env.new_number(f64::consts::E), false, false, false, env);
+    value!(class, name::E, JsValue::new_number(f64::consts::E), false, false, false, env);
     // 15.8.1.2 LN10
-    value!(class, name::LN10, env.new_number(f64::consts::LN_10), false, false, false, env);
+    value!(class, name::LN10, JsValue::new_number(f64::consts::LN_10), false, false, false, env);
     // 15.8.1.3 LN2
-    value!(class, name::LN2, env.new_number(f64::consts::LN_2), false, false, false, env);
+    value!(class, name::LN2, JsValue::new_number(f64::consts::LN_2), false, false, false, env);
     // 15.8.1.4 LOG2E
-    value!(class, name::LOG2E, env.new_number(f64::consts::LOG2_E), false, false, false, env);
+    value!(class, name::LOG2E, JsValue::new_number(f64::consts::LOG2_E), false, false, false, env);
     // 15.8.1.5 LOG10E
-    value!(class, name::LOG10E, env.new_number(f64::consts::LOG10_E), false, false, false, env);
+    value!(class, name::LOG10E, JsValue::new_number(f64::consts::LOG10_E), false, false, false, env);
     // 15.8.1.6 PI
-    value!(class, name::PI, env.new_number(f64::consts::PI), false, false, false, env);
+    value!(class, name::PI, JsValue::new_number(f64::consts::PI), false, false, false, env);
     // 15.8.1.7 SQRT1_2
-    value!(class, name::SQRT1_2, env.new_number(f64::consts::FRAC_1_SQRT_2), false, false, false, env);
+    value!(class, name::SQRT1_2, JsValue::new_number(f64::consts::FRAC_1_SQRT_2), false, false, false, env);
     // 15.8.1.8 SQRT2
-    value!(class, name::SQRT2, env.new_number(f64::consts::SQRT_2), false, false, false, env);
+    value!(class, name::SQRT2, JsValue::new_number(f64::consts::SQRT_2), false, false, false, env);
     
-    class.set_class(env, Some(name::MATH_CLASS));
+    class.set_class(Some(name::MATH_CLASS));
     
-    property!(global, name::MATH_CLASS, class.as_value(env), true, false, true, env);
+    property!(global, name::MATH_CLASS, class.as_value(), true, false, true, env);
     
     function!(class, name::ABS, Math_abs, 1, env);
     function!(class, name::ACOS, Math_acos, 1, env);
@@ -432,15 +432,15 @@ fn setup_math<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
     function!(class, name::TAN, Math_tan, 1, env);
 }
 
-fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
+fn setup_regexp<'a>(env: &mut JsEnv, mut global: JsValue) {
     let class = env.new_native_function(Some(name::REGEXP_CLASS), 2, RegExp_constructor);
     
-    let class_obj = class.unwrap_object(env);
+    let class_obj = class.unwrap_object();
     env.add_handle(JsHandle::RegExpClass, class_obj);
     
     property!(global, name::REGEXP_CLASS, class, true, false, true, env);
     
-    let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object(env);
+    let mut prototype = class.get(env, name::PROTOTYPE).ok().unwrap().unwrap_object();
     
     env.add_handle(JsHandle::RegExp, prototype);
 
@@ -449,48 +449,48 @@ fn setup_regexp<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
     function!(&mut prototype, name::TO_STRING, RegExp_toString, 0, env);
 }
 
-fn setup_json<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
+fn setup_json<'a>(env: &mut JsEnv, mut global: JsValue) {
     let mut class = env.create_object();
     
-    class.set_class(env, Some(name::JSON_CLASS));
+    class.set_class(Some(name::JSON_CLASS));
     
-    property!(global, name::JSON_CLASS, class.as_value(env), true, false, true, env);
+    property!(global, name::JSON_CLASS, class.as_value(), true, false, true, env);
     
     function!(class, name::PARSE, JSON_parse, 2, env);
     function!(class, name::STRINGIFY, JSON_stringify, 3, env);
 }
 
-fn setup_console<'a>(env: &mut JsEnv, mut global: Local<JsValue>) {
+fn setup_console<'a>(env: &mut JsEnv, mut global: JsValue) {
     let mut class = env.create_object();
     
-    class.set_class(env, Some(name::CONSOLE_CLASS));
+    class.set_class(Some(name::CONSOLE_CLASS));
     
-    property!(global, name::CONSOLE, class.as_value(env), true, false, true, env);
+    property!(global, name::CONSOLE, class.as_value(), true, false, true, env);
     
     function!(class, name::LOG, console_log, 1, env);
 }
 
-fn setup_error<'a>(env: &mut JsEnv, global: Local<JsValue>) {
-    fn register_error(env: &mut JsEnv, mut global: Local<JsValue>, error_class: Option<Local<JsValue>>, error_prototype: Option<Local<JsValue>>, name: Name, handle: JsHandle) -> (Local<JsValue>, Local<JsValue>) {
+fn setup_error<'a>(env: &mut JsEnv, global: JsValue) {
+    fn register_error(env: &mut JsEnv, mut global: JsValue, error_class: Option<JsValue>, error_prototype: Option<JsValue>, name: Name, handle: JsHandle) -> (JsValue, JsValue) {
         let class = env.new_native_function(Some(name), 1, Error_constructor);
         
-        let mut class_obj = class.unwrap_object(env);
+        let mut class_obj = class.unwrap_object();
         env.add_handle(handle, class_obj);
         
         property!(global, name, class, true, false, true, env);
         
         let prototype = class.get(env, name::PROTOTYPE).ok().unwrap();
-        let mut prototype_obj = prototype.unwrap_object(env);
+        let mut prototype_obj = prototype.unwrap_object();
         if error_prototype.is_some() {
-            prototype_obj.set_prototype(env, error_prototype);
+            prototype_obj.set_prototype(error_prototype);
         }
         if error_class.is_some() {
-            class_obj.set_prototype(env, error_class);
+            class_obj.set_prototype(error_class);
         }
         
-        let value = JsString::from_str(env, "").as_value(env);
+        let value = JsString::from_str(env, "").as_value();
         value!(&mut prototype_obj, name::MESSAGE, value, true, false, true, env);
-        let value = JsString::from_str(env, &*env.ir.interner().get(name)).as_value(env);
+        let value = JsString::from_str(env, &*env.ir.interner().get(name)).as_value();
         value!(&mut prototype_obj, name::NAME, value, true, false, true, env);
         function!(&mut prototype_obj, name::TO_STRING, Error_toString, 0, env);
         
@@ -507,6 +507,6 @@ fn setup_error<'a>(env: &mut JsEnv, global: Local<JsValue>) {
     register_error(env, global, Some(error_class), Some(error_prototype), name::NATIVE_ERROR_CLASS, JsHandle::NativeError);
 }
 
-fn new_naked_function<'a>(env: &mut JsEnv, name: Option<Name>, args: u32, function: JsFn, can_construct: bool) -> Local<JsValue> {
-    JsObject::new_function(env, JsFunction::Native(name, args, function, can_construct), false).as_value(env)
+fn new_naked_function<'a>(env: &mut JsEnv, name: Option<Name>, args: u32, function: JsFn, can_construct: bool) -> JsValue {
+    JsObject::new_function(env, JsFunction::Native(name, args, function, can_construct), false).as_value()
 }

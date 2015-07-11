@@ -167,8 +167,8 @@ impl JsRegExp {
 }
 
 impl Local<JsRegExp> {
-    pub fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-        env.new_regexp(*self)
+    pub fn as_value(&self) -> JsValue {
+        JsValue::new_regexp(*self)
     }
     
     pub fn regex<'a>(&'a self) -> &'a Regex {
