@@ -11,7 +11,7 @@ use std::mem::transmute;
 use std::rc::Rc;
 use std::io;
 
-pub use self::value::JsValue;
+pub use self::value::{JsRawValue, JsValue};
 pub use self::object::{JsObject, JsStoreType};
 pub use self::string::JsString;
 pub use self::null::JsNull;
@@ -110,8 +110,7 @@ impl JsEnv {
         if let Err(error) = env::setup(&mut env) {
             let _scope = env.new_local_scope();
             
-            let error = error.as_runtime(&mut env);
-            let error = error.as_local(&env);
+            let error = error.as_runtime(&mut env).as_value(&env);
             
             let error = if let Ok(error) = error.to_string(&mut env) {
                 error.to_string()
@@ -141,11 +140,11 @@ impl JsEnv {
         self.handles.push(root);
     }
     
-    pub fn run(&mut self, file_name: &str) -> JsResult<Root<JsValue>> {
+    pub fn run(&mut self, file_name: &str) -> JsResult<Root<JsRawValue>> {
         self.run_strict(file_name, false)
     }
     
-    pub fn run_strict(&mut self, file_name: &str, strict: bool) -> JsResult<Root<JsValue>> {
+    pub fn run_strict(&mut self, file_name: &str, strict: bool) -> JsResult<Root<JsRawValue>> {
         let function_ref = try!(self.ir.parse_file(file_name, strict, self.privileged));
         
         let mut ir = String::new();
@@ -154,22 +153,22 @@ impl JsEnv {
         
         let _scope = self.new_local_scope();
         
-        let global = self.handle(JsHandle::Global).as_value(self);
+        let global = self.handle(JsHandle::Global).as_value();
         let global_scope = self.global_scope.as_local(self);
         
         self.run_program(function_ref, global, global_scope)
     }
     
-    pub fn eval(&mut self, js: &str) -> JsResult<Root<JsValue>> {
+    pub fn eval(&mut self, js: &str) -> JsResult<Root<JsRawValue>> {
         let _scope = self.new_local_scope();
         
-        let global = self.handle(JsHandle::Global).as_value(self);
+        let global = self.handle(JsHandle::Global).as_value();
         let global_scope = self.global_scope.as_local(self);
         
         self.eval_scoped(js, false, global, global_scope, ParseMode::Normal)
     }
     
-    fn eval_scoped(&mut self, js: &str, strict: bool, this: Local<JsValue>, scope: Local<JsScope>, mode: ParseMode) -> JsResult<Root<JsValue>> {
+    fn eval_scoped(&mut self, js: &str, strict: bool, this: JsValue, scope: Local<JsScope>, mode: ParseMode) -> JsResult<Root<JsRawValue>> {
         let function_ref = try!(self.ir.parse_string(js, strict, mode, self.privileged));
         
         let mut ir = String::new();
@@ -179,19 +178,19 @@ impl JsEnv {
         self.run_program(function_ref, this, scope)
     }
     
-    fn run_program(&mut self, function_ref: FunctionRef, this: Local<JsValue>, scope: Local<JsScope>) -> JsResult<Root<JsValue>> {
+    fn run_program(&mut self, function_ref: FunctionRef, this: JsValue, scope: Local<JsScope>) -> JsResult<Root<JsRawValue>> {
         let function = self.ir.get_function(function_ref);
         
         let this = if !function.strict && this.is_undefined() {
-            self.handle(JsHandle::Global).as_value(self)
+            self.handle(JsHandle::Global).as_value()
         } else {
             this
         };
         
         let function = try!(self.new_function(function_ref, Some(scope), false));
         
-        let mut result = self.heap.alloc_root::<JsValue>(GC_VALUE);
-        *result = *try!(function.call(self, this, Vec::new(), false));
+        let mut result = self.heap.alloc_root::<JsRawValue>(GC_VALUE);
+        *result = try!(function.call(self, this, Vec::new(), false)).as_raw();
         
         Ok(result)
     }
@@ -200,7 +199,7 @@ impl JsEnv {
         self.ir.interner().intern(name)
     }
     
-    pub fn intern_value(&mut self, value: Local<JsValue>) -> JsResult<Name> {
+    pub fn intern_value(&mut self, value: JsValue) -> JsResult<Name> {
         if value.ty() == JsType::Number {
             let index = value.unwrap_number();
             if index >= 0.0 && index <= i32::MAX as f64 && index as i32 as f64 == index {
@@ -212,11 +211,11 @@ impl JsEnv {
         Ok(self.intern(&index.to_string()))
     }
     
-    fn new_native_function<'a>(&mut self, name: Option<Name>, args: u32, function: &JsFn) -> Local<JsValue> {
-        let mut result = JsObject::new_function(self, JsFunction::Native(name, args, JsFnRef::new(function), true), false).as_value(self);
+    fn new_native_function<'a>(&mut self, name: Option<Name>, args: u32, function: JsFn) -> JsValue {
+        let mut result = JsObject::new_function(self, JsFunction::Native(name, args, function, true), false).as_value();
         
         let mut proto = self.create_object();
-        let value = proto.as_value(self);
+        let value = proto.as_value();
         result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, false, false, false), false).ok();
         proto.define_own_property(self, name::CONSTRUCTOR, JsDescriptor::new_value(result, true, false, true), false).ok();
         
@@ -237,7 +236,7 @@ pub enum JsPreferredType {
 
 #[allow(unused_variables)]
 pub trait JsItem {
-    fn as_value(&self, env: &JsEnv) -> Local<JsValue>;
+    fn as_value(&self) -> JsValue;
     
     fn get_own_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
         None
@@ -257,22 +256,22 @@ pub trait JsItem {
     }
     
     // 8.12.3 [[Get]] (P)
-    fn get(&self, env: &mut JsEnv, property: Name) -> JsResult<Local<JsValue>> {
+    fn get(&self, env: &mut JsEnv, property: Name) -> JsResult<JsValue> {
         if let Some(desc) = self.get_property(env, property) {
             return if desc.is_data() {
-                Ok(desc.value(env))
+                Ok(desc.value())
             } else {
-                let get = desc.get(env);
+                let get = desc.get();
                 if get.is_undefined() {
-                    Ok(env.new_undefined())
+                    Ok(JsValue::new_undefined())
                 } else {
-                    let this = self.as_value(env);
+                    let this = self.as_value();
                     get.call(env, this, Vec::new(), false)
                 }
             }
         }
 
-        Ok(env.new_undefined())
+        Ok(JsValue::new_undefined())
     }
     
     // 8.12.4 [[CanPut]] (P)
@@ -298,7 +297,7 @@ pub trait JsItem {
                         false
                     }
                 } else {
-                    if !self.is_extensible(env) {
+                    if !self.is_extensible() {
                         false
                     } else {
                         inherited.is_writable()
@@ -307,11 +306,11 @@ pub trait JsItem {
             }
         }
 
-        self.is_extensible(env)
+        self.is_extensible()
     }
     
     // 8.12.5 [[Put]] ( P, V, Throw )
-    fn put(&mut self, env: &mut JsEnv, property: Name, value: Local<JsValue>, throw: bool) -> JsResult<()> {
+    fn put(&mut self, env: &mut JsEnv, property: Name, value: JsValue, throw: bool) -> JsResult<()> {
         if !self.can_put(env, property) {
             return if throw {
                 Err(JsError::new_type(env, ::errors::TYPE_CANNOT_PUT))
@@ -334,8 +333,8 @@ pub trait JsItem {
         
         if let Some(desc) = self.get_property(env, property) {
             if desc.is_accessor() {
-                let this = self.as_value(env);
-                let set = desc.set(env);
+                let this = self.as_value();
+                let set = desc.set();
                 // TODO #71: This is not conform the specs. The specs state that
                 // this cannot be undefined. However nothing is stopping
                 // you from only specifying a getter.
@@ -365,11 +364,11 @@ pub trait JsItem {
     }
     
     // 8.12.8 [[DefaultValue]] (hint)
-    fn default_value(&self, env: &mut JsEnv, hint: JsPreferredType) -> JsResult<Local<JsValue>> {
+    fn default_value(&self, env: &mut JsEnv, hint: JsPreferredType) -> JsResult<JsValue> {
         let hint = if hint == JsPreferredType::None {
-            let date_class = try!(env.handle(JsHandle::Global).as_value(env).get(env, name::DATE_CLASS));
+            let date_class = try!(env.handle(JsHandle::Global).as_value().get(env, name::DATE_CLASS));
             
-            let object = self.as_value(env);
+            let object = self.as_value();
             if try!(date_class.has_instance(env, object)) {
                 JsPreferredType::String
             } else {
@@ -379,9 +378,9 @@ pub trait JsItem {
             hint
         };
         
-        fn try_call(env: &mut JsEnv, this: Local<JsValue>, method: Local<JsValue>) -> JsResult<Option<Local<JsValue>>> {
-            if method.is_callable(env) {
-                let this = this.as_value(env);
+        fn try_call(env: &mut JsEnv, this: JsValue, method: JsValue) -> JsResult<Option<JsValue>> {
+            if method.is_callable() {
+                let this = this.as_value();
                 let val = try!(method.call(env, this, Vec::new(), false));
                 if val.ty().is_primitive() {
                     return Ok(Some(val));
@@ -391,7 +390,7 @@ pub trait JsItem {
             Ok(None)
         }
         
-        let this = self.as_value(env);
+        let this = self.as_value();
         
         if hint == JsPreferredType::String {
             let to_string = try!(this.get(env, name::TO_STRING));
@@ -426,67 +425,65 @@ pub trait JsItem {
         if throw { Err(JsError::new_type(env, ::errors::TYPE_CANNOT_PUT)) } else { Ok(false) }
     }
     
-    fn is_callable(&self, env: &JsEnv) -> bool {
+    fn is_callable(&self) -> bool {
         false
     }
     
-    fn call(&self, env: &mut JsEnv, this: Local<JsValue>, args: Vec<Local<JsValue>>, strict: bool) -> JsResult<Local<JsValue>> {
-        let args = JsArgs::new(env, this, self.as_value(env), &args);
+    fn call(&self, env: &mut JsEnv, this: JsValue, args: Vec<JsValue>, strict: bool) -> JsResult<JsValue> {
+        let args = JsArgs::new(env, this, self.as_value(), &args);
         
         try!(env.call(JsFnMode::new(false, strict), args));
         
-        let mut result = env.new_value();
-        *result = env.stack.pop();
+        let result = env.stack.pop().as_value(env);
         
         Ok(result)
     }
     
-    fn can_construct(&self, env: &JsEnv) -> bool {
+    fn can_construct(&self) -> bool {
         false
     }
     
     // 13.2.2 [[Construct]]
     // 15.3.4.5.2 [[Construct]]
-    fn construct(&self, env: &mut JsEnv, args: Vec<Local<JsValue>>) -> JsResult<Local<JsValue>> {
-        let args = JsArgs::new(env, env.new_undefined(), self.as_value(env), &args);
+    fn construct(&self, env: &mut JsEnv, args: Vec<JsValue>) -> JsResult<JsValue> {
+        let args = JsArgs::new(env, JsValue::new_undefined(), self.as_value(), &args);
         
         try!(env.construct(args));
         
-        let mut result = env.new_value();
-        *result = env.stack.pop();
+        let result = env.stack.pop().as_value(env);
         
         Ok(result)
     }
     
-    fn has_prototype(&self, env: &JsEnv) -> bool {
+    fn has_prototype(&self) -> bool {
         false
     }
     
-    fn prototype(&self, env: &JsEnv) -> Option<Local<JsValue>> {
-        panic!("prototype not supported on {:?}", self.as_value(env).ty());
+    fn prototype(&self, env: &JsEnv) -> Option<JsValue> {
+        panic!("prototype not supported on {:?}", self.as_value().ty());
     }
     
-    fn set_prototype(&mut self, env: &JsEnv, prototype: Option<Local<JsValue>>) {
-        panic!("prototype not supported on {:?}", self.as_value(env).ty());
+    fn set_prototype(&mut self, prototype: Option<JsValue>) {
+        panic!("prototype not supported on {:?}", self.as_value().ty());
     }
     
-    fn has_class(&self, env: &JsEnv) -> bool {
+    fn has_class(&self) -> bool {
         false
     }
     
-    fn class(&self, env: &JsEnv) -> Option<Name> {
+    fn class(&self) -> Option<Name> {
         None
     }
     
-    fn set_class(&mut self, env: &JsEnv, class: Option<Name>) {
+    fn set_class(&mut self, class: Option<Name>) {
         panic!("class not supported");
     }
     
-    fn is_extensible(&self, env: &JsEnv) -> bool {
+    fn is_extensible(&self) -> bool {
         true
     }
     
-    fn has_instance(&self, env: &mut JsEnv, object: Local<JsValue>) -> JsResult<bool> {
+    fn has_instance(&self, env: &mut JsEnv, object: JsValue) -> JsResult<bool> {
         Err(JsError::new_type(env, ::errors::TYPE_CANNOT_HAS_INSTANCE))
     }
     
@@ -494,16 +491,16 @@ pub trait JsItem {
         panic!("scope not supported");
     }
     
-    fn set_scope(&mut self, env: &JsEnv, scope: Option<Local<JsScope>>) {
+    fn set_scope(&mut self, scope: Option<Local<JsScope>>) {
         panic!("scope not supported");
     }
 }
 
 #[derive(Copy, Clone)]
 pub struct JsDescriptor {
-    pub value: Option<Local<JsValue>>,
-    pub get: Option<Local<JsValue>>,
-    pub set: Option<Local<JsValue>>,
+    pub value: Option<JsValue>,
+    pub get: Option<JsValue>,
+    pub set: Option<JsValue>,
     pub writable: Option<bool>,
     pub enumerable: Option<bool>,
     pub configurable: Option<bool>
@@ -521,7 +518,7 @@ impl JsDescriptor {
         }
     }
     
-    pub fn new_value(value: Local<JsValue>, writable: bool, enumerable: bool, configurable: bool) -> JsDescriptor {
+    pub fn new_value(value: JsValue, writable: bool, enumerable: bool, configurable: bool) -> JsDescriptor {
         JsDescriptor {
             value: Some(value),
             get: None,
@@ -532,11 +529,11 @@ impl JsDescriptor {
         }
     }
     
-    pub fn new_simple_value(value: Local<JsValue>) -> JsDescriptor {
+    pub fn new_simple_value(value: JsValue) -> JsDescriptor {
         Self::new_value(value, true, true, true)
     }
     
-    pub fn new_accessor(get: Option<Local<JsValue>>, set: Option<Local<JsValue>>, enumerable: bool, configurable: bool) -> JsDescriptor {
+    pub fn new_accessor(get: Option<JsValue>, set: Option<JsValue>, enumerable: bool, configurable: bool) -> JsDescriptor {
         JsDescriptor {
             value: None,
             get: get,
@@ -547,12 +544,12 @@ impl JsDescriptor {
         }
     }
     
-    pub fn new_simple_accessor(get: Option<Local<JsValue>>, set: Option<Local<JsValue>>) -> JsDescriptor {
+    pub fn new_simple_accessor(get: Option<JsValue>, set: Option<JsValue>) -> JsDescriptor {
         Self::new_accessor(get, set, true, true)
     }
     
     pub fn is_same(&self, env: &JsEnv, other: &JsDescriptor) -> bool {
-        fn is_same(env: &JsEnv, x: &Option<Local<JsValue>>, y: &Option<Local<JsValue>>) -> bool{
+        fn is_same(env: &JsEnv, x: &Option<JsValue>, y: &Option<JsValue>) -> bool{
             (x.is_none() && y.is_none()) || (x.is_some() && y.is_some() && env.same_value(x.unwrap(), y.unwrap()))
         }
         
@@ -579,16 +576,16 @@ impl JsDescriptor {
         !(self.is_accessor() || self.is_data())
     }
     
-    pub fn value(&self, env: &JsEnv) -> Local<JsValue> {
-        self.value.unwrap_or_else(|| env.new_undefined())
+    pub fn value(&self) -> JsValue {
+        self.value.unwrap_or_else(|| JsValue::new_undefined())
     }
     
-    pub fn get(&self, env: &JsEnv) -> Local<JsValue> {
-        self.get.unwrap_or_else(|| env.new_undefined())
+    pub fn get(&self) -> JsValue {
+        self.get.unwrap_or_else(|| JsValue::new_undefined())
     }
     
-    pub fn set(&self, env: &JsEnv) -> Local<JsValue> {
-        self.set.unwrap_or_else(|| env.new_undefined())
+    pub fn set(&self) -> JsValue {
+        self.set.unwrap_or_else(|| JsValue::new_undefined())
     }
     
     pub fn is_writable(&self) -> bool {
@@ -608,34 +605,34 @@ impl JsDescriptor {
     }
     
     // 8.10.4 FromPropertyDescriptor ( Desc )
-    pub fn from_property_descriptor(&self, env: &mut JsEnv) -> JsResult<Local<JsValue>> {
+    pub fn from_property_descriptor(&self, env: &mut JsEnv) -> JsResult<JsValue> {
         let mut obj = env.create_object();
         
         if self.is_data() {
-            let value = self.value(env);
-            let writable = env.new_bool(self.is_writable());
+            let value = self.value();
+            let writable = JsValue::new_bool(self.is_writable());
             
             try!(obj.define_own_property(env, name::VALUE, JsDescriptor::new_simple_value(value), false));
             try!(obj.define_own_property(env, name::WRITABLE, JsDescriptor::new_simple_value(writable), false));
         } else if self.is_accessor() {
-            let get = self.get(env);
-            let set = self.set(env);
+            let get = self.get();
+            let set = self.set();
             
             try!(obj.define_own_property(env, name::GET, JsDescriptor::new_simple_value(get), false));
             try!(obj.define_own_property(env, name::SET, JsDescriptor::new_simple_value(set), false));
         }
         
-        let enumerable = env.new_bool(self.is_enumerable());
-        let configurable = env.new_bool(self.is_configurable());
+        let enumerable = JsValue::new_bool(self.is_enumerable());
+        let configurable = JsValue::new_bool(self.is_configurable());
         
         try!(obj.define_own_property(env, name::ENUMERABLE, JsDescriptor::new_simple_value(enumerable), false));
         try!(obj.define_own_property(env, name::CONFIGURABLE, JsDescriptor::new_simple_value(configurable), false));
         
-        Ok(obj.as_value(env))
+        Ok(obj.as_value())
     }
     
     // 8.10.5 ToPropertyDescriptor ( Obj )
-    pub fn to_property_descriptor(env: &mut JsEnv, obj: Local<JsValue>) -> JsResult<JsDescriptor> {
+    pub fn to_property_descriptor(env: &mut JsEnv, obj: JsValue) -> JsResult<JsDescriptor> {
         if obj.ty() != JsType::Object {
             Err(JsError::new_type(env, ::errors::TYPE_INVALID))
         } else {
@@ -664,7 +661,7 @@ impl JsDescriptor {
             };
             let getter = if obj.has_property(env, name::GET) {
                 let getter = try!(obj.get(env, name::GET));
-                if getter.ty() != JsType::Undefined && !getter.is_callable(env) {
+                if getter.ty() != JsType::Undefined && !getter.is_callable() {
                     return Err(JsError::new_type(env, ::errors::TYPE_ACCESSOR_NOT_CALLABLE));
                 }
                 Some(getter)
@@ -673,7 +670,7 @@ impl JsDescriptor {
             };
             let setter = if obj.has_property(env, name::SET) {
                 let setter = try!(obj.get(env, name::SET));
-                if setter.ty() != JsType::Undefined && !setter.is_callable(env) {
+                if setter.ty() != JsType::Undefined && !setter.is_callable() {
                     return Err(JsError::new_type(env, ::errors::TYPE_ACCESSOR_NOT_CALLABLE));
                 }
                 Some(setter)
@@ -763,16 +760,16 @@ pub struct JsArgs {
 }
 
 impl JsArgs {
-    pub fn new(env: &JsEnv, this: Local<JsValue>, function: Local<JsValue>, args: &[Local<JsValue>]) -> JsArgs {
+    pub fn new(env: &JsEnv, this: JsValue, function: JsValue, args: &[JsValue]) -> JsArgs {
         let stack = &*env.stack;
         
         let frame = stack.create_frame(0);
         
-        stack.push(*this);
-        stack.push(*function);
+        stack.push(this.as_raw());
+        stack.push(function.as_raw());
         
         for arg in args {
-            stack.push(**arg);
+            stack.push(arg.as_raw());
         }
         
         JsArgs {
@@ -781,15 +778,15 @@ impl JsArgs {
         }
     }
     
-    pub fn arg(&self, env: &JsEnv, index: usize) -> Local<JsValue> {
+    pub fn arg(&self, env: &JsEnv, index: usize) -> JsValue {
         if self.argc > index {
             self.frame.get(env, index + 2)
         } else {
-            env.new_undefined()
+            JsValue::new_undefined()
         }
     }
     
-    pub fn arg_or(&self, env: &JsEnv, index: usize, def: Local<JsValue>) -> Local<JsValue> {
+    pub fn arg_or(&self, env: &JsEnv, index: usize, def: JsValue) -> JsValue {
         if self.argc > index {
             self.frame.get(env, index + 2)
         } else {
@@ -797,7 +794,7 @@ impl JsArgs {
         }
     }
     
-    pub fn map_or<U, F: FnOnce(&mut JsEnv, Local<JsValue>) -> U>(&self, env: &mut JsEnv, index: usize, def: U, f: F) -> U {
+    pub fn map_or<U, F: FnOnce(&mut JsEnv, JsValue) -> U>(&self, env: &mut JsEnv, index: usize, def: U, f: F) -> U {
         if self.argc > index {
             let value = self.frame.get(env, index + 2);
             f(env, value)
@@ -806,7 +803,7 @@ impl JsArgs {
         }
     }
     
-    pub fn map_or_else<U, D: FnOnce(&mut JsEnv) -> U, F: FnOnce(&mut JsEnv, Local<JsValue>) -> U>(&self, env: &mut JsEnv, index: usize, def: D, f: F) -> U {
+    pub fn map_or_else<U, D: FnOnce(&mut JsEnv) -> U, F: FnOnce(&mut JsEnv, JsValue) -> U>(&self, env: &mut JsEnv, index: usize, def: D, f: F) -> U {
         if self.argc > index {
             let value = self.frame.get(env, index + 2);
             f(env, value)
@@ -815,7 +812,7 @@ impl JsArgs {
         }
     }
     
-    pub fn args(&self, env: &JsEnv) -> Vec<Local<JsValue>> {
+    pub fn args(&self, env: &JsEnv) -> Vec<JsValue> {
         let mut args = Vec::new();
         
         for i in 0..self.argc {
@@ -825,79 +822,29 @@ impl JsArgs {
         args
     }
     
-    pub fn this(&self, env: &JsEnv) -> Local<JsValue> {
+    pub fn this(&self, env: &JsEnv) -> JsValue {
         self.frame.get(env, 0)
     }
     
-    fn set_this(&self, value: JsValue) {
+    fn set_this(&self, value: JsRawValue) {
         self.frame.set(0, value);
     }
     
-    fn raw_this(&self) -> JsValue {
+    fn raw_this(&self) -> JsRawValue {
         self.frame.raw_get(0)
     }
     
-    pub fn function(&self, env: &JsEnv) -> Local<JsValue> {
+    pub fn function(&self, env: &JsEnv) -> JsValue {
         self.frame.get(env, 1)
     }
 }
 
-pub type JsFn = Fn(&mut JsEnv, JsFnMode, JsArgs) -> JsResult<Local<JsValue>>;
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub struct JsFnRef([usize; 2]);
-
-impl JsFnRef {
-    fn new(func: &JsFn) -> JsFnRef {
-        JsFnRef(unsafe { transmute(func) })
-    }
-    
-    fn call(self: &JsFnRef, env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
-        let func = unsafe { transmute::<_, &JsFn>(self.0) };
-        
-        func(env, mode, args)
-    }
-}
+pub type JsFn = fn(&mut JsEnv, JsFnMode, JsArgs) -> JsResult<JsValue>;
 
 pub enum JsFunction {
     Ir(FunctionRef),
-    Native(Option<Name>, u32, JsFnRef, bool),
+    Native(Option<Name>, u32, JsFn, bool),
     Bound
-}
-
-impl Clone for JsFunction {
-    fn clone(&self) -> JsFunction {
-        match *self {
-            JsFunction::Ir(function_ref) => JsFunction::Ir(function_ref),
-            JsFunction::Native(name, args, callback, can_construct) => JsFunction::Native(name, args, callback, can_construct),
-            JsFunction::Bound => JsFunction::Bound
-        }
-    }
-}
-
-impl PartialEq for JsFunction {
-    fn eq(&self, other: &JsFunction) -> bool {
-        match *self {
-            JsFunction::Ir(function_ref) => {
-                if let JsFunction::Ir(other_function_ref) = *other {
-                    function_ref == other_function_ref
-                } else {
-                    false
-                }
-            }
-            JsFunction::Native(..) => {
-                // TODO #72: Unable to compare pointer types (results in an ICE).
-                false
-            }
-            JsFunction::Bound => {
-                if let JsFunction::Bound = *other {
-                    true
-                } else {
-                    false
-                }
-            }
-        }
-    }
 }
 
 pub type JsResult<T> = Result<T, JsError>;
@@ -907,11 +854,11 @@ pub enum JsError {
     Lex(String),
     Parse(String),
     Reference(String),
-    Runtime(Root<JsValue>)
+    Runtime(Root<JsRawValue>)
 }
 
 impl JsError {
-    fn new_error(env: &mut JsEnv, handle: JsHandle, message: Option<&str>, file_name: Option<&str>, line_number: Option<usize>) -> JsResult<Root<JsValue>> {
+    fn new_error(env: &mut JsEnv, handle: JsHandle, message: Option<&str>, file_name: Option<&str>, line_number: Option<usize>) -> JsResult<Root<JsRawValue>> {
         // If construction of the error fails, we simply propagate the error itself.
         
         let _scope = env.new_local_scope();
@@ -921,21 +868,22 @@ impl JsError {
         let mut args = Vec::new();
         
         args.push(match message {
-            Some(message) => JsString::from_str(env, message).as_value(env),
-            None => env.new_undefined()
+            Some(message) => JsString::from_str(env, message).as_value(),
+            None => JsValue::new_undefined()
         });
         args.push(match file_name {
-            Some(file_name) => JsString::from_str(env, file_name).as_value(env),
-            None => env.new_undefined()
+            Some(file_name) => JsString::from_str(env, file_name).as_value(),
+            None => JsValue::new_undefined()
         });
         args.push(match line_number {
-            Some(line_number) => env.new_number(line_number as f64),
-            None => env.new_undefined()
+            Some(line_number) => JsValue::new_number(line_number as f64),
+            None => JsValue::new_undefined()
         });
         
-        let obj = try!(class.construct(env, args));
+        let mut result = env.heap.alloc_root::<JsRawValue>(GC_VALUE);
+        *result = try!(class.construct(env, args)).as_raw();
         
-        Ok(obj.as_root(env))
+        Ok(result)
     }
     
     pub fn new_runtime(env: &mut JsEnv, handle: JsHandle, message: Option<&str>, file_name: Option<&str>, line_number: Option<usize>) -> JsError {
@@ -965,7 +913,7 @@ impl JsError {
         Self::new_runtime(env, JsHandle::SyntaxError, Some(message), None, None)
     }
     
-    pub fn as_runtime(&self, env: &mut JsEnv) -> Root<JsValue> {
+    pub fn as_runtime(&self, env: &mut JsEnv) -> Root<JsRawValue> {
         match *self {
             JsError::Lex(ref message) | JsError::Parse(ref message) => {
                 match Self::new_error(env, JsHandle::SyntaxError, Some(&message), None, None) {
@@ -982,8 +930,10 @@ impl JsError {
             JsError::Runtime(ref error) => error.clone(),
             ref error @ _ => {
                 // TODO #73: This could be nicer.
-                let error = JsString::from_str(env, &format!("{:?}", error)).as_value(env);
-                error.as_root(env)
+                let mut result = env.heap.alloc_root::<JsRawValue>(GC_VALUE);
+                *result = JsString::from_str(env, &format!("{:?}", error)).as_value().as_raw();
+                
+                result
             }
         }
     }

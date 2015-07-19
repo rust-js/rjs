@@ -1,5 +1,6 @@
-use rt::{JsEnv, JsValue, JsString, JsItem, JsIterator, JsScope, JsType, JsArgs};
+use rt::{JsEnv, JsRawValue, JsValue, JsString, JsItem, JsIterator, JsScope, JsType, JsArgs};
 use rt::{JsDescriptor, JsPreferredType, JsFnMode, JsHandle};
+use rt::{GC_VALUE};
 use gc::*;
 use ::{JsResult, JsError};
 use ir::IrFunction;
@@ -39,7 +40,7 @@ macro_rules! numeric_op {
         let result = local_try!($frame.env.$method(arg));
         $frame.env.stack.drop_frame(frame);
         
-        $frame.env.stack.push(JsValue::new_number(result));
+        $frame.env.stack.push(JsRawValue::new_number(result));
     } }
 }
 
@@ -53,7 +54,7 @@ macro_rules! numeric_bin_op {
         let result = local_try!($frame.env.$method(arg1, arg2));
         $frame.env.stack.drop_frame(frame);
         
-        $frame.env.stack.push(JsValue::new_number(result));
+        $frame.env.stack.push(JsRawValue::new_number(result));
     } }
 }
 
@@ -62,7 +63,7 @@ struct Frame<'a> {
     ip: usize,
     locals: StackFrame,
     args: JsArgs,
-    thrown: Option<Root<JsValue>>,
+    thrown: Option<Root<JsRawValue>>,
     strict: bool,
     scope: usize,
     built_scope: bool
@@ -78,13 +79,13 @@ impl JsEnv {
         // here now.
         
         for _ in args.argc..function.args as usize {
-            self.stack.push(JsValue::new_undefined());
+            self.stack.push(JsRawValue::new_undefined());
         }
         
         let mut locals = block.locals.len();
         
         for _ in 0..block.locals.len() {
-            self.stack.push(JsValue::new_undefined());
+            self.stack.push(JsRawValue::new_undefined());
         }
         
         // Build the environment context.
@@ -93,17 +94,17 @@ impl JsEnv {
             let _scope = self.new_local_scope();
             
             let scope = if let ScopeType::Thin(size) = function.build_scope {
-                JsScope::new_local_thin(self, size as usize, Some(scope)).as_value(self)
+                JsScope::new_local_thin(self, size as usize, Some(scope)).as_value()
             } else if function.build_scope == ScopeType::Thick {
                 let mut scope_object = self.create_object();
-                scope_object.set_prototype(&self, None);
+                scope_object.set_prototype(None);
                 
-                JsScope::new_local_thick(self, scope_object, Some(scope), true).as_value(self)
+                JsScope::new_local_thick(self, scope_object, Some(scope), true).as_value()
             } else {
-                scope.as_value(self)
+                scope.as_value()
             };
             
-            self.stack.push(*scope);
+            self.stack.push(scope.as_raw());
             
             locals += 1;
             locals - 1
@@ -420,7 +421,7 @@ impl<'a> Frame<'a> {
                 
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(*result);
+                self.env.stack.push(result.as_raw());
             }
             Ir::BitAnd => numeric_bin_op!(self, bit_and),
             Ir::BitNot => numeric_op!(self, bit_not),
@@ -431,16 +432,16 @@ impl<'a> Frame<'a> {
             Ir::CurrentIter(local) => {
                 let _scope = self.env.new_local_scope();
                 
-                let iterator = self.locals.get(&self.env, local.offset()).unwrap_iterator(self.env);
+                let iterator = self.locals.get(&self.env, local.offset()).unwrap_iterator();
                 let name = iterator.current();
                 
                 let result = if let Some(index) = name.index() {
-                    JsString::from_str(self.env, &index.to_string()).as_value(self.env)
+                    JsString::from_str(self.env, &index.to_string()).as_value()
                 } else {
-                    JsString::from_str(self.env, &*self.env.ir.interner().get(name)).as_value(self.env)
+                    JsString::from_str(self.env, &*self.env.ir.interner().get(name)).as_value()
                 };
                 
-                self.env.stack.push(*result);
+                self.env.stack.push(result.as_raw());
             }
             Ir::Debugger => {
                 // Not implemented. Debugger support is not yet part of rjs.
@@ -458,7 +459,7 @@ impl<'a> Frame<'a> {
                 
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(JsValue::new_bool(result));
+                self.env.stack.push(JsRawValue::new_bool(result));
             }
             Ir::DeleteName(name) => {
                 match local_try!(self.delete(name, false)) {
@@ -483,7 +484,7 @@ impl<'a> Frame<'a> {
                 let _scope = self.env.new_local_scope();
                 
                 let mut scope_object = self.env.create_object();
-                scope_object.set_prototype(self.env, None);
+                scope_object.set_prototype(None);
                 
                 let scope = JsScope::new_local_thick(
                     self.env,
@@ -492,7 +493,7 @@ impl<'a> Frame<'a> {
                     false
                 );
                 
-                self.locals.set(self.scope, *scope.as_value(self.env));
+                self.locals.set(self.scope, scope.as_value().as_raw());
             }
             Ir::EnterWithEnv => {
                 let _scope = self.env.new_local_scope();
@@ -504,12 +505,12 @@ impl<'a> Frame<'a> {
                 
                 let scope = JsScope::new_local_thick(
                     self.env,
-                    scope_object.unwrap_object(self.env),
+                    scope_object.unwrap_object(),
                     self.get_scope(),
                     false
                 );
                 
-                self.locals.set(self.scope, *scope.as_value(self.env));
+                self.locals.set(self.scope, scope.as_value().as_raw());
                 
                 self.env.stack.drop_frame(frame);
             }
@@ -522,7 +523,7 @@ impl<'a> Frame<'a> {
                 let result = local_try!(self.env.eq(arg1, arg2));
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(JsValue::new_bool(result));
+                self.env.stack.push(JsRawValue::new_bool(result));
             }
             Ir::Ge => {
                 let _scope = self.env.new_local_scope();
@@ -532,7 +533,7 @@ impl<'a> Frame<'a> {
                 let arg2 = frame.get(&self.env, 1);
                 let result = local_try!(self.env.compare_ge(arg1, arg2));
                 self.env.stack.drop_frame(frame);
-                self.env.stack.push(JsValue::new_bool(result));
+                self.env.stack.push(JsRawValue::new_bool(result));
             }
             Ir::Gt => {
                 let _scope = self.env.new_local_scope();
@@ -542,7 +543,7 @@ impl<'a> Frame<'a> {
                 let arg2 = frame.get(&self.env, 1);
                 let result = local_try!(self.env.compare_gt(arg1, arg2));
                 self.env.stack.drop_frame(frame);
-                self.env.stack.push(JsValue::new_bool(result));
+                self.env.stack.push(JsRawValue::new_bool(result));
             }
             Ir::In => {
                 let _scope = self.env.new_local_scope();
@@ -553,7 +554,7 @@ impl<'a> Frame<'a> {
                 let result = local_try!(self.env.in_(arg1, arg2));
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(*result);
+                self.env.stack.push(result.as_raw());
             }
             Ir::InitEnvName(name) => {
                 let _scope = self.env.new_local_scope();
@@ -580,7 +581,7 @@ impl<'a> Frame<'a> {
                 let result = local_try!(self.env.instanceof(arg1, arg2));
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(*result);
+                self.env.stack.push(result.as_raw());
             }
             Ir::IntoIter(local) => {
                 let _scope = self.env.new_local_scope();
@@ -588,8 +589,8 @@ impl<'a> Frame<'a> {
                 let frame = self.env.stack.create_frame(1);
                 
                 let arg = frame.get(&self.env, 0);
-                let result = JsIterator::new_local(self.env, arg).as_value(self.env);
-                self.locals.set(local.offset(), *result);
+                let result = JsIterator::new_local(self.env, arg).as_value();
+                self.locals.set(local.offset(), result.as_raw());
                 
                 self.env.stack.drop_frame(frame);
             }
@@ -641,7 +642,7 @@ impl<'a> Frame<'a> {
                 let arg2 = frame.get(&self.env, 1);
                 let result = local_try!(self.env.compare_le(arg1, arg2));
                 self.env.stack.drop_frame(frame);
-                self.env.stack.push(JsValue::new_bool(result));
+                self.env.stack.push(JsRawValue::new_bool(result));
             }
             Ir::Leave(label) => return Next::Leave(label.offset()),
             Ir::LeaveEnv => {
@@ -650,9 +651,9 @@ impl<'a> Frame<'a> {
                 let scope = self.get_scope().unwrap();
                 
                 let parent = if let Some(parent) = scope.parent(self.env) {
-                    *parent.as_value(self.env)
+                    parent.as_value().as_raw()
                 } else {
-                    JsValue::new_undefined()
+                    JsRawValue::new_undefined()
                 };
                 
                 self.locals.set(self.scope, parent);
@@ -671,28 +672,28 @@ impl<'a> Frame<'a> {
                 
                 self.thrown = None;
             }
-            Ir::LoadF64(value) => self.env.stack.push(JsValue::new_number(value)),
-            Ir::LoadFalse => self.env.stack.push(JsValue::new_bool(false)),
+            Ir::LoadF64(value) => self.env.stack.push(JsRawValue::new_number(value)),
+            Ir::LoadFalse => self.env.stack.push(JsRawValue::new_bool(false)),
             Ir::LoadFunction(function) => {
                 let _scope = self.env.new_local_scope();
                 
                 let scope = self.get_scope();
                 
-                let function = *local_try!(self.env.new_function(function, scope, self.strict));
-                self.env.stack.push(function);
+                let function = local_try!(self.env.new_function(function, scope, self.strict));
+                self.env.stack.push(function.as_raw());
             }
             Ir::LoadEnvObject => {
                 let _scope = self.env.new_local_scope();
                 
                 let scope = self.get_scope().unwrap();
-                let scope_object = scope.scope_object(self.env).as_value(self.env);
+                let scope_object = scope.scope_object(self.env).as_value();
                 
-                self.env.stack.push(*scope_object);
+                self.env.stack.push(scope_object.as_raw());
             }
             Ir::LoadGlobal(name) => {
                 let _scope = self.env.new_local_scope();
                 
-                let global = self.env.handle(JsHandle::Global).as_value(self.env);
+                let global = self.env.handle(JsHandle::Global).as_value();
                 
                 if !global.has_property(self.env, name) {
                     return Next::Throw(JsError::new_reference(self.env));
@@ -700,10 +701,10 @@ impl<'a> Frame<'a> {
                 
                 let result = local_try!(global.get(self.env, name));
                 
-                self.env.stack.push(*result);
+                self.env.stack.push(result.as_raw());
             }
-            Ir::LoadI32(value) => self.env.stack.push(JsValue::new_number(value as f64)),
-            Ir::LoadI64(value) => self.env.stack.push(JsValue::new_number(value as f64)),
+            Ir::LoadI32(value) => self.env.stack.push(JsRawValue::new_number(value as f64)),
+            Ir::LoadI64(value) => self.env.stack.push(JsRawValue::new_number(value as f64)),
             Ir::LoadIndex => {
                 let _scope = self.env.new_local_scope();
                 
@@ -717,7 +718,7 @@ impl<'a> Frame<'a> {
                 
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(*result);
+                self.env.stack.push(result.as_raw());
             }
             Ir::LoadLifted(index, depth) => {
                 let _scope = self.env.new_local_scope();
@@ -725,7 +726,7 @@ impl<'a> Frame<'a> {
                 let scope = self.find_scope(depth, false);
                 let result = scope.get(self.env, index as usize);
                 
-                self.env.stack.push(*result);
+                self.env.stack.push(result.as_raw());
             }
             Ir::LoadLocal(local) => {
                 self.env.stack.push(self.locals.raw_get(local.offset()));
@@ -739,24 +740,24 @@ impl<'a> Frame<'a> {
                 
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(*result);
+                self.env.stack.push(result.as_raw());
             }
-            Ir::LoadNull => self.env.stack.push(JsValue::new_null()),
+            Ir::LoadNull => self.env.stack.push(JsRawValue::new_null()),
             Ir::LoadParam(index) => self.env.stack.push(self.args.frame.raw_get(index as usize + CALL_PROLOG)),
             Ir::LoadRegex(pattern, flags) => {
                 let _scope = self.env.new_local_scope();
                 
                 let pattern = self.env.ir.interner().get(pattern);
-                let pattern = JsString::from_str(self.env, &*pattern).as_value(self.env);
+                let pattern = JsString::from_str(self.env, &*pattern).as_value();
                 
                 let flags = self.env.ir.interner().get(flags);
-                let flags = JsString::from_str(self.env, &*flags).as_value(self.env);
+                let flags = JsString::from_str(self.env, &*flags).as_value();
                 
                 let regexp = self.env.handle(JsHandle::RegExpClass);
                 
                 let result = local_try!(regexp.construct(self.env, vec![pattern, flags]));
                 
-                self.env.stack.push(*result);
+                self.env.stack.push(result.as_raw());
             }
             Ir::LoadEnv(name) => {
                 let _scope = self.env.new_local_scope();
@@ -764,14 +765,14 @@ impl<'a> Frame<'a> {
                 let scope_object = local_try!(self.find_scope_object(name, true));
                 
                 let value = local_try!(scope_object.get(self.env, name));
-                self.env.stack.push(*value);
+                self.env.stack.push(value.as_raw());
             }
             Ir::FindEnvObjectFor(name) => {
                 let _scope = self.env.new_local_scope();
                 
                 let scope_object = local_try!(self.find_scope_object(name, false));
                 
-                self.env.stack.push(*scope_object);
+                self.env.stack.push(scope_object.as_raw());
             }
             Ir::LoadEnvObjectFor(name) => {
                 let _scope = self.env.new_local_scope();
@@ -779,24 +780,24 @@ impl<'a> Frame<'a> {
                 let strict = self.strict;
                 let scope_object = local_try!(self.find_scope_object(name, strict));
                 
-                self.env.stack.push(*scope_object);
+                self.env.stack.push(scope_object.as_raw());
             }
             Ir::LoadEnvArguments(depth) => {
                 let scope = self.find_scope(depth, true);
                 
                 let arguments = scope.arguments(self.env).unwrap();
                 
-                self.env.stack.push(*arguments);
+                self.env.stack.push(arguments.as_raw());
             }
             Ir::LoadString(string) => {
                 let _scope = self.env.new_local_scope();
                 
-                let result = JsString::from_str(self.env, &*self.env.ir.interner().get(string)).as_value(self.env);
-                self.env.stack.push(*result);
+                let result = JsString::from_str(self.env, &*self.env.ir.interner().get(string)).as_value();
+                self.env.stack.push(result.as_raw());
             }
             Ir::LoadThis => self.env.stack.push(self.args.raw_this()),
-            Ir::LoadTrue => self.env.stack.push(JsValue::new_bool(true)),
-            Ir::LoadUndefined => self.env.stack.push(JsValue::new_undefined()),
+            Ir::LoadTrue => self.env.stack.push(JsRawValue::new_bool(true)),
+            Ir::LoadUndefined => self.env.stack.push(JsRawValue::new_undefined()),
             Ir::Lsh => numeric_bin_op!(self, lsh),
             Ir::Lt => {
                 let _scope = self.env.new_local_scope();
@@ -809,7 +810,7 @@ impl<'a> Frame<'a> {
                 
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(JsValue::new_bool(result));
+                self.env.stack.push(JsRawValue::new_bool(result));
             }
             Ir::Modulus => numeric_bin_op!(self, modulus),
             Ir::Multiply => numeric_bin_op!(self, multiply),
@@ -823,7 +824,7 @@ impl<'a> Frame<'a> {
                 
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(JsValue::new_bool(result));
+                self.env.stack.push(JsRawValue::new_bool(result));
             }
             Ir::Negative => numeric_op!(self, negative),
             Ir::New(count) => {
@@ -840,25 +841,25 @@ impl<'a> Frame<'a> {
             Ir::NewArguments => {
                 let _scope = self.env.new_local_scope();
                     
-                let result = local_try!(self.env.new_arguments(&self.args, self.strict)).as_value(self.env);
-                self.env.stack.push(*result);
+                let result = local_try!(self.env.new_arguments(&self.args, self.strict)).as_value();
+                self.env.stack.push(result.as_raw());
             }
             Ir::NewArray => {
                 let _scope = self.env.new_local_scope();
                     
-                let result = self.env.create_array().as_value(self.env);
-                self.env.stack.push(*result);
+                let result = self.env.create_array().as_value();
+                self.env.stack.push(result.as_raw());
             }
             Ir::NewObject => {
                 let _scope = self.env.new_local_scope();
                     
-                let result = self.env.create_object().as_value(self.env);
-                self.env.stack.push(*result);
+                let result = self.env.create_object().as_value();
+                self.env.stack.push(result.as_raw());
             }
             Ir::NextIter(local, label) => {
                 let _scope = self.env.new_local_scope();
                 
-                let mut iterator = self.locals.get(&self.env, local.offset()).unwrap_iterator(self.env);
+                let mut iterator = self.locals.get(&self.env, local.offset()).unwrap_iterator();
                 
                 if iterator.next(self.env) {
                     self.ip  = label.offset();
@@ -872,7 +873,7 @@ impl<'a> Frame<'a> {
                 let arg = frame.get(&self.env, 0);
                 let result = self.env.logical_not(arg);
                 self.env.stack.drop_frame(frame);
-                self.env.stack.push(*result);
+                self.env.stack.push(result.as_raw());
             }
             Ir::Pick(depth) => {
                 let frame = self.env.stack.create_frame(depth as usize + 1);
@@ -998,7 +999,7 @@ impl<'a> Frame<'a> {
                 
                 let frame = self.env.stack.create_frame(1);
                 let value = frame.get(&self.env, 0);
-                let mut global = self.env.handle(JsHandle::Global).as_value(self.env);
+                let mut global = self.env.handle(JsHandle::Global).as_value();
                 
                 if self.strict && !global.has_property(self.env, name) {
                     return Next::Throw(JsError::new_reference(self.env));
@@ -1029,7 +1030,7 @@ impl<'a> Frame<'a> {
                 let value = frame.get(&self.env, 0);
                 self.env.stack.drop_frame(frame);
                 
-                self.args.frame.set(index as usize + CALL_PROLOG, *value);
+                self.args.frame.set(index as usize + CALL_PROLOG, value.as_raw());
             }
             Ir::StrictEq => {
                 let _scope = self.env.new_local_scope();
@@ -1040,7 +1041,7 @@ impl<'a> Frame<'a> {
                 let result = self.env.strict_eq(arg1, arg2);
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(JsValue::new_bool(result));
+                self.env.stack.push(JsRawValue::new_bool(result));
             }
             Ir::StrictNe => {
                 let _scope = self.env.new_local_scope();
@@ -1051,7 +1052,7 @@ impl<'a> Frame<'a> {
                 let result = self.env.strict_eq(arg1, arg2);
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(JsValue::new_bool(!result));
+                self.env.stack.push(JsRawValue::new_bool(!result));
             }
             Ir::Subtract => numeric_bin_op!(self, subtract),
             Ir::Swap => {
@@ -1064,7 +1065,10 @@ impl<'a> Frame<'a> {
                 let _scope = self.env.new_local_scope();
                 
                 let frame = self.env.stack.create_frame(1);
-                let error = frame.get(&self.env, 0).as_root(self.env);
+                
+                let mut error = self.env.heap.alloc_root::<JsRawValue>(GC_VALUE);
+                *error = frame.get(&self.env, 0).as_raw();
+                
                 self.env.stack.drop_frame(frame);
                 
                 return Next::Throw(JsError::Runtime(error));
@@ -1088,17 +1092,17 @@ impl<'a> Frame<'a> {
                 let result = local_try!(arg.to_primitive(self.env, JsPreferredType::String));
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(*result);
+                self.env.stack.push(result.as_raw());
             }
             Ir::Typeof => {
                 let _scope = self.env.new_local_scope();
                 
                 let frame = self.env.stack.create_frame(1);
                 let arg = frame.get(&self.env, 0);
-                let result = self.env.type_of(arg).as_value(self.env);
+                let result = self.env.type_of(arg).as_value();
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(*result.as_ptr());
+                self.env.stack.push(result.as_raw());
             }
             Ir::TypeofName(name) => {
                 let _scope = self.env.new_local_scope();
@@ -1112,11 +1116,11 @@ impl<'a> Frame<'a> {
                     self.env.type_of(arg)
                 };
                 
-                let result = result.as_value(self.env);
+                let result = result.as_value();
                 
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(*result);
+                self.env.stack.push(result.as_raw());
             }
             Ir::TypeofIndex => {
                 let _scope = self.env.new_local_scope();
@@ -1133,11 +1137,11 @@ impl<'a> Frame<'a> {
                     self.env.type_of(arg)
                 };
                 
-                let result = result.as_value(self.env);
+                let result = result.as_value();
                 
                 self.env.stack.drop_frame(frame);
                 
-                self.env.stack.push(*result);
+                self.env.stack.push(result.as_raw());
             }
             Ir::ValidateMemberTarget => {
                 let _scope = self.env.new_local_scope();
@@ -1166,7 +1170,7 @@ impl<'a> Frame<'a> {
             return None;
         }
         
-        Some(scope.unwrap_scope(self.env))
+        Some(scope.unwrap_scope())
     }
     
     fn find_scope(&self, mut depth: u32, root: bool) -> Local<JsScope> {
@@ -1197,13 +1201,13 @@ impl<'a> Frame<'a> {
         scope
     }
     
-    fn find_scope_object(&mut self, name: Name, must_exist: bool) -> JsResult<Local<JsValue>> {
+    fn find_scope_object(&mut self, name: Name, must_exist: bool) -> JsResult<JsValue> {
         if let Some(mut scope) = self.get_scope() {
             loop {
                 let object = scope.scope_object(self.env);
                 
                 if object.get_own_property(self.env, name).is_some() {
-                    return Ok(object.as_value(self.env));
+                    return Ok(object.as_value());
                 }
                 
                 if let Some(parent) = scope.parent(self.env) {
@@ -1217,7 +1221,7 @@ impl<'a> Frame<'a> {
         if must_exist {
             Err(JsError::new_reference(self.env))
         } else {
-            Ok(self.env.handle(JsHandle::Global).as_value(self.env))
+            Ok(self.env.handle(JsHandle::Global).as_value())
         }
     }
     
@@ -1254,17 +1258,19 @@ impl<'a> Frame<'a> {
             let js = if args.argc > 0 {
                 args.arg(self.env, 0)
             } else {
-                self.env.new_undefined()
+                JsValue::new_undefined()
             };
             
             let result = if js.ty() != JsType::String {
-                *js
+                js.as_raw()
             } else {
-                let js = js.unwrap_string(self.env).to_string();
+                let js = js.unwrap_string().to_string();
                 let scope = self.get_scope().unwrap();
                 
                 let this_arg = self.args.this(self.env);
-                *try!(self.env.eval_scoped(&js, self.strict, this_arg, scope, ParseMode::DirectEval)).as_local(self.env)
+                try!(self.env.eval_scoped(&js, self.strict, this_arg, scope, ParseMode::DirectEval))
+                    .as_value(self.env)
+                    .as_raw()
             };
             
             self.env.stack.drop_frame(frame);
@@ -1299,7 +1305,7 @@ impl<'a> Frame<'a> {
             }
         };
         
-        self.env.stack.push(JsValue::new_bool(result));
+        self.env.stack.push(JsRawValue::new_bool(result));
         
         Ok(None)
     }
@@ -1311,17 +1317,17 @@ impl<'a> Frame<'a> {
         let arg = frame.get(&self.env, 0);
         
         let result = match cast_ty {
-            CastType::Primitive => *try!(arg.to_primitive(self.env, JsPreferredType::None)),
-            CastType::StringPrimitive => *try!(arg.to_primitive(self.env, JsPreferredType::String)),
-            CastType::NumberPrimitive => *try!(arg.to_primitive(self.env, JsPreferredType::Number)),
-            CastType::Boolean => JsValue::new_bool(arg.to_boolean()),
-            CastType::Number => JsValue::new_number(try!(arg.to_number(self.env))),
-            CastType::Integer => JsValue::new_number(try!(arg.to_integer(self.env))),
-            CastType::Int32 => JsValue::new_number(try!(arg.to_int32(self.env)) as f64),
-            CastType::UInt32 => JsValue::new_number(try!(arg.to_uint32(self.env)) as f64),
-            CastType::UInt16 => JsValue::new_number(try!(arg.to_uint16(self.env)) as f64),
-            CastType::String => *try!(arg.to_string(self.env)).as_value(self.env),
-            CastType::Object => *try!(arg.to_object(self.env))
+            CastType::Primitive => try!(arg.to_primitive(self.env, JsPreferredType::None)).as_raw(),
+            CastType::StringPrimitive => try!(arg.to_primitive(self.env, JsPreferredType::String)).as_raw(),
+            CastType::NumberPrimitive => try!(arg.to_primitive(self.env, JsPreferredType::Number)).as_raw(),
+            CastType::Boolean => JsRawValue::new_bool(arg.to_boolean()),
+            CastType::Number => JsRawValue::new_number(try!(arg.to_number(self.env))),
+            CastType::Integer => JsRawValue::new_number(try!(arg.to_integer(self.env))),
+            CastType::Int32 => JsRawValue::new_number(try!(arg.to_int32(self.env)) as f64),
+            CastType::UInt32 => JsRawValue::new_number(try!(arg.to_uint32(self.env)) as f64),
+            CastType::UInt16 => JsRawValue::new_number(try!(arg.to_uint16(self.env)) as f64),
+            CastType::String => try!(arg.to_string(self.env)).as_value().as_raw(),
+            CastType::Object => try!(arg.to_object(self.env)).as_raw()
         };
         
         self.env.stack.drop_frame(frame);

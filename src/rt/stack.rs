@@ -1,6 +1,6 @@
-use gc::{GcRootWalker, Local, ptr_t};
+use gc::{GcRootWalker, ptr_t};
 use gc::os::Memory;
-use rt::{JsEnv, JsValue, JsType};
+use rt::{JsEnv, JsRawValue, JsValue, JsType};
 use std::mem::{size_of, transmute};
 use std::ptr;
 use std::cell::Cell;
@@ -41,7 +41,7 @@ impl Stack {
     
     pub fn create_frame(&self, size: usize) -> StackFrame {
         StackFrame {
-            sp: unsafe { self.sp.get().offset(-((size_of::<JsValue>() * size) as isize)) }
+            sp: unsafe { self.sp.get().offset(-((size_of::<JsRawValue>() * size) as isize)) }
         }
     }
     
@@ -49,23 +49,23 @@ impl Stack {
         self.sp.set(frame.sp);
     }
     
-    pub fn push(&self, value: JsValue) {
+    pub fn push(&self, value: JsRawValue) {
         if self.sp.get() == self.end {
             panic!("stack overflow");
         }
         
         unsafe {
-            *transmute::<_, *mut JsValue>(self.sp.get()) = value;
-            self.sp.set(self.sp.get().offset(size_of::<JsValue>() as isize));
+            *transmute::<_, *mut JsRawValue>(self.sp.get()) = value;
+            self.sp.set(self.sp.get().offset(size_of::<JsRawValue>() as isize));
         }
     }
     
     #[allow(dead_code)]
-    pub fn pop(&self) -> JsValue {
+    pub fn pop(&self) -> JsRawValue {
         unsafe {
-            let sp = self.sp.get().offset(-(size_of::<JsValue>() as isize));
+            let sp = self.sp.get().offset(-(size_of::<JsRawValue>() as isize));
             self.sp.set(sp);
-            *transmute::<_, *mut JsValue>(sp)
+            *transmute::<_, *mut JsRawValue>(sp)
         }
     }
 }
@@ -76,26 +76,22 @@ pub struct StackFrame {
 }
 
 impl StackFrame {
-    pub fn get(&self, env: &JsEnv, offset: usize) -> Local<JsValue> {
-        let mut local = env.new_value();
-        
-        *local = self.raw_get(offset);
-        
-        local
+    pub fn get(&self, env: &JsEnv, offset: usize) -> JsValue {
+        self.raw_get(offset).as_value(env)
     }
     
-    pub fn raw_get(&self, offset: usize) -> JsValue {
+    pub fn raw_get(&self, offset: usize) -> JsRawValue {
         unsafe {
-            *transmute::<_, *mut JsValue>(
-                self.sp.offset((size_of::<JsValue>() * offset) as isize)
+            *transmute::<_, *mut JsRawValue>(
+                self.sp.offset((size_of::<JsRawValue>() * offset) as isize)
             )
         }
     }
     
-    pub fn set(&self, offset: usize, value: JsValue) {
+    pub fn set(&self, offset: usize, value: JsRawValue) {
         unsafe {
-            *transmute::<_, *mut JsValue>(
-                self.sp.offset((size_of::<JsValue>() * offset) as isize)
+            *transmute::<_, *mut JsRawValue>(
+                self.sp.offset((size_of::<JsRawValue>() * offset) as isize)
             ) = value
         }
     }

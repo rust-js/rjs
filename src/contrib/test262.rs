@@ -296,8 +296,7 @@ fn run_safe(file: String) {
         Err(error) => {
             let _scope = env.new_local_scope();
             
-            let error = error.as_runtime(&mut env);
-            let error = error.as_local(&env);
+            let error = error.as_runtime(&mut env).as_value(&env);
             
             let error = if let Ok(error) = error.to_string(&mut env) {
                 let mut error = error.to_string();

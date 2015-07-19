@@ -35,7 +35,7 @@ pub enum ComparisonResult {
 
 impl JsEnv {
     // http://ecma-international.org/ecma-262/5.1/#sec-11.6.1
-    pub fn add(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<Local<JsValue>> {
+    pub fn add(&mut self, lhs: JsValue, rhs: JsValue) -> JsResult<JsValue> {
         let lprim = try!(lhs.to_primitive(self, JsPreferredType::None));
         let rprim = try!(rhs.to_primitive(self, JsPreferredType::None));
         
@@ -44,16 +44,16 @@ impl JsEnv {
             let rhs = try!(rprim.to_string(self));
             let result = JsString::concat(self, &[lhs, rhs]);
             
-            Ok(self.new_string(result))
+            Ok(result.as_value())
         } else {
             let lnum = try!(lprim.to_number(self));
             let rnum = try!(rprim.to_number(self));
-            Ok(self.new_number(lnum + rnum))
+            Ok(JsValue::new_number(lnum + rnum))
         }
     }
     
     // 11.6.2 The Subtraction Operator ( - )
-    pub fn subtract(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+    pub fn subtract(&mut self, lhs: JsValue, rhs: JsValue) -> JsResult<f64> {
         let lnum = try!(lhs.to_number(self));
         let rnum = try!(rhs.to_number(self));
         
@@ -61,7 +61,7 @@ impl JsEnv {
     }
     
     // 11.4.7 Unary - Operator
-    pub fn negative(&mut self, expr: Local<JsValue>) -> JsResult<f64> {
+    pub fn negative(&mut self, expr: JsValue) -> JsResult<f64> {
         let old_value = try!(expr.to_number(self));
         let result = if old_value.is_nan() {
             old_value
@@ -73,7 +73,7 @@ impl JsEnv {
     }
     
     // 11.4.6 Unary + Operator
-    pub fn positive(&mut self, expr: Local<JsValue>) -> JsResult<f64> {
+    pub fn positive(&mut self, expr: JsValue) -> JsResult<f64> {
         expr.to_number(self)
     }
     
@@ -86,19 +86,18 @@ impl JsEnv {
             return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
         };
         
-        if mode.construct() && !function_obj.can_construct(self) {
+        if mode.construct() && !function_obj.can_construct() {
             return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_CONSTRUCTOR));
         }
         
-        let function = function_obj.unwrap_object(self).function();
-        if !function.is_some() {
-            return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION));
-        }
+        let function = match function_obj.unwrap_object().function() {
+            Some(function) => function,
+            None => return Err(JsError::new_type(self, ::errors::TYPE_NOT_A_FUNCTION))
+        };
         
-        let function = function.as_ref().unwrap();
         let frame = args.frame;
         
-        let result = self.do_call(mode, args, function_obj, function);
+        let result = self.do_call(mode, args, function_obj, &function);
         
         // If we're throwing an exception, we need to pop the stack here. Otherwise
         // the stack will have been popped by the callee.
@@ -110,7 +109,7 @@ impl JsEnv {
         result
     }
     
-    fn do_call(&mut self, mode: JsFnMode, args: JsArgs, function_obj: Local<JsValue>, function: &JsFunction) -> JsResult<()> {
+    fn do_call(&mut self, mode: JsFnMode, args: JsArgs, function_obj: JsValue, function: &JsFunction) -> JsResult<()> {
         match *function {
             JsFunction::Ir(function_ref) => {
                 let block = try!(self.ir.get_function_ir(function_ref));
@@ -129,12 +128,12 @@ impl JsEnv {
                     let this = args.this(self);
                     
                     let this = if this.is_null_or_undefined() {
-                        self.handle(JsHandle::Global).as_value(self)
+                        self.handle(JsHandle::Global).as_value()
                     } else {
                         try!(this.to_object(self))
                     };
                     
-                    args.set_this(*this);
+                    args.set_this(this.as_raw());
                 }
                 
                 let scope = function_obj.scope(self)
@@ -149,10 +148,10 @@ impl JsEnv {
             JsFunction::Native(_, _, ref callback, _) => {
                 let frame = args.frame;
                 
-                let result = try!(callback.call(self, mode, args));
+                let result = try!(callback(self, mode, args));
                 
                 self.stack.drop_frame(frame);
-                self.stack.push(*result);
+                self.stack.push(result.as_raw());
                 
                 Ok(())
             }
@@ -183,10 +182,12 @@ impl JsEnv {
     pub fn construct(&mut self, args: JsArgs) -> JsResult<()> {
         let function = args.function(self);
         
-        let is_bound = if function.class(self) == Some(name::FUNCTION_CLASS) {
-            let object = function.as_value(self).unwrap_object(self);
-            let function = object.function().unwrap();
-            function == JsFunction::Bound
+        let is_bound = if function.class() == Some(name::FUNCTION_CLASS) {
+            let object = function.as_value().unwrap_object();
+            match object.function().unwrap() {
+                JsFunction::Bound => true,
+                _ => false
+            }
         } else {
             false
         };
@@ -214,7 +215,7 @@ impl JsEnv {
             
             return match result {
                 Ok(result) => {
-                    self.stack.push(*result);
+                    self.stack.push(result.as_raw());
                     Ok(())
                 }
                 Err(error) => Err(error)
@@ -222,45 +223,45 @@ impl JsEnv {
         }
         
         let mut obj = JsObject::new_local(self, JsStoreType::Hash);
-        obj.set_class(self, Some(name::OBJECT_CLASS));
+        obj.set_class(Some(name::OBJECT_CLASS));
         
         let proto = try!(function.get(self, name::PROTOTYPE));
         if proto.ty() == JsType::Object {
-            obj.set_prototype(self, Some(proto));
+            obj.set_prototype(Some(proto));
         } else {
-            let proto = self.handle(JsHandle::Object).as_value(self);
-            obj.set_prototype(self, Some(proto));
+            let proto = self.handle(JsHandle::Object).as_value();
+            obj.set_prototype(Some(proto));
         }
         
-        let obj = obj.as_value(self);
+        let obj = obj.as_value();
         
-        args.set_this(*obj);
+        args.set_this(obj.as_raw());
         
         try!(self.call(JsFnMode::new(true, false), args));
         
         let frame = self.stack.create_frame(1);
         if frame.raw_get(0).ty() != JsType::Object {
-            frame.set(0, *obj);
+            frame.set(0, obj.as_raw());
         }
         
         Ok(())
     }
     
     // http://ecma-international.org/ecma-262/5.1/#sec-11.4.3
-    pub fn type_of(&mut self, value: Local<JsValue>) -> Local<JsString> {
+    pub fn type_of(&mut self, value: JsValue) -> Local<JsString> {
         JsString::from_str(self, match value.ty() {
             JsType::Undefined => "undefined",
             JsType::Null => "object",
             JsType::Boolean => "boolean",
             JsType::Number => "number",
             JsType::String => "string",
-            JsType::Object => if value.unwrap_object(self).function().is_some() { "function" } else { "object" },
+            JsType::Object => if value.is_callable() { "function" } else { "object" },
             _ => panic!("unexpected type")
         })
     }
     
     // 11.8.5 The Abstract Relational Comparison Algorithm
-    pub fn compare(&mut self, x: Local<JsValue>, y: Local<JsValue>, left_first: bool) -> JsResult<ComparisonResult> {
+    pub fn compare(&mut self, x: JsValue, y: JsValue, left_first: bool) -> JsResult<ComparisonResult> {
         let px;
         let py;
         
@@ -299,12 +300,12 @@ impl JsEnv {
     }
     
     // 11.8.5 The Abstract Relational Comparison Algorithm
-    pub fn compare_string(&mut self, x: Local<JsValue>, y: Local<JsValue>) -> ComparisonResult {
+    pub fn compare_string(&mut self, x: JsValue, y: JsValue) -> ComparisonResult {
         assert_eq!(x.ty(), JsType::String);
         assert_eq!(y.ty(), JsType::String);
         
-        let x = x.unwrap_string(self);
-        let y = y.unwrap_string(self);
+        let x = x.unwrap_string();
+        let y = y.unwrap_string();
         
         let x = x.chars();
         let y = y.chars();
@@ -336,7 +337,7 @@ impl JsEnv {
     }
     
     // 11.8.1 The Less-than Operator ( < )
-    pub fn compare_lt(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<bool> {
+    pub fn compare_lt(&mut self, lval: JsValue, rval: JsValue) -> JsResult<bool> {
         let result = try!(self.compare(lval, rval, true));
         
         Ok(match result {
@@ -346,7 +347,7 @@ impl JsEnv {
     }
     
     // 11.8.2 The Greater-than Operator ( > )
-    pub fn compare_gt(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<bool>  {
+    pub fn compare_gt(&mut self, lval: JsValue, rval: JsValue) -> JsResult<bool>  {
         let result = try!(self.compare(rval, lval, false));
         
         Ok(match result {
@@ -356,7 +357,7 @@ impl JsEnv {
     }
     
     // 11.8.3 The Less-than-or-equal Operator ( <= )
-    pub fn compare_le(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<bool>  {
+    pub fn compare_le(&mut self, lval: JsValue, rval: JsValue) -> JsResult<bool>  {
         let result = try!(self.compare(rval, lval, false));
         
         Ok(match result {
@@ -366,7 +367,7 @@ impl JsEnv {
     }
     
     // 11.8.4 The Greater-than-or-equal Operator ( >= )
-    pub fn compare_ge(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<bool>  {
+    pub fn compare_ge(&mut self, lval: JsValue, rval: JsValue) -> JsResult<bool>  {
         let result = try!(self.compare(lval, rval, true));
         
         Ok(match result {
@@ -375,16 +376,16 @@ impl JsEnv {
         })
     }
     
-    pub fn new_function(&mut self, function_ref: FunctionRef, scope: Option<Local<JsScope>>, strict: bool) -> JsResult<Local<JsValue>> {
-        let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), strict).as_value(self);
+    pub fn new_function(&mut self, function_ref: FunctionRef, scope: Option<Local<JsScope>>, strict: bool) -> JsResult<JsValue> {
+        let mut result = JsObject::new_function(self, JsFunction::Ir(function_ref), strict).as_value();
         
         let function = self.ir.get_function(function_ref);
         if function.take_scope {
-            result.set_scope(self, scope);
+            result.set_scope(scope);
         }
         
         let mut proto = self.create_object();
-        let value = proto.as_value(self);
+        let value = proto.as_value();
         try!(result.define_own_property(self, name::PROTOTYPE, JsDescriptor::new_value(value, true, false, false), false));
         try!(proto.define_own_property(self, name::CONSTRUCTOR, JsDescriptor::new_value(result, true, false, true), false));
 
@@ -392,20 +393,20 @@ impl JsEnv {
     }
     
     // 11.8.6 The instanceof operator
-    pub fn instanceof(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<Local<JsValue>> {
+    pub fn instanceof(&mut self, lval: JsValue, rval: JsValue) -> JsResult<JsValue> {
         let result = try!(rval.has_instance(self, lval));
-        Ok(self.new_bool(result))
+        Ok(JsValue::new_bool(result))
     }
     
     // http://ecma-international.org/ecma-262/5.1/#sec-11.4.9
-    pub fn logical_not(&mut self, value: Local<JsValue>) -> Local<JsValue> {
+    pub fn logical_not(&mut self, value: JsValue) -> JsValue {
         let value = value.to_boolean();
-        self.new_bool(!value)
+        JsValue::new_bool(!value)
     }
     
     // 11.9.1 The Equals Operator ( == )
     // 11.9.3 The Abstract Equality Comparison Algorithm
-    pub fn eq(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> JsResult<bool> {
+    pub fn eq(&mut self, lval: JsValue, rval: JsValue) -> JsResult<bool> {
         let lty = lval.ty();
         let rty = rval.ty();
         
@@ -418,19 +419,19 @@ impl JsEnv {
             Ok(true)
         } else if lty == JsType::Number && rty == JsType::String {
             let rval = try!(rval.to_number(self));
-            let rval = self.new_number(rval);
+            let rval = JsValue::new_number(rval);
             self.eq(lval, rval)
         } else if lty == JsType::String && rty == JsType::Number {
             let lval = try!(lval.to_number(self));
-            let lval = self.new_number(lval);
+            let lval = JsValue::new_number(lval);
             self.eq(lval, rval)
         } else if lty == JsType::Boolean {
             let lval = try!(lval.to_number(self));
-            let lval = self.new_number(lval);
+            let lval = JsValue::new_number(lval);
             self.eq(lval, rval)
         } else if rty == JsType::Boolean {
             let rval = try!(rval.to_number(self));
-            let rval = self.new_number(rval);
+            let rval = JsValue::new_number(rval);
             self.eq(lval, rval)
         } else if (lty == JsType::String || lty == JsType::Number) && rty == JsType::Object {
             let rval = try!(rval.to_primitive(self, JsPreferredType::None));
@@ -444,14 +445,14 @@ impl JsEnv {
     }
     
     // 11.9.2 The Does-not-equals Operator ( != )
-    pub fn ne(&mut self, lref: Local<JsValue>, rref: Local<JsValue>) -> JsResult<bool> {
+    pub fn ne(&mut self, lref: JsValue, rref: JsValue) -> JsResult<bool> {
         return Ok(!try!(self.eq(lref, rref)))
     } 
     
     // http://ecma-international.org/ecma-262/5.1/#sec-11.9.4
     // http://ecma-international.org/ecma-262/5.1/#sec-11.9.5
     // http://ecma-international.org/ecma-262/5.1/#sec-11.9.6
-    pub fn strict_eq(&mut self, lval: Local<JsValue>, rval: Local<JsValue>) -> bool {
+    pub fn strict_eq(&mut self, lval: JsValue, rval: JsValue) -> bool {
         if lval.ty() != rval.ty() {
             false
         } else {
@@ -469,8 +470,8 @@ impl JsEnv {
                     }
                 }
                 JsType::String => {
-                    let lval = lval.unwrap_string(self);
-                    let rval = rval.unwrap_string(self);
+                    let lval = lval.unwrap_string();
+                    let rval = rval.unwrap_string();
                     
                     let x = lval.chars();
                     let y = rval.chars();
@@ -496,8 +497,8 @@ impl JsEnv {
     pub fn create_object(&self) -> Local<JsObject> {
         let mut obj = JsObject::new_local(self, JsStoreType::Hash);
         
-        obj.set_prototype(self, Some(self.handle(JsHandle::Object).as_value(self)));
-        obj.set_class(self, Some(name::OBJECT_CLASS));
+        obj.set_prototype(Some(self.handle(JsHandle::Object).as_value()));
+        obj.set_class(Some(name::OBJECT_CLASS));
         
         obj
     }
@@ -511,7 +512,7 @@ impl JsEnv {
         // We don't propagate the JsError because this define_own_property
         // will not fail.
         
-        let length = self.new_number(0.0);
+        let length = JsValue::new_number(0.0);
         obj.define_own_property(
             self,
             name::LENGTH,
@@ -519,14 +520,14 @@ impl JsEnv {
             false
         ).ok();
         
-        obj.set_prototype(self, Some(self.handle(JsHandle::Array).as_value(self)));
-        obj.set_class(self, Some(name::ARRAY_CLASS));
+        obj.set_prototype(Some(self.handle(JsHandle::Array).as_value()));
+        obj.set_class(Some(name::ARRAY_CLASS));
         
         obj
     }
     
     // 9.12 The SameValue Algorithm
-    pub fn same_value(&self, x: Local<JsValue>, y: Local<JsValue>) -> bool {
+    pub fn same_value(&self, x: JsValue, y: JsValue) -> bool {
         let x_ty = x.ty();
         let y_ty = y.ty();
         
@@ -554,7 +555,7 @@ impl JsEnv {
                         false
                     }
                 }
-                JsType::String => JsString::equals(x.unwrap_string(self), y.unwrap_string(self)),
+                JsType::String => JsString::equals(x.unwrap_string(), y.unwrap_string()),
                 JsType::Boolean | JsType::Object => x == y,
                 _ => panic!("unexpected type")
             }
@@ -562,12 +563,12 @@ impl JsEnv {
     }
     
     // 10.6 Arguments Object
-    pub fn new_arguments(&mut self, args: &JsArgs, strict: bool) -> JsResult<Local<JsValue>> {
+    pub fn new_arguments(&mut self, args: &JsArgs, strict: bool) -> JsResult<JsValue> {
         let mut result = self.create_object();
         
-        result.set_class(self, Some(name::ARGUMENTS_CLASS));
+        result.set_class(Some(name::ARGUMENTS_CLASS));
         
-        let value = self.new_number(args.argc as f64);
+        let value = JsValue::new_number(args.argc as f64);
         try!(result.define_own_property(self, name::LENGTH, JsDescriptor::new_value(value, true, false, true), false));
         
         for i in 0..args.argc {
@@ -579,17 +580,17 @@ impl JsEnv {
             let function = args.function(self);
             try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_value(function, true, false, true), false));
         } else {
-            let thrower = self.new_native_function(None, 0, &throw_type_error);
+            let thrower = self.new_native_function(None, 0, throw_type_error);
             
             try!(result.define_own_property(self, name::CALLEE, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false));
             try!(result.define_own_property(self, name::CALLER, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false));
         }
         
-        Ok(result.as_value(self))
+        Ok(result.as_value())
     }
     
     // 11.8.7 The in operator
-    pub fn in_(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<Local<JsValue>> {
+    pub fn in_(&mut self, lhs: JsValue, rhs: JsValue) -> JsResult<JsValue> {
         if rhs.ty() != JsType::Object {
             Err(JsError::new_type(self, ::errors::TYPE_IN_RHS_NOT_OBJECT))
         } else {
@@ -598,17 +599,17 @@ impl JsEnv {
             
             let result = rhs.has_property(self, name);
             
-            Ok(self.new_bool(result))
+            Ok(JsValue::new_bool(result))
         }
     }
     
     // 11.5.1 Applying the * Operator
-    pub fn multiply(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+    pub fn multiply(&mut self, lhs: JsValue, rhs: JsValue) -> JsResult<f64> {
         self.multiplicative(lhs, rhs, |lhs, rhs| lhs * rhs)
     }
     
     // 11.5.2 Applying the / Operator
-    pub fn divide(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+    pub fn divide(&mut self, lhs: JsValue, rhs: JsValue) -> JsResult<f64> {
         self.multiplicative(lhs, rhs, |lhs, rhs| {
             if rhs == 0.0 {
                 if lhs == 0.0 || lhs.is_nan() {
@@ -625,47 +626,47 @@ impl JsEnv {
     }
     
     // 11.5.3 Applying the % Operator
-    pub fn modulus(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+    pub fn modulus(&mut self, lhs: JsValue, rhs: JsValue) -> JsResult<f64> {
         self.multiplicative(lhs, rhs, |lhs, rhs| lhs % rhs)
     }
     
     // 11.5 Multiplicative Operators
-    fn multiplicative<F: FnOnce(f64, f64) -> f64>(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>, func: F) -> JsResult<f64> {
+    fn multiplicative<F: FnOnce(f64, f64) -> f64>(&mut self, lhs: JsValue, rhs: JsValue, func: F) -> JsResult<f64> {
         let left = try!(lhs.to_number(self));
         let right = try!(rhs.to_number(self));
         Ok(func(left, right))
     }
     
     // 11.10 Binary Bitwise Operators
-    pub fn bit_and(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+    pub fn bit_and(&mut self, lhs: JsValue, rhs: JsValue) -> JsResult<f64> {
         self.bitwise(lhs, rhs, |lhs, rhs| lhs & rhs)
     }
     
     // 11.10 Binary Bitwise Operators
-    pub fn bit_or(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+    pub fn bit_or(&mut self, lhs: JsValue, rhs: JsValue) -> JsResult<f64> {
         self.bitwise(lhs, rhs, |lhs, rhs| lhs | rhs)
     }
     
     // 11.10 Binary Bitwise Operators
-    pub fn bit_xor(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+    pub fn bit_xor(&mut self, lhs: JsValue, rhs: JsValue) -> JsResult<f64> {
         self.bitwise(lhs, rhs, |lhs, rhs| lhs ^ rhs)
     }
     
     // 11.10 Binary Bitwise Operators
-    fn bitwise<F: FnOnce(i32, i32) -> i32>(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>, func: F) -> JsResult<f64> {
+    fn bitwise<F: FnOnce(i32, i32) -> i32>(&mut self, lhs: JsValue, rhs: JsValue, func: F) -> JsResult<f64> {
         let left = try!(lhs.to_int32(self));
         let right = try!(rhs.to_int32(self));
         Ok(func(left, right) as f64)
     }
     
     // 11.4.8 Bitwise NOT Operator ( ~ )
-    pub fn bit_not(&mut self, arg: Local<JsValue>) -> JsResult<f64> {
+    pub fn bit_not(&mut self, arg: JsValue) -> JsResult<f64> {
         let arg = try!(arg.to_int32(self));
         Ok((!arg) as f64)
     }
     
     // 11.7.1 The Left Shift Operator ( << )
-    pub fn lsh(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+    pub fn lsh(&mut self, lhs: JsValue, rhs: JsValue) -> JsResult<f64> {
         let lnum = try!(lhs.to_int32(self));
         let rnum = try!(rhs.to_uint32(self));
         let shift_count = rnum & 0x1f;
@@ -674,7 +675,7 @@ impl JsEnv {
     }
     
     // 11.7.2 The Signed Right Shift Operator ( >> )
-    pub fn rsh(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+    pub fn rsh(&mut self, lhs: JsValue, rhs: JsValue) -> JsResult<f64> {
         let lnum = try!(lhs.to_int32(self));
         let rnum = try!(rhs.to_uint32(self));
         let shift_count = rnum & 0x1f;
@@ -683,7 +684,7 @@ impl JsEnv {
     }
     
     // 11.7.3 The Unsigned Right Shift Operator ( >>> )
-    pub fn unsigned_rsh(&mut self, lhs: Local<JsValue>, rhs: Local<JsValue>) -> JsResult<f64> {
+    pub fn unsigned_rsh(&mut self, lhs: JsValue, rhs: JsValue) -> JsResult<f64> {
         let lnum = try!(lhs.to_uint32(self));
         let rnum = try!(rhs.to_uint32(self));
         let shift_count = rnum & 0x1f;
@@ -692,6 +693,6 @@ impl JsEnv {
     }
 }
 
-fn throw_type_error(env: &mut JsEnv, _mode: JsFnMode, _args: JsArgs) -> JsResult<Local<JsValue>> {
+fn throw_type_error(env: &mut JsEnv, _mode: JsFnMode, _args: JsArgs) -> JsResult<JsValue> {
     Err(JsError::new_type(env, ::errors::TYPE_CANNOT_ACCESS_ARGUMENTS_PROPERTY))
 }

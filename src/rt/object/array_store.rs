@@ -4,10 +4,11 @@ use rt::object::{Store, StoreKey, Entry};
 use rt::object::hash_store::HashStore;
 use syntax::Name;
 use gc::{Local, GcWalker, GcAllocator, AsPtr, Ptr, ptr_t};
-use std::mem::{transmute, zeroed};
+use std::mem::{transmute, zeroed, size_of};
 use rt::object::sparse_array::SparseArray;
 
 // Modifications to this struct must be synchronized with the GC walker.
+#[repr(C)]
 pub struct ArrayStore {
     array: Ptr<SparseArray>,
     props: Ptr<HashStore>
@@ -126,4 +127,6 @@ pub unsafe fn validate_walker_for_array_store(walker: &GcWalker) {
     object.props = Ptr::from_ptr(transmute(1usize));
     validate_walker_field(walker, GC_ARRAY_STORE, ptr, true);
     object.props = Ptr::null();
+    
+    assert_eq!(size_of::<ArrayStore>(), 16);
 }
