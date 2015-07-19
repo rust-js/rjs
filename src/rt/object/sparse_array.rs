@@ -4,7 +4,7 @@ use rt::object::{StoreKey, Entry};
 use std::cmp::{min, max};
 use rt::{GC_ENTRY, GC_ARRAY_CHUNK, GC_SPARSE_ARRAY, validate_walker_field};
 use syntax::Name;
-use std::mem::{transmute, zeroed};
+use std::mem::{transmute, zeroed, size_of};
 
 const CHUNK_SHIFT : usize = 5;
 const CHUNK_SIZE : usize = 1 << CHUNK_SHIFT;
@@ -13,6 +13,7 @@ const INITIAL_CHUNK_COUNT : usize = 10;
 const MAX_ARRAY_SIZE : usize = 1024;
 const MAX_ARRAY_SIZE_FILL_FACTOR : f64 = 0.5;
 
+#[repr(C)]
 pub struct SparseArray {
     items: Array<Entry>,
     chunks: Array<Chunk>,
@@ -21,6 +22,7 @@ pub struct SparseArray {
 }
 
 #[derive(Copy, Clone)]
+#[repr(C)]
 struct Chunk {
     offset: usize,
     items: Array<Entry>
@@ -313,6 +315,8 @@ unsafe fn validate_walker_for_sparse_array(walker: &GcWalker) {
     object.used = 1;
     validate_walker_field(walker, GC_SPARSE_ARRAY, ptr, false);
     object.used = 0;
+    
+    assert_eq!(size_of::<SparseArray>(), 32);
 }
 
 unsafe fn validate_walker_for_array_chunk(walker: &GcWalker) {
@@ -326,4 +330,6 @@ unsafe fn validate_walker_for_array_chunk(walker: &GcWalker) {
     object.items = Array::from_ptr(transmute(1usize));
     validate_walker_field(walker, GC_ARRAY_CHUNK, ptr, true);
     object.items = Array::null();
+    
+    assert_eq!(size_of::<Chunk>(), 16);
 }

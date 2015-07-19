@@ -1,25 +1,24 @@
 use ::{JsResult, JsError};
 use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsType, JsString};
 use rt::fmt::*;
-use gc::*;
 use syntax::token::name;
 
 // 15.7.1 The Number Constructor Called as a Function
 // 15.7.2 The Number Constructor
-pub fn Number_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let arg = if args.argc > 0 {
         try!(args.arg(env, 0).to_number(env))
     } else {
         0.0
     };
     
-    let arg = env.new_number(arg);
+    let arg = JsValue::new_number(arg);
     
     if mode.construct() {
         let this_arg = args.this(env);
-        let mut this = this_arg.unwrap_object(env);
+        let mut this = this_arg.unwrap_object();
         
-        this.set_class(env, Some(name::NUMBER_CLASS));
+        this.set_class(Some(name::NUMBER_CLASS));
         this.set_value(arg);
         
         Ok(this_arg)
@@ -29,24 +28,24 @@ pub fn Number_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsRe
 }
 
 // 15.7.4.4 Number.prototype.valueOf ( )
-pub fn Number_valueOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_valueOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let this_arg = args.this(env);
     
-    if this_arg.class(env) != Some(name::NUMBER_CLASS) {
+    if this_arg.class() != Some(name::NUMBER_CLASS) {
         Err(JsError::new_type(env, ::errors::TYPE_INVALID))
     } else {
-        let this = this_arg.unwrap_object(env);
+        let this = this_arg.unwrap_object();
         Ok(this.value(env))
     }
 }
 
-fn get_number(env: &mut JsEnv, value: Local<JsValue>) -> JsResult<Local<JsValue>> {
+fn get_number(env: &mut JsEnv, value: JsValue) -> JsResult<JsValue> {
     match value.ty() {
         JsType::Object => {
-            if value.class(env) != Some(name::NUMBER_CLASS) {
+            if value.class() != Some(name::NUMBER_CLASS) {
                 return Err(JsError::new_type(env, ::errors::TYPE_INVALID))
             }
-            Ok(value.unwrap_object(env).value(env))
+            Ok(value.unwrap_object().value(env))
         }
         JsType::Number => Ok(value),
         _ => return Err(JsError::new_type(env, ::errors::TYPE_INVALID))
@@ -54,7 +53,7 @@ fn get_number(env: &mut JsEnv, value: Local<JsValue>) -> JsResult<Local<JsValue>
 }
 
 // 15.7.4.2 Number.prototype.toString ( [ radix ] )
-pub fn Number_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let value = args.this(env);
     let value = try!(get_number(env, value)).unwrap_number();
     
@@ -71,16 +70,16 @@ pub fn Number_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResu
     
     let result = format_number(value, radix as u32, NumberFormatStyle::Regular, 0);
     
-    Ok(JsString::from_str(env, &result).as_value(env))
+    Ok(JsString::from_str(env, &result).as_value())
 }
 
 // 15.7.4.3 Number.prototype.toLocaleString()
-pub fn Number_toLocaleString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_toLocaleString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     Number_toString(env, mode, args)
 }
 
 // 15.7.4.5 Number.prototype.toFixed (fractionDigits)
-pub fn Number_toFixed(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_toFixed(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let digits = args.arg(env, 0);
     let digits = if digits.is_undefined() {
         0.0
@@ -95,12 +94,12 @@ pub fn Number_toFixed(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResul
     } else {
         let value = try!(args.this(env).to_number(env));
         let result = format_number(value, 10, NumberFormatStyle::Fixed, digits);
-        Ok(JsString::from_str(env, &result).as_value(env))
+        Ok(JsString::from_str(env, &result).as_value())
     }
 }
 
 // 15.7.4.6 Number.prototype.toExponential (fractionDigits)
-pub fn Number_toExponential(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_toExponential(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let value = args.this(env);
     let value = try!(get_number(env, value)).unwrap_number();
     
@@ -116,11 +115,11 @@ pub fn Number_toExponential(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> J
         format_number(value, 10, NumberFormatStyle::Exponential, fraction_digits)
     };
     
-    Ok(JsString::from_str(env, &result).as_value(env))
+    Ok(JsString::from_str(env, &result).as_value())
 }
 
 // 15.7.4.7 Number.prototype.toPrecision (precision)
-pub fn Number_toPrecision(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Number_toPrecision(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let value = args.this(env);
     let value = try!(get_number(env, value)).unwrap_number();
     
@@ -136,5 +135,5 @@ pub fn Number_toPrecision(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsR
         format_number(value, 10, NumberFormatStyle::Precision, precision)
     };
     
-    Ok(JsString::from_str(env, &result).as_value(env))
+    Ok(JsString::from_str(env, &result).as_value())
 }

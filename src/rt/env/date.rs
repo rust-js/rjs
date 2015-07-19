@@ -4,7 +4,7 @@ extern crate time;
 use ::{JsResult, JsError};
 use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsPreferredType, JsType, JsString, JsItem, JsHandle};
 use syntax::token::name;
-use gc::{self, AsPtr};
+use gc::AsPtr;
 use std::f64;
 use self::chrono::*;
 use std::fmt::Write;
@@ -417,10 +417,10 @@ fn parse(string: &str) -> f64 {
 // 15.9.3.1 new Date (year, month [, date [, hours [, minutes [, seconds [, ms ] ] ] ] ] )
 // 15.9.3.2 new Date (value)
 // 15.9.3.3 new Date ( )
-pub fn Date_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     if !mode.construct() {
         let result = try!(args.function(env).construct(env, Vec::new()));
-        return Ok(try!(result.to_string(env)).as_value(env));
+        return Ok(try!(result.to_string(env)).as_value());
     }
     
     let time = if args.argc == 0 {
@@ -429,7 +429,7 @@ pub fn Date_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResu
         let arg = try!(args.arg(env, 0).to_primitive(env, JsPreferredType::None));
         
         match arg.ty() {
-            JsType::String => parse(&arg.unwrap_string(env).to_string()),
+            JsType::String => parse(&arg.unwrap_string().to_string()),
             _ => try!(arg.to_number(env))
         }
     } else {
@@ -438,10 +438,10 @@ pub fn Date_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResu
     
     let this = args.this(env);
     
-    let mut this_obj = this.unwrap_object(env);
+    let mut this_obj = this.unwrap_object();
     
-    this_obj.set_class(env, Some(name::DATE_CLASS));
-    this_obj.set_value(env.new_number(time_clip(time)));
+    this_obj.set_class(Some(name::DATE_CLASS));
+    this_obj.set_value(JsValue::new_number(time_clip(time)));
     
     Ok(this)
 }
@@ -492,11 +492,11 @@ fn get_time_from_args(env: &mut JsEnv, args: &JsArgs) -> JsResult<f64> {
     let this = args.this(env);
     
     if this.ty() == JsType::Object {
-        let this = this.unwrap_object(env);
+        let this = this.unwrap_object();
         if let Some(prototype) = this.prototype(env) {
             if
                 prototype.ty() == JsType::Object &&
-                prototype.unwrap_object(env).as_ptr() == env.handle(JsHandle::Date).as_ptr()
+                prototype.unwrap_object().as_ptr() == env.handle(JsHandle::Date).as_ptr()
             {
                 return Ok(this.value(env).unwrap_number());
             }
@@ -507,32 +507,32 @@ fn get_time_from_args(env: &mut JsEnv, args: &JsArgs) -> JsResult<f64> {
 }
 
 // 15.9.4.2 Date.parse (string)
-pub fn Date_parse(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_parse(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let string = try!(args.arg(env, 0).to_string(env)).to_string();
     
     let time = parse(&string);
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
     let constructor = try!(env.handle(JsHandle::Date).get(env, name::CONSTRUCTOR));
     let date = try!(constructor.construct(env, vec![time]));
     
-    Ok(date.as_value(env))
+    Ok(date.as_value())
 }
 
 // 15.9.4.3 Date.UTC (year, month [, date [, hours [, minutes [, seconds [, ms ] ] ] ] ] )
-pub fn Date_UTC(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_UTC(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(make_date_from_args(env, &args));
     
-    Ok(env.new_number(time_clip(time)))
+    Ok(JsValue::new_number(time_clip(time)))
 }
 
 // 15.9.4.4 Date.now ( )
-pub fn Date_now(env: &mut JsEnv, _mode: JsFnMode, _args: JsArgs) -> JsResult<gc::Local<JsValue>> {
-    Ok(env.new_number(get_utc_now()))
+pub fn Date_now(_env: &mut JsEnv, _mode: JsFnMode, _args: JsArgs) -> JsResult<JsValue> {
+    Ok(JsValue::new_number(get_utc_now()))
 }
 
 // 15.9.5.2 Date.prototype.toString ( )
-pub fn Date_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     
     let mut result = String::new();
@@ -551,11 +551,11 @@ pub fn Date_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
         get_ms_from_time(time) as u32
     ).ok();
     
-    Ok(JsString::from_str(env, &result).as_value(env))
+    Ok(JsString::from_str(env, &result).as_value())
 }
 
 // 15.9.5.3 Date.prototype.toDateString ( )
-pub fn Date_toDateString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_toDateString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     
     let mut result = String::new();
@@ -570,11 +570,11 @@ pub fn Date_toDateString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
         get_date_from_time(time) as u32
     ).ok();
     
-    Ok(JsString::from_str(env, &result).as_value(env))
+    Ok(JsString::from_str(env, &result).as_value())
 }
 
 // 15.9.5.4 Date.prototype.toTimeString ( )
-pub fn Date_toTimeString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_toTimeString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     
     let mut result = String::new();
@@ -590,39 +590,39 @@ pub fn Date_toTimeString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRe
         get_ms_from_time(time) as u32
     ).ok();
     
-    Ok(JsString::from_str(env, &result).as_value(env))
+    Ok(JsString::from_str(env, &result).as_value())
 }
 
 // 15.9.5.5 Date.prototype.toLocaleString ( )
-pub fn Date_toLocaleString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_toLocaleString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     Date_toString(env, mode, args)
 }
 
 // 15.9.5.6 Date.prototype.toLocaleDateString ( )
-pub fn Date_toLocaleDateString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_toLocaleDateString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     Date_toDateString(env, mode, args)
 }
 
 // 15.9.5.7 Date.prototype.toLocaleTimeString ( )
-pub fn Date_toLocaleTimeString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_toLocaleTimeString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     Date_toTimeString(env, mode, args)
 }
 
 // 15.9.5.8 Date.prototype.valueOf ( )
-pub fn Date_valueOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_valueOf(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     
-    Ok(env.new_number(time))
+    Ok(JsValue::new_number(time))
 }
 
 // 15.9.5.9 Date.prototype.getTime ( )
-pub fn Date_getTime(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_getTime(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     Date_valueOf(env, mode, args)
 }
 
 macro_rules! time_getter {
     ( $getter:ident , $utc_getter:ident , $function:ident ) => {
-        pub fn $getter(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+        pub fn $getter(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
             let time = try!(get_time_from_args(env, &args));
             
             let time = if time.is_nan() {
@@ -631,11 +631,11 @@ macro_rules! time_getter {
                 $function(get_local_time(time))
             };
             
-            Ok(env.new_number(time))
+            Ok(JsValue::new_number(time))
         }
         
         
-        pub fn $utc_getter(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+        pub fn $utc_getter(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
             let time = try!(get_time_from_args(env, &args));
             
             let time = if time.is_nan() {
@@ -644,7 +644,7 @@ macro_rules! time_getter {
                 $function(time)
             };
             
-            Ok(env.new_number(time))
+            Ok(JsValue::new_number(time))
         }
     }
 }
@@ -682,7 +682,7 @@ time_getter!(Date_getSeconds, Date_getUTCSeconds, get_sec_from_time);
 time_getter!(Date_getMilliseconds, Date_getUTCMilliseconds, get_ms_from_time);
 
 // 15.9.5.26 Date.prototype.getTimezoneOffset ( )
-pub fn Date_getTimezoneOffset(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_getTimezoneOffset(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     
     let time = if time.is_nan() {
@@ -691,22 +691,22 @@ pub fn Date_getTimezoneOffset(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) ->
         (time - get_local_time(time)) / MS_PER_MINUTE
     };
     
-    Ok(env.new_number(time))
+    Ok(JsValue::new_number(time))
 }
 
 // 15.9.5.27 Date.prototype.setTime (time)
-pub fn Date_setTime(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setTime(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let this = args.this(env);
     
     if this.ty() == JsType::Object {
-        let mut this = this.unwrap_object(env);
+        let mut this = this.unwrap_object();
         if let Some(prototype) = this.prototype(env) {
             if
                 prototype.ty() == JsType::Object &&
-                prototype.unwrap_object(env).as_ptr() == env.handle(JsHandle::Date).as_ptr()
+                prototype.unwrap_object().as_ptr() == env.handle(JsHandle::Date).as_ptr()
             {
                 let time = time_clip(try!(args.arg(env, 0).to_number(env)));
-                let time = env.new_number(time);
+                let time = JsValue::new_number(time);
                 
                 this.set_value(time);
                 
@@ -719,7 +719,7 @@ pub fn Date_setTime(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
 }
 
 // 15.9.5.28 Date.prototype.setMilliseconds (ms)
-pub fn Date_setMilliseconds(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setMilliseconds(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     let time = get_local_time(time);
     
@@ -731,15 +731,15 @@ pub fn Date_setMilliseconds(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> J
     );
     
     let time = time_clip(get_utc(make_date(get_day(time), time)));
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.29 Date.prototype.setUTCMilliseconds (ms)
-pub fn Date_setUTCMilliseconds(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setUTCMilliseconds(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     
     let time = make_time(
@@ -750,15 +750,15 @@ pub fn Date_setUTCMilliseconds(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -
     );
     
     let time = time_clip(make_date(get_day(time), time));
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.30 Date.prototype.setSeconds (sec [, ms ] )
-pub fn Date_setSeconds(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setSeconds(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     let time = get_local_time(time);
     
@@ -773,15 +773,15 @@ pub fn Date_setSeconds(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResu
     );
     
     let time = time_clip(get_utc(make_date(get_day(time), time)));
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.31 Date.prototype.setUTCSeconds (sec [, ms ] )
-pub fn Date_setUTCSeconds(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setUTCSeconds(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     
     let sec = try!(args.arg(env, 0).to_number(env));
@@ -795,15 +795,15 @@ pub fn Date_setUTCSeconds(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsR
     );
     
     let time = time_clip(make_date(get_day(time), time));
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.32 Date.prototype.setMinutes (min [, sec [, ms ] ] )
-pub fn Date_setMinutes(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setMinutes(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     let time = get_local_time(time);
     
@@ -819,15 +819,15 @@ pub fn Date_setMinutes(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResu
     );
     
     let time = time_clip(get_utc(make_date(get_day(time), time)));
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.33 Date.prototype.setUTCMinutes (min [, sec [, ms ] ] )
-pub fn Date_setUTCMinutes(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setUTCMinutes(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     
     let min = try!(args.arg(env, 0).to_number(env));
@@ -842,15 +842,15 @@ pub fn Date_setUTCMinutes(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsR
     );
     
     let time = time_clip(make_date(get_day(time), time));
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.34 Date.prototype.setHours (hour [, min [, sec [, ms ] ] ] )
-pub fn Date_setHours(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setHours(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     let time = get_local_time(time);
     
@@ -867,15 +867,15 @@ pub fn Date_setHours(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
     );
     
     let time = time_clip(get_utc(make_date(get_day(time), time)));
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.35 Date.prototype.setUTCHours (hour [, min [, sec [, ms ] ] ] )
-pub fn Date_setUTCHours(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setUTCHours(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     
     let hour = try!(args.arg(env, 0).to_number(env));
@@ -891,15 +891,15 @@ pub fn Date_setUTCHours(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRes
     );
     
     let time = time_clip(make_date(get_day(time), time));
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.36 Date.prototype.setDate (date)
-pub fn Date_setDate(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setDate(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     let time = get_local_time(time);
     
@@ -911,15 +911,15 @@ pub fn Date_setDate(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
     );
     
     let time = time_clip(get_utc(new_date));
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.37 Date.prototype.setUTCDate (date)
-pub fn Date_setUTCDate(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setUTCDate(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     
     let date = try!(args.arg(env, 0).to_number(env));
@@ -930,15 +930,15 @@ pub fn Date_setUTCDate(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResu
     );
     
     let time = time_clip(new_date);
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.38 Date.prototype.setMonth (month [, date ] )
-pub fn Date_setMonth(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setMonth(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     let time = get_local_time(time);
     
@@ -951,15 +951,15 @@ pub fn Date_setMonth(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult
     );
     
     let time = time_clip(get_utc(new_date));
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.39 Date.prototype.setUTCMonth (month [, date ] )
-pub fn Date_setUTCMonth(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setUTCMonth(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     
     let month = try!(args.arg(env, 0).to_number(env));
@@ -971,15 +971,15 @@ pub fn Date_setUTCMonth(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRes
     );
     
     let time = time_clip(new_date);
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.40 Date.prototype.setFullYear (year [, month [, date ] ] )
-pub fn Date_setFullYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setFullYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     let time = get_local_time(time);
     
@@ -993,15 +993,15 @@ pub fn Date_setFullYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsRes
     );
     
     let time = time_clip(get_utc(new_date));
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.41 Date.prototype.setUTCFullYear (year [, month [, date ] ] )
-pub fn Date_setUTCFullYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setUTCFullYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     
     let year = try!(args.arg(env, 0).to_number(env));
@@ -1014,20 +1014,20 @@ pub fn Date_setUTCFullYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> Js
     );
     
     let time = time_clip(new_date);
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // 15.9.5.42 Date.prototype.toUTCString ( )
-pub fn Date_toUTCString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_toUTCString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     Date_toString(env, mode, args)
 }
 
 // 15.9.5.43 Date.prototype.toISOString ( )
-pub fn Date_toISOString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_toISOString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     if time.is_nan() {
         Err(JsError::new_range(env))
@@ -1037,16 +1037,16 @@ pub fn Date_toISOString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResu
 }
 
 // 15.9.5.44 Date.prototype.toJSON ( key )
-pub fn Date_toJSON(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_toJSON(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let object = try!(args.this(env).to_object(env));
     let time = try!(object.to_primitive(env, JsPreferredType::Number));
     
     if time.ty() == JsType::Number && !time.unwrap_number().is_finite() {
-        Ok(env.new_null())
+        Ok(JsValue::new_null())
     } else {
         let to_iso = try!(object.get(env, name::TO_ISO));
         
-        if !to_iso.is_callable(env) {
+        if !to_iso.is_callable() {
             Err(JsError::new_type(env, ::errors::TYPE_NOT_CALLABLE))
         } else {
             to_iso.call(env, object, Vec::new(), false)
@@ -1055,7 +1055,7 @@ pub fn Date_toJSON(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<g
 }
 
 // B.2.4 Date.prototype.getYear ( )
-pub fn Date_getYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_getYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     
     let time = if time.is_nan() {
@@ -1064,11 +1064,11 @@ pub fn Date_getYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
         get_year_from_time(get_local_time(time)) - 1900.0
     };
     
-    Ok(env.new_number(time))
+    Ok(JsValue::new_number(time))
 }
 
 // B.2.5 Date.prototype.setYear (year)
-pub fn Date_setYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_setYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let time = try!(get_time_from_args(env, &args));
     let time = get_local_time(time);
     
@@ -1086,14 +1086,14 @@ pub fn Date_setYear(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<
     };
     
     let time = time_clip(get_utc(time));
-    let time = env.new_number(time);
+    let time = JsValue::new_number(time);
     
-    args.this(env).unwrap_object(env).set_value(time);
+    args.this(env).unwrap_object().set_value(time);
     
     Ok(time)
 }
 
 // B.2.6 Date.prototype.toGMTString ( )
-pub fn Date_toGMTString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<gc::Local<JsValue>> {
+pub fn Date_toGMTString(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     Date_toUTCString(env, mode, args)
 }

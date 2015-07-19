@@ -2,7 +2,7 @@ use util::interner::StrInterner;
 use util::interner::RcStr;
 use std::fmt;
 use std::ops::Deref;
-use std::{i32, u32};
+use std::{i32, u32, i64};
 
 pub mod reader;
 pub mod lexer;
@@ -40,6 +40,8 @@ impl Span {
         }
     }
 }
+
+pub const INVALID_NAME : Name = Name(i64::MAX);
 
 #[derive(Eq, Ord, PartialEq, PartialOrd, Hash, Clone, Copy, Debug)]
 pub struct Name(i64);

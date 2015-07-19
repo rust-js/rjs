@@ -15,15 +15,15 @@ pub struct JsIterator {
 }
 
 impl JsIterator {
-    pub fn new_local(env: &JsEnv, target: Local<JsValue>) -> Local<JsIterator> {
+    pub fn new_local(env: &JsEnv, target: JsValue) -> Local<JsIterator> {
         let mut result = env.heap.alloc_local::<JsIterator>(GC_ITERATOR);
         
         let target = match target.ty() {
-            JsType::Object => target.unwrap_object(env).as_ptr(),
+            JsType::Object => target.unwrap_object().as_ptr(),
             JsType::Null | JsType::Undefined => Ptr::null(),
             _ => {
                 if let Some(prototype) = target.prototype(env) {
-                    prototype.unwrap_object(env).as_ptr()
+                    prototype.unwrap_object().as_ptr()
                 } else {
                     Ptr::null()
                 }
@@ -45,8 +45,8 @@ impl JsIterator {
 }
 
 impl Local<JsIterator> {
-    pub fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-        env.new_iterator(*self)
+    pub fn as_value(&self) -> JsValue {
+        JsValue::new_iterator(*self)
     }
     
     pub fn next(&mut self, env: &JsEnv) -> bool {
@@ -72,7 +72,7 @@ impl Local<JsIterator> {
                 }
                 JsStoreKey::End => {
                     if let Some(prototype) = target.prototype(env) {
-                        target = prototype.unwrap_object(env);
+                        target = prototype.unwrap_object();
                         
                         self.target = target.as_ptr();
                         self.offset = 0;

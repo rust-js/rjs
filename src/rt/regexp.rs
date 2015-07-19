@@ -6,9 +6,10 @@ use gc::*;
 use self::regex::Regex;
 use util::manualbox::ManualBox;
 use ::{JsResult, JsError};
-use std::mem::{transmute, zeroed};
+use std::mem::{transmute, zeroed, size_of};
 
 // Modifications to this struct must be synchronized with the GC walker.
+#[repr(C)]
 pub struct JsRegExp {
     pattern: Ptr<JsString>,
     flags: Ptr<JsString>,
@@ -166,8 +167,8 @@ impl JsRegExp {
 }
 
 impl Local<JsRegExp> {
-    pub fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-        env.new_regexp(*self)
+    pub fn as_value(&self) -> JsValue {
+        JsValue::new_regexp(*self)
     }
     
     pub fn regex<'a>(&'a self) -> &'a Regex {
@@ -222,4 +223,6 @@ pub unsafe fn validate_walker(walker: &GcWalker) {
     object.multiline = true;
     validate_walker_field(walker, GC_REGEXP, ptr, false);
     object.multiline = false;
+    
+    assert_eq!(size_of::<JsRegExp>(), 32);
 }

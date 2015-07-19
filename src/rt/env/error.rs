@@ -1,28 +1,27 @@
 use ::{JsResult, JsError};
 use rt::{JsEnv, JsArgs, JsValue, JsFnMode, JsItem, JsType, JsString};
-use gc::*;
 use syntax::token::name;
 
-pub fn Error_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Error_constructor(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     if !mode.construct() {
         let target_args = args.args(env);
         return args.function(env).construct(env, target_args);
     }
     
     let this = try!(args.this(env).to_object(env));
-    let mut this_obj = this.unwrap_object(env);
-    this_obj.set_class(env, Some(name::ERROR_CLASS));
+    let mut this_obj = this.unwrap_object();
+    this_obj.set_class(Some(name::ERROR_CLASS));
     
     let message = args.arg(env, 0);
     if !message.is_undefined() {
-        let message = try!(message.to_string(env)).as_value(env);
+        let message = try!(message.to_string(env)).as_value();
         try!(this_obj.put(env, name::MESSAGE, message, true));
     }
     
     Ok(this)
 }
 
-pub fn Error_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Error_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let this = args.this(env);
     if this.ty() != JsType::Object {
         Err(JsError::new_type(env, ::errors::TYPE_INVALID))
@@ -50,6 +49,6 @@ pub fn Error_toString(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResul
             JsString::from_str(env, &result)
         };
         
-        Ok(result.as_value(env))
+        Ok(result.as_value())
     }
 }

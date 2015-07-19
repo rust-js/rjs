@@ -1,13 +1,12 @@
 use ::{JsResult, JsError};
 use rt::{JsEnv, JsArgs, JsValue, JsType, JsFnMode, JsString, JsHandle, JsItem};
-use gc::*;
 use syntax::parser::ParseMode;
 use ::util::matchers::DecimalMatcher;
 use std::{char, f64};
 use ::syntax::lexer::{is_line_terminator, is_whitespace};
 
 // 15.1.2.2 parseInt (string , radix)
-pub fn Global_parseInt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Global_parseInt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     // TODO #67: Use DecimalMatcher.
     
     let string = try!(args.arg(env, 0).to_string(env));
@@ -45,7 +44,7 @@ pub fn Global_parseInt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResu
     
     let (mut radix, strip_prefix) = if radix != 0 {
         if radix < 2 || radix > 36 {
-            return Ok(env.new_number(f64::NAN));
+            return Ok(JsValue::new_number(f64::NAN));
         }
         (radix, radix == 16)
     } else {
@@ -85,46 +84,47 @@ pub fn Global_parseInt(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResu
     }
     
     if offset == start {
-        Ok(env.new_number(f64::NAN))
+        Ok(JsValue::new_number(f64::NAN))
     } else {
-        Ok(env.new_number(result * sign as f64))
+        Ok(JsValue::new_number(result * sign as f64))
     }
 }
 
-pub fn Global_parseFloat(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Global_parseFloat(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let input = try!(args.arg(env, 0).to_string(env)).to_string();
     
     let result = DecimalMatcher::from_str(&input, false, false).as_f64().unwrap_or(f64::NAN);
     
-    Ok(env.new_number(result))
+    Ok(JsValue::new_number(result))
 }
 
 // 15.1.2.4 isNaN (number)
-pub fn Global_isNaN(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Global_isNaN(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let result = try!(args.arg(env, 0).to_number(env)).is_nan();
     
-    Ok(env.new_bool(result))
+    Ok(JsValue::new_bool(result))
 }
 
 // 15.1.2.5 isFinite (number)
-pub fn Global_isFinite(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Global_isFinite(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let result = try!(args.arg(env, 0).to_number(env)).is_finite();
     
-    Ok(env.new_bool(result))
+    Ok(JsValue::new_bool(result))
 }
 
 // 15.1.2.1 eval (x)
-pub fn Global_eval(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Global_eval(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     let arg = args.arg(env, 0);
     
     if arg.ty() != JsType::String {
         Ok(arg)
     } else {
-        let arg = arg.unwrap_string(env).to_string();
-        let global = env.handle(JsHandle::Global).as_value(env);
+        let arg = arg.unwrap_string().to_string();
+        let global = env.handle(JsHandle::Global).as_value();
         let global_scope = env.global_scope.as_local(env);
         
-        env.eval_scoped(&arg, mode.strict(), global, global_scope, ParseMode::Eval).map(|result| result.as_local(env))
+        env.eval_scoped(&arg, mode.strict(), global, global_scope, ParseMode::Eval)
+            .map(|result| result.as_value(env))
     }
 }
 
@@ -142,7 +142,7 @@ fn is_uri_reserved(c: char) -> bool {
     }
 }
 
-fn decode<F: Fn(char) -> bool>(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, is_reserved: F) -> JsResult<Local<JsValue>> {
+fn decode<F: Fn(char) -> bool>(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, is_reserved: F) -> JsResult<JsValue> {
     fn parse_hex(env: &mut JsEnv, c: char) -> JsResult<u8> {
         if c >= '0' && c <= '9' {
             Ok(((c as u32) - ('0' as u32)) as u8)
@@ -265,11 +265,11 @@ fn decode<F: Fn(char) -> bool>(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, i
         }
     }
     
-    Ok(env.new_string(JsString::from_u16(env, &result)))
+    Ok(JsString::from_u16(env, &result).as_value())
 }
 
 // 15.1.3 URI Handling Function Properties
-fn encode<F: Fn(char) -> bool>(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, is_reserved: F) -> JsResult<Local<JsValue>> {
+fn encode<F: Fn(char) -> bool>(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, is_reserved: F) -> JsResult<JsValue> {
     fn to_hex(octet: u8) -> char {
         if octet < 10 {
             (('0' as u8) + octet) as char
@@ -330,25 +330,25 @@ fn encode<F: Fn(char) -> bool>(env: &mut JsEnv, _mode: JsFnMode, args: JsArgs, i
         i += 1;
     }
     
-    Ok(env.new_string(JsString::from_u16(env, &result)))
+    Ok(JsString::from_u16(env, &result).as_value())
 }
 
 // 15.1.3.1 decodeURI (encodedURI)
-pub fn Global_decodeURI(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Global_decodeURI(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     decode(env, mode, args, |c| is_uri_reserved(c) || c == '#')
 }
 
 // 15.1.3.2 decodeURIComponent (encodedURIComponent)
-pub fn Global_decodeURIComponent(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Global_decodeURIComponent(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     decode(env, mode, args, |_| false)
 }
 
 // 15.1.3.3 encodeURI (uri)
-pub fn Global_encodeURI(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Global_encodeURI(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     encode(env, mode, args, |c| is_uri_reserved(c) || is_uri_unescape(c) || c == '#')
 }
 
 // 15.1.3.4 encodeURIComponent (uriComponent)
-pub fn Global_encodeURIComponent(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<Local<JsValue>> {
+pub fn Global_encodeURIComponent(env: &mut JsEnv, mode: JsFnMode, args: JsArgs) -> JsResult<JsValue> {
     encode(env, mode, args, |c| is_uri_unescape(c))
 }

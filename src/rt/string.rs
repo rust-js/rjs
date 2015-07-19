@@ -111,23 +111,23 @@ impl JsString {
 }
 
 impl JsItem for Local<JsString> {
-    fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-        env.new_string(*self)
+    fn as_value(&self) -> JsValue {
+        JsValue::new_string(*self)
     }
     
-    fn has_prototype(&self, _: &JsEnv) -> bool {
+    fn has_prototype(&self) -> bool {
         true
     }
     
-    fn prototype(&self, env: &JsEnv) -> Option<Local<JsValue>> {
-        Some(env.handle(JsHandle::String).as_value(env))
+    fn prototype(&self, env: &JsEnv) -> Option<JsValue> {
+        Some(env.handle(JsHandle::String).as_value())
     }
     
     // 15.5.5.2 [[GetOwnProperty]] ( P )
     // 15.5.5.1 length
     fn get_own_property(&self, env: &JsEnv, property: Name) -> Option<JsDescriptor> {
         if property == name::LENGTH {
-            let value = env.new_number(self.chars.len() as f64);
+            let value = JsValue::new_number(self.chars.len() as f64);
             return Some(JsDescriptor::new_value(value, false, false, false));
         }
         
@@ -137,7 +137,7 @@ impl JsItem for Local<JsString> {
                 let char = chars[index];
                 let mut string = JsString::new_local(env, 1);
                 string.chars[0] = char;
-                return Some(JsDescriptor::new_value(string.as_value(env), false, true, false));
+                return Some(JsDescriptor::new_value(string.as_value(), false, true, false));
             }
         }
         

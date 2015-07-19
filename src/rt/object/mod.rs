@@ -1,31 +1,36 @@
-use syntax::Name;
+use syntax::{Name, INVALID_NAME};
 use syntax::ast::FunctionRef;
 use syntax::token::name;
-use rt::{JsEnv, JsFunction, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString, JsArgs, JsFnMode, JsHandle};
+use rt::{JsEnv, JsFunction, JsRawValue, JsValue, JsItem, JsDescriptor, JsScope, JsType, JsString};
+use rt::{JsArgs, JsFnMode, JsHandle, JsFn};
 use rt::{GC_OBJECT, GC_ENTRY};
 use rt::validate_walker_field;
 use rt::value::validate_walker_for_embedded_value;
 use gc::{Local, Ptr, AsPtr, ptr_t, GcWalker};
 use ::{JsResult, JsError};
+use util::manualbox::ManualBox;
 use self::hash_store::HashStore;
 use self::array_store::ArrayStore;
-use std::mem;
 use std::str::FromStr;
-use std::mem::{transmute, zeroed};
+use std::mem::{zeroed, transmute, size_of};
 
 mod hash_store;
 mod array_store;
 mod sparse_array;
 
 // Modifications to this struct must be synchronized with the GC walker.
+// The class name is optional, but not stored as an option, to save space.
+// Instead we use a special marker value INVALID_NAME to signify that
+// the class name is unset.
+#[repr(C)]
 pub struct JsObject {
-    class: Option<Name>,
-    value: JsValue,
-    function: Option<JsFunction>,
+    class: Name,
+    extensible: bool,
+    value: JsRawValue,
+    function: Function,
     prototype: Ptr<JsObject>,
     scope: Ptr<JsScope>,
-    store: StorePtr,
-    extensible: bool
+    store: StorePtr
 }
 
 impl JsObject {
@@ -38,9 +43,9 @@ impl JsObject {
         };
         
         JsObject {
-            class: None,
-            value: JsValue::new_undefined(),
-            function: None,
+            class: INVALID_NAME,
+            value: JsRawValue::new_undefined(),
+            function: Function::None,
             prototype: Ptr::null(),
             scope: Ptr::null(),
             store: store,
@@ -76,26 +81,27 @@ impl JsObject {
         };
         
         result.prototype = prototype.as_ptr();
-        result.class = Some(name::FUNCTION_CLASS);
+        result.class = name::FUNCTION_CLASS;
         
-        let value = env.new_number(args as f64);
+        let value = JsValue::new_number(args as f64);
         
         // TODO #68: This does not seem to be conform the specs. Value should not be configurable.
         // Don't set the length on bound functions. The caller will take care of this.
         
-        if function != JsFunction::Bound {
-            result.define_own_property(env, name::LENGTH, JsDescriptor::new_value(value, false, false, true), false).ok();
+        match function {
+            JsFunction::Bound => {},
+            _ => { result.define_own_property(env, name::LENGTH, JsDescriptor::new_value(value, false, false, true), false).ok(); }
         }
         
-        result.function = Some(function);
+        result.function = Function::new(function);
 
         let name = name.unwrap_or(name::EMPTY);
-        let name = JsString::from_str(env, &*env.ir.interner().get(name)).as_value(env);
+        let name = JsString::from_str(env, &*env.ir.interner().get(name)).as_value();
         
         result.define_own_property(env, name::NAME, JsDescriptor::new_value(name, false, false, true), false).ok();
         
         if strict {
-            let thrower = env.new_native_function(None, 0, &throw_type_error);
+            let thrower = env.new_native_function(None, 0, throw_type_error);
             
             result.define_own_property(env, name::CALLER, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false).ok();
             result.define_own_property(env, name::ARGUMENTS, JsDescriptor::new_accessor(Some(thrower), Some(thrower), false, false), false).ok();
@@ -103,23 +109,25 @@ impl JsObject {
         
         result
     }
+    
+    pub fn finalize(&mut self) {
+        if let Function::Native(ref mut native) = self.function {
+            native.drop();
+        }
+    }
 }
 
-fn throw_type_error(env: &mut JsEnv, _mode: JsFnMode, _args: JsArgs) -> JsResult<Local<JsValue>> {
+fn throw_type_error(env: &mut JsEnv, _mode: JsFnMode, _args: JsArgs) -> JsResult<JsValue> {
     Err(JsError::new_type(env, ::errors::TYPE_CANNOT_ACCESS_FUNCTION_PROPERTY))
 }
 
 impl Local<JsObject> {
-    pub fn value(&self, env: &JsEnv) -> Local<JsValue> {
-        let mut value = env.new_value();
-        
-        *value = self.value;
-        
-        value
+    pub fn value(&self, env: &JsEnv) -> JsValue {
+        self.value.as_value(env)
     }
     
-    pub fn set_value(&mut self, value: Local<JsValue>) {
-        self.value = *value;
+    pub fn set_value(&mut self, value: JsValue) {
+        self.value = value.as_raw();
     }
     
     pub fn extensible(&self) -> bool {
@@ -131,7 +139,7 @@ impl Local<JsObject> {
     }
     
     pub fn function(&self) -> Option<JsFunction> {
-        self.function.clone()
+        self.function.to_function()
     }
     
     pub fn get_key(&self, env: &JsEnv, offset: usize) -> JsStoreKey {
@@ -141,7 +149,7 @@ impl Local<JsObject> {
             StoreKey::End(len) => {
                 if self.value.ty() == JsType::String {
                     let offset = offset - len;
-                    let string = self.value(env).unwrap_string(env);
+                    let string = self.value(env).unwrap_string();
                     let chars = string.chars();
                     
                     if offset < chars.len() {
@@ -164,12 +172,12 @@ impl Local<JsObject> {
             if throw { Err(JsError::new_type(env, ::errors::TYPE_NOT_EXTENSIBLE)) } else { Ok(false) }
         }
 
-        fn is_same(env: &JsEnv, x: &Option<Local<JsValue>>, y: &Option<Local<JsValue>>) -> bool{
+        fn is_same(env: &JsEnv, x: &Option<JsValue>, y: &Option<JsValue>) -> bool{
             (x.is_none() && y.is_none()) || (x.is_some() && y.is_some() && env.same_value(x.unwrap(), y.unwrap()))
         }
         
         let current = self.get_own_property(env, property);
-        let extensible = self.is_extensible(env);
+        let extensible = self.is_extensible();
         
         match current {
             None => {
@@ -178,7 +186,7 @@ impl Local<JsObject> {
                 } else {
                     let descriptor = if descriptor.is_generic() || descriptor.is_data() {
                         JsDescriptor {
-                            value: Some(descriptor.value(env)),
+                            value: Some(descriptor.value()),
                             get: None,
                             set: None,
                             writable: Some(descriptor.is_writable()),
@@ -188,8 +196,8 @@ impl Local<JsObject> {
                     } else {
                         JsDescriptor {
                             value: None,
-                            get: Some(descriptor.get(env)),
-                            set: Some(descriptor.set(env)),
+                            get: Some(descriptor.get()),
+                            set: Some(descriptor.set()),
                             writable: Some(descriptor.is_writable()),
                             enumerable: Some(descriptor.is_enumerable()),
                             configurable: Some(descriptor.is_configurable())
@@ -280,7 +288,7 @@ impl Local<JsObject> {
                     if new_len as f64 != try!(desc_value.to_number(env)) {
                         Err(JsError::new_range(env))
                     } else {
-                        new_len_desc.value = Some(env.new_number(new_len as f64));
+                        new_len_desc.value = Some(JsValue::new_number(new_len as f64));
                         
                         if new_len >= old_len {
                             self.define_own_object_property(
@@ -341,7 +349,7 @@ impl Local<JsObject> {
                                 ));
                                 
                                 if !delete_succeeded {
-                                    new_len_desc.value = Some(env.new_number((old_len + 1) as f64));
+                                    new_len_desc.value = Some(JsValue::new_number((old_len + 1) as f64));
                                     if !new_writable {
                                         new_len_desc.writable = Some(false);
                                     }
@@ -389,7 +397,7 @@ impl Local<JsObject> {
                         if !succeeded {
                             if throw { Err(JsError::new_type(env, ::errors::TYPE_CANNOT_WRITE)) } else { Ok(false) }
                         } else if index >= old_len as usize {
-                            old_len_desc.value = Some(env.new_number((index + 1) as f64));
+                            old_len_desc.value = Some(JsValue::new_number((index + 1) as f64));
                             try!(self.define_own_object_property(
                                 env,
                                 name::LENGTH,
@@ -422,8 +430,8 @@ impl Local<JsObject> {
 }
 
 impl JsItem for Local<JsObject> {
-    fn as_value(&self, env: &JsEnv) -> Local<JsValue> {
-        env.new_object(*self)
+    fn as_value(&self) -> JsValue {
+        JsValue::new_object(*self)
     }
 
     // 8.12.1 [[GetOwnProperty]] (P)
@@ -457,78 +465,87 @@ impl JsItem for Local<JsObject> {
     // 8.12.9 [[DefineOwnProperty]] (P, Desc, Throw)
     // 15.4.5.1 [[DefineOwnProperty]] ( P, Desc, Throw )
     fn define_own_property(&mut self, env: &mut JsEnv, property: Name, descriptor: JsDescriptor, throw: bool) -> JsResult<bool> {
-        if self.class == Some(name::ARRAY_CLASS) {
+        if self.class == name::ARRAY_CLASS {
             self.define_own_array_property(env, property, descriptor, throw)
         } else {
             self.define_own_object_property(env, property, descriptor, throw)
         }
     }
     
-    fn is_callable(&self, _: &JsEnv) -> bool {
-        self.function.is_some()
+    fn is_callable(&self) -> bool {
+        !self.function.is_none()
     }
     
-    fn can_construct(&self, _: &JsEnv) -> bool {
+    fn can_construct(&self) -> bool {
         match self.function {
-            Some(JsFunction::Native(_, _, _, can_construct)) => can_construct,
-            Some(..) => true,
-            _ => false
+            Function::Ir(..) => true,
+            Function::Native(ref native) => native.can_construct,
+            Function::Bound => true,
+            Function::None => false
         }
     }
     
-    fn has_prototype(&self, _: &JsEnv) -> bool {
+    fn has_prototype(&self) -> bool {
         !self.prototype.is_null()
     }
     
-    fn prototype(&self, env: &JsEnv) -> Option<Local<JsValue>> {
+    fn prototype(&self, env: &JsEnv) -> Option<JsValue> {
         if self.prototype.is_null() {
             None
         } else {
-            Some(env.new_object(self.prototype.as_local(env)))
+            Some(self.prototype.as_local(env).as_value())
         }
     }
     
-    fn set_prototype(&mut self, _: &JsEnv, prototype: Option<Local<JsValue>>) {
+    fn set_prototype(&mut self, prototype: Option<JsValue>) {
         if let Some(prototype) = prototype {
             if prototype.ty() == JsType::Object {
-                self.prototype = prototype.get_ptr();
+                self.prototype = prototype.unwrap_object().as_ptr();
             }
         } else {
             self.prototype = Ptr::null();
         }
     }
     
-    fn has_class(&self, _: &JsEnv) -> bool {
-        self.class.is_some()
+    fn has_class(&self) -> bool {
+        self.class != INVALID_NAME
     }
     
-    fn class(&self, _: &JsEnv) -> Option<Name> {
-        self.class
+    fn class(&self) -> Option<Name> {
+        if self.class == INVALID_NAME {
+            None
+        } else {
+            Some(self.class)
+        }
     }
     
-    fn set_class(&mut self, _: &JsEnv, class: Option<Name>) {
-        self.class = class
+    fn set_class(&mut self, class: Option<Name>) {
+        self.class = match class {
+            Some(name) => name,
+            None => INVALID_NAME
+        }
     }
     
-    fn is_extensible(&self, _: &JsEnv) -> bool {
+    fn is_extensible(&self) -> bool {
         self.extensible
     }
     
     // 15.3.5.3 [[HasInstance]] (V)
     // 15.3.4.5.3 [[HasInstance]] (V)
-    fn has_instance(&self, env: &mut JsEnv, mut object: Local<JsValue>) -> JsResult<bool> {
+    fn has_instance(&self, env: &mut JsEnv, mut object: JsValue) -> JsResult<bool> {
         if self.function.is_none() {
             Err(JsError::new_type(env, ::errors::TYPE_CANNOT_HAS_INSTANCE))
         } else if object.ty() != JsType::Object {
             Ok(false)
         } else {
-            let prototype = if *self.function.as_ref().unwrap() == JsFunction::Bound {
-                let scope = self.scope(env).unwrap();
-                let target = scope.get(env, 0);
-                
-                try!(target.get(env, name::PROTOTYPE))
-            } else {
-                try!(self.get(env, name::PROTOTYPE))
+            let prototype = match self.function {
+                Function::Bound => {
+                    let scope = self.scope(env).unwrap();
+                    let target = scope.get(env, 0);
+                    
+                    try!(target.get(env, name::PROTOTYPE))
+                }
+                _ => try!(self.get(env, name::PROTOTYPE))
             };
             
             if prototype.ty() != JsType::Object {
@@ -552,17 +569,71 @@ impl JsItem for Local<JsObject> {
         if self.scope.is_null() {
             None
         } else {
-            Some(env.new_scope(self.scope.as_local(env)).unwrap_scope(env))
+            Some(self.scope.as_local(env).as_value().unwrap_scope())
         }
     }
     
-    fn set_scope(&mut self, _: &JsEnv, scope: Option<Local<JsScope>>) {
+    fn set_scope(&mut self, scope: Option<Local<JsScope>>) {
         if let Some(scope) = scope {
             self.scope = scope.as_ptr();
         } else {
             self.scope = Ptr::null();
         }
     }
+}
+
+enum Function {
+    Ir(FunctionRef),
+    Native(ManualBox<NativeFunction>),
+    Bound,
+    None
+}
+
+impl Function {
+    fn new(function: JsFunction) -> Function {
+        match function {
+            JsFunction::Ir(function_ref) => Function::Ir(function_ref),
+            JsFunction::Native(name, args, function, can_construct) => {
+                let native = ManualBox::new(NativeFunction {
+                    name: name,
+                    args: args,
+                    function: function,
+                    can_construct: can_construct
+                });
+                
+                Function::Native(native)
+            }
+            JsFunction::Bound => Function::Bound
+        }
+    }
+    
+    fn to_function(&self) -> Option<JsFunction> {
+        match *self {
+            Function::Ir(ref function_ref) => Some(JsFunction::Ir(*function_ref)),
+            Function::Native(ref native) => Some(JsFunction::Native(
+                native.name,
+                native.args,
+                native.function,
+                native.can_construct
+            )),
+            Function::Bound => Some(JsFunction::Bound),
+            Function::None => None
+        }
+    }
+    
+    fn is_none(&self) -> bool {
+        match *self {
+            Function::None => true,
+            _ => false
+        }
+    }
+}
+
+struct NativeFunction {
+    name: Option<Name>,
+    args: u32,
+    function: JsFn,
+    can_construct: bool
 }
 
 trait Store {
@@ -668,19 +739,20 @@ const ENUMERABLE   : u32 = 0b00100;
 const CONFIGURABLE : u32 = 0b01000;
 const ACCESSOR     : u32 = 0b10000;
 
-#[derive(Copy, Clone)]
 // Modifications to this struct must be synchronized with the GC walker.
+#[derive(Copy, Clone)]
+#[repr(C)]
 pub struct Entry {
     name: Name,
     flags: u32,
     next: i32,
-    value1: JsValue,
-    value2: JsValue
+    value1: JsRawValue,
+    value2: JsRawValue
 }
 
 impl Entry {
     fn empty() -> Entry {
-        unsafe { mem::zeroed() }
+        unsafe { zeroed() }
     }
     
     fn is_valid(&self) -> bool {
@@ -715,22 +787,22 @@ impl Entry {
         
         if descriptor.is_accessor() {
             value1 = if let Some(get) = descriptor.get {
-                *get
+                get.as_raw()
             } else {
-                JsValue::new_undefined()
+                JsRawValue::new_undefined()
             };
             value2 = if let Some(set) = descriptor.set {
-                *set
+                set.as_raw()
             } else {
-                JsValue::new_undefined()
+                JsRawValue::new_undefined()
             };
         } else {
             value1 = if let Some(value) = descriptor.value {
-                *value
+                value.as_raw()
             } else {
-                JsValue::new_undefined()
+                JsRawValue::new_undefined()
             };
-            value2 = JsValue::new_undefined();
+            value2 = JsRawValue::new_undefined();
         }
         
         Entry {
@@ -746,25 +818,17 @@ impl Entry {
 impl Local<Entry> {
     fn as_property(&self, env: &JsEnv) -> JsDescriptor {
         if self.is_accessor() {
-            let mut value1 = env.new_value();
-            *value1 = self.value1;
-            let mut value2 = env.new_value();
-            *value2 = self.value2;
-            
             JsDescriptor {
                 value: None,
-                get: Some(value1),
-                set: Some(value2),
+                get: Some(self.value1.as_value(env)),
+                set: Some(self.value2.as_value(env)),
                 writable: None,
                 enumerable: Some(self.is_enumerable()),
                 configurable: Some(self.is_configurable())
             }
         } else {
-            let mut value = env.new_value();
-            *value = self.value1;
-            
             JsDescriptor {
-                value: Some(value),
+                value: Some(self.value1.as_value(env)),
                 get: None,
                 set: None,
                 writable: Some(self.is_writable()),
@@ -787,19 +851,19 @@ unsafe fn validate_walker_for_object(walker: &GcWalker) {
     let mut object : Box<JsObject> = Box::new(zeroed());
     let ptr = transmute::<_, ptr_t>(&*object);
     
-    object.class = Some(Name::from_index(1));
+    object.class = Name::from_index(1);
     validate_walker_field(walker, GC_OBJECT, ptr, false);
-    object.class = None;
+    object.class = Name::from_index(0);
     
-    object.value = JsValue::new_bool(true);
+    object.value = JsRawValue::new_bool(true);
     let value_offset = validate_walker_field(walker, GC_OBJECT, ptr, false);
-    object.value = transmute(zeroed::<JsValue>());
+    object.value = transmute(zeroed::<JsRawValue>());
     
     validate_walker_for_embedded_value(walker, ptr, GC_OBJECT, value_offset, &mut object.value);
     
-    object.function = Some(JsFunction::Ir(FunctionRef(1)));
+    object.function = Function::Ir(FunctionRef(1));
     validate_walker_field(walker, GC_OBJECT, ptr, false);
-    object.function = None;
+    *object = zeroed();
     
     object.prototype = Ptr::from_ptr(transmute(1usize));
     validate_walker_field(walker, GC_OBJECT, ptr, true);
@@ -820,6 +884,8 @@ unsafe fn validate_walker_for_object(walker: &GcWalker) {
     object.extensible = true;
     validate_walker_field(walker, GC_OBJECT, ptr, false);
     object.extensible = false;
+    
+    assert_eq!(size_of::<JsObject>(), 80);
 }
 
 unsafe fn validate_walker_for_entry(walker: &GcWalker) {
@@ -838,15 +904,17 @@ unsafe fn validate_walker_for_entry(walker: &GcWalker) {
     validate_walker_field(walker, GC_ENTRY, ptr, false);
     object.next = 0;
     
-    object.value1 = JsValue::new_bool(true);
+    object.value1 = JsRawValue::new_bool(true);
     let value_offset = validate_walker_field(walker, GC_ENTRY, ptr, false);
-    object.value1 = transmute(zeroed::<JsValue>());
+    object.value1 = transmute(zeroed::<JsRawValue>());
     
     validate_walker_for_embedded_value(walker, ptr, GC_ENTRY, value_offset, &mut object.value1);
     
-    object.value2 = JsValue::new_bool(true);
+    object.value2 = JsRawValue::new_bool(true);
     let value_offset = validate_walker_field(walker, GC_ENTRY, ptr, false);
-    object.value2 = transmute(zeroed::<JsValue>());
+    object.value2 = transmute(zeroed::<JsRawValue>());
     
     validate_walker_for_embedded_value(walker, ptr, GC_ENTRY, value_offset, &mut object.value2);
+    
+    assert_eq!(size_of::<Entry>(), 48);
 }

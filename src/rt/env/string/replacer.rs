@@ -8,8 +8,8 @@ use std::char;
 pub struct Replacer<'a> {
     env: &'a mut JsEnv,
     string: String,
-    string_value: Local<JsValue>,
-    replace_value: Local<JsValue>,
+    string_value: JsValue,
+    replace_value: JsValue,
     replace_chars: Option<Vec<char>>,
     result: String,
     regexp_offset: usize,
@@ -18,27 +18,27 @@ pub struct Replacer<'a> {
 
 // 15.5.4.11 String.prototype.replace (searchValue, replaceValue)
 impl<'a> Replacer<'a> {
-    pub fn replace(env: &'a mut JsEnv, args: JsArgs, mut strict: bool) -> JsResult<Local<JsValue>> {
+    pub fn replace(env: &'a mut JsEnv, args: JsArgs, mut strict: bool) -> JsResult<JsValue> {
         let string = args.this(env);
         try!(string.check_object_coercible(env));
         let string = try!(string.to_string(env));
         
-        let string_value = string.as_value(env);
+        let string_value = string.as_value();
         
         let search_value = args.arg(env, 0);
         
         // Search value is resolved before replace value is touched. We don't use
         // the result here; this is just for conformance.
-        if search_value.class(env) != Some(name::REGEXP_CLASS) {
+        if search_value.class() != Some(name::REGEXP_CLASS) {
             try!(search_value.to_string(env));
         }
         
         let replace_value = args.arg(env, 1);
-        let replace_chars = if replace_value.is_callable(env) {
+        let replace_chars = if replace_value.is_callable() {
             // TODO #86: This logic shouldn't be here, but in a central place so that
             // it can be re-used generically for callbacks.
             if !strict {
-                strict = match replace_value.unwrap_object(env).function().unwrap() {
+                strict = match replace_value.unwrap_object().function().unwrap() {
                     JsFunction::Ir(function_ref) => env.ir.get_function(function_ref).strict,
                     _ => false
                 };
@@ -60,19 +60,19 @@ impl<'a> Replacer<'a> {
             strict: strict
         };
         
-        if search_value.class(replacer.env) == Some(name::REGEXP_CLASS) {
-            let string = string.as_value(replacer.env);
+        if search_value.class() == Some(name::REGEXP_CLASS) {
+            let string = string.as_value();
             try!(replacer.replace_regexp(string, search_value));
         } else {
             let search_value = try!(search_value.to_string(replacer.env));
             try!(replacer.replace_string(string, search_value));
         }
         
-        Ok(JsString::from_str(replacer.env, &replacer.result).as_value(replacer.env))
+        Ok(JsString::from_str(replacer.env, &replacer.result).as_value())
     }
     
-    fn replace_regexp(&mut self, string: Local<JsValue>, mut search_value: Local<JsValue>) -> JsResult<()> {
-        let global = search_value.unwrap_object(self.env).value(self.env).unwrap_regexp(self.env).global();
+    fn replace_regexp(&mut self, string: JsValue, mut search_value: JsValue) -> JsResult<()> {
+        let global = search_value.unwrap_object().value(self.env).unwrap_regexp().global();
         
         let exec = try!(search_value.get(self.env, name::EXEC));
         
@@ -80,7 +80,7 @@ impl<'a> Replacer<'a> {
             let matches = try!(exec.call(self.env, search_value, vec![string], false));
             try!(self.process_regexp_match(matches));
         } else {
-            let value = self.env.new_number(0.0);
+            let value = JsValue::new_number(0.0);
             try!(search_value.put(self.env, name::LAST_INDEX, value, true));
             
             let mut previous_last_index = 0;
@@ -93,7 +93,7 @@ impl<'a> Replacer<'a> {
                 
                 let this_index = try!(try!(search_value.get(self.env, name::LAST_INDEX)).to_integer(self.env)) as isize;
                 if this_index == previous_last_index {
-                    let value = self.env.new_number((this_index + 1) as f64);
+                    let value = JsValue::new_number((this_index + 1) as f64);
                     try!(search_value.put(self.env, name::LAST_INDEX, value, true));
                     previous_last_index = this_index + 1;
                 } else {
@@ -113,7 +113,7 @@ impl<'a> Replacer<'a> {
         Ok(())
     }
     
-    fn process_regexp_match(&mut self, matches: Local<JsValue>) -> JsResult<()> {
+    fn process_regexp_match(&mut self, matches: JsValue) -> JsResult<()> {
         let length = try!(try!(matches.get(self.env, name::LENGTH)).to_integer(self.env)) as usize;
         
         let matched = try!(try!(matches.get(self.env, Name::from_index(0))).to_string(self.env)).to_string();
@@ -291,19 +291,19 @@ impl<'a> Replacer<'a> {
     fn process_match_function(&mut self, matched: String, captures: Vec<String>, index: usize) -> JsResult<()> {
         let mut args = Vec::new();
         
-        args.push(JsString::from_str(self.env, &matched).as_value(self.env));
+        args.push(JsString::from_str(self.env, &matched).as_value());
         
         for capture in captures {
-            args.push(JsString::from_str(self.env, &capture).as_value(self.env));
+            args.push(JsString::from_str(self.env, &capture).as_value());
         }
         
-        args.push(self.env.new_number(index as f64));
+        args.push(JsValue::new_number(index as f64));
         args.push(self.string_value);
         
         let this = if self.strict {
-            self.env.new_undefined()
+            JsValue::new_undefined()
         } else {
-            self.env.handle(JsHandle::Global).as_value(self.env)
+            self.env.handle(JsHandle::Global).as_value()
         };
         
         let result = try!(self.replace_value.call(self.env, this, args, false));

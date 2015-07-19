@@ -11,8 +11,8 @@ use std::rc::Rc;
 pub struct JsonWriter<'a> {
     env: &'a mut JsEnv,
     stack: Vec<ptr_t>,
-    value: Local<JsValue>,
-    replacer: Option<Local<JsValue>>,
+    value: JsValue,
+    replacer: Option<JsValue>,
     property_list: Option<Rc<Vec<Name>>>,
     strict: bool
 }
@@ -22,9 +22,9 @@ impl<'a> JsonWriter<'a> {
         let value = args.arg(env, 0);
         let replacer_arg = args.arg(env, 1);
         
-        let (replacer, property_list) = if replacer_arg.is_callable(env) {
+        let (replacer, property_list) = if replacer_arg.is_callable() {
             (Some(replacer_arg), None)
-        } else if replacer_arg.class(env) == Some(name::ARRAY_CLASS) {
+        } else if replacer_arg.class() == Some(name::ARRAY_CLASS) {
             let mut property_list = Vec::new();
             
             let length = try!(value.get(env, name::LENGTH)).unwrap_number() as usize;
@@ -35,7 +35,7 @@ impl<'a> JsonWriter<'a> {
                 let include = match element.ty() {
                     JsType::String | JsType::Number => true,
                     JsType::Object => {
-                        match element.class(env) {
+                        match element.class() {
                             Some(name::STRING_CLASS) | Some(name::NUMBER_CLASS) => true,
                             _ => false
                         }
@@ -67,23 +67,23 @@ impl<'a> JsonWriter<'a> {
         })
     }
     
-    pub fn write(&mut self) -> JsResult<Local<JsValue>> {
+    pub fn write(&mut self) -> JsResult<JsValue> {
         let value = self.value;
         let value = try!(self.transform(value, None, None));
         
         if self.ignore(value) {
-            Ok(self.env.new_undefined())
+            Ok(JsValue::new_undefined())
         } else {
             let mut json = String::new();
             
             try!(self.write_value(&mut json, value));
             
-            Ok(JsString::from_str(self.env, &json).as_value(self.env))
+            Ok(JsString::from_str(self.env, &json).as_value())
         }
     }
     
-    fn ignore(&mut self, value: Local<JsValue>) -> bool {
-        value.is_undefined() || value.is_callable(self.env)
+    fn ignore(&mut self, value: JsValue) -> bool {
+        value.is_undefined() || value.is_callable()
     }
     
     fn write_string(&mut self, json: &mut String, value: &str) {
@@ -124,7 +124,7 @@ impl<'a> JsonWriter<'a> {
         Ok(())
     }
     
-    fn write_element(&mut self, json: &mut String, object: Local<JsObject>, name: Name, value: Local<JsValue>, had_one: &mut bool) -> JsResult<()> {
+    fn write_element(&mut self, json: &mut String, object: Local<JsObject>, name: Name, value: JsValue, had_one: &mut bool) -> JsResult<()> {
         let element = try!(object.get(self.env, name));
         let element = try!(self.transform(element, Some(name), Some(value)));
         if !self.ignore(element) {
@@ -143,8 +143,8 @@ impl<'a> JsonWriter<'a> {
         Ok(())
     }
     
-    fn write_object(&mut self, json: &mut String, value: Local<JsValue>) -> JsResult<()> {
-        let mut object = value.unwrap_object(self.env);
+    fn write_object(&mut self, json: &mut String, value: JsValue) -> JsResult<()> {
+        let mut object = value.unwrap_object();
         let ptr = object.as_ptr().ptr();
         
         if self.stack.contains(&ptr) {
@@ -179,7 +179,7 @@ impl<'a> JsonWriter<'a> {
                     }
                     JsStoreKey::End => {
                         if let Some(prototype) = object.prototype(self.env) {
-                            object = prototype.unwrap_object(self.env);
+                            object = prototype.unwrap_object();
                             
                             offset = 0;
                         } else {
@@ -197,8 +197,8 @@ impl<'a> JsonWriter<'a> {
         Ok(())
     }
     
-    fn write_array(&mut self, json: &mut String, value: Local<JsValue>) -> JsResult<()> {
-        let object = value.unwrap_object(self.env);
+    fn write_array(&mut self, json: &mut String, value: JsValue) -> JsResult<()> {
+        let object = value.unwrap_object();
         let ptr = object.as_ptr().ptr();
         
         if self.stack.contains(&ptr) {
@@ -234,17 +234,17 @@ impl<'a> JsonWriter<'a> {
         Ok(())
     }
     
-    fn key_to_string(&mut self, key: Option<Name>) -> Local<JsValue> {
+    fn key_to_string(&mut self, key: Option<Name>) -> JsValue {
         match key {
-            Some(name) => JsString::from_str(self.env, &*self.env.ir.interner().get(name)).as_value(self.env),
-            None => self.env.new_undefined()
+            Some(name) => JsString::from_str(self.env, &*self.env.ir.interner().get(name)).as_value(),
+            None => JsValue::new_undefined()
         }
     }
     
-    fn transform(&mut self, mut value: Local<JsValue>, key: Option<Name>, holder: Option<Local<JsValue>>) -> JsResult<Local<JsValue>> {
+    fn transform(&mut self, mut value: JsValue, key: Option<Name>, holder: Option<JsValue>) -> JsResult<JsValue> {
         if value.ty() == JsType::Object {
             let to_json = try!(value.get(self.env, name::TO_JSON));
-            if to_json.is_callable(self.env) {
+            if to_json.is_callable() {
                 let args = vec![self.key_to_string(key)];
                 value = try!(to_json.call(self.env, value, args, self.strict));
             }
@@ -256,7 +256,7 @@ impl<'a> JsonWriter<'a> {
                 None => {
                     let mut holder = self.env.create_object();
                     try!(holder.define_own_property(self.env, name::EMPTY, JsDescriptor::new_simple_value(value), false));
-                    holder.as_value(self.env)
+                    holder.as_value()
                 }
             };
             
@@ -267,13 +267,13 @@ impl<'a> JsonWriter<'a> {
         Ok(value)
     }
     
-    fn write_value(&mut self, json: &mut String, mut value: Local<JsValue>) -> JsResult<()> {
+    fn write_value(&mut self, json: &mut String, mut value: JsValue) -> JsResult<()> {
         // Ignored values must be handled higher up.
         assert!(!self.ignore(value));
         
-        match value.class(self.env) {
+        match value.class() {
             Some(name::NUMBER_CLASS) | Some(name::STRING_CLASS) | Some(name::BOOLEAN_CLASS)
-                => value = value.unwrap_object(self.env).value(self.env),
+                => value = value.unwrap_object().value(self.env),
             Some(name::ARRAY_CLASS) => return self.write_array(json, value),
             _ => {}
         }
@@ -286,7 +286,7 @@ impl<'a> JsonWriter<'a> {
                 json.push_str("false");
             },
             JsType::String => {
-                let string = value.unwrap_string(self.env).to_string();
+                let string = value.unwrap_string().to_string();
                 self.write_string(json, &string);
             }
             JsType::Number => try!(self.write_number(json, value.unwrap_number())),
